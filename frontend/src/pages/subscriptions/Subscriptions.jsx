@@ -9,7 +9,7 @@ import {
   togglePlanStatus,
   deletePlan,
 } from '../../redux/slices/subscriptionPlanSlice';
-import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
+import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/sweetAlert';
 import { pharmacyService } from '../../services/pharmacyService';
 import Drawer from '../../components/common/Drawer';
 
@@ -29,6 +29,8 @@ export default function Subscriptions() {
   const { items: pharmacies, total: pharmacyTotal, loading: pharmacyLoading } = useSelector((state) => state.pharmacies);
   const { items: plans, total: planTotal, loading: planLoading } = useSelector((state) => state.subscriptionPlans);
 
+  const activePlans = useSelector((state) => state.subscriptionPlans.activePlans);
+
   const [activeTab, setActiveTab] = useState('plans');
 
   // ------ Plans State ------
@@ -44,16 +46,12 @@ export default function Subscriptions() {
   const [subPage, setSubPage] = useState(1);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState({ subscriptionPlanId: '', subscriptionPlan: '', subscriptionEndDate: '' });
+  const [calculatedEndDate, setCalculatedEndDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [activePlans, setActivePlans] = useState([]);
 
   // Load active plans for dropdown
   useEffect(() => {
-    dispatch(fetchActivePlans()).then((res) => {
-      if (res.payload?.data) {
-        setActivePlans(res.payload.data);
-      }
-    });
+    dispatch(fetchActivePlans());
   }, [dispatch]);
 
   // ------ Plans handlers ------
@@ -141,11 +139,19 @@ export default function Subscriptions() {
     }
   };
 
-  const handleTogglePlanStatus = async (id) => {
+  const handleTogglePlanStatus = async (id, planName, isActive) => {
+    const action = isActive ? 'deactivate' : 'activate';
+    const confirmed = await showConfirm(
+      `${action === 'deactivate' ? 'Deactivate' : 'Activate'} Plan`,
+      `Are you sure you want to ${action} "${planName}"? ${action === 'deactivate' ? 'This plan will no longer be available for new subscriptions.' : 'This plan will become available for new subscriptions.'}`,
+      'question'
+    );
+    if (!confirmed) return;
+
     try {
       await dispatch(togglePlanStatus(id)).unwrap();
-      dispatch(fetchActivePlans());
-      showSuccess('Plan status updated');
+      // The Redux slice reducer handles updating both items and activePlans instantly
+      showSuccess(`Plan ${action}d successfully`);
     } catch (error) {
       showError(error || 'Failed to toggle status');
     }
@@ -177,6 +183,29 @@ export default function Subscriptions() {
   useEffect(() => {
     setSubPage(1);
   }, [subSearch]);
+
+  // Helper to calculate end date based on plan duration
+  const calculateEndDate = (planId, startDate) => {
+    if (!planId || !startDate) return '';
+    const plan = activePlans.find((p) => p._id === planId);
+    if (!plan || !plan.duration) return '';
+    const start = new Date(startDate);
+    let end = new Date(start);
+    switch (plan.durationUnit) {
+      case 'days':
+        end.setDate(end.getDate() + plan.duration);
+        break;
+      case 'months':
+        end.setMonth(end.getMonth() + plan.duration);
+        break;
+      case 'years':
+        end.setFullYear(end.getFullYear() + plan.duration);
+        break;
+      default:
+        end.setMonth(end.getMonth() + plan.duration);
+    }
+    return end.toISOString().split('T')[0];
+  };
 
   // Helper to check if a value looks like a MongoDB ObjectId
   const isObjectId = (val) => /^[0-9a-fA-F]{24}$/.test(val);
@@ -215,6 +244,7 @@ export default function Subscriptions() {
   const closeEdit = () => {
     setEditing(null);
     setFormData({ subscriptionPlanId: '', subscriptionPlan: '', subscriptionEndDate: '' });
+    setCalculatedEndDate('');
   };
 
   const handleUpdate = async (e) => {
@@ -384,7 +414,7 @@ export default function Subscriptions() {
                               </button>
                               <button
                                 className={`btn btn-sm ${plan.isActive ? 'btn-secondary' : 'btn-success'}`}
-                                onClick={() => handleTogglePlanStatus(plan._id)}
+                                onClick={() => handleTogglePlanStatus(plan._id, plan.planName, plan.isActive)}
                                 title={plan.isActive ? 'Deactivate' : 'Activate'}
                               >
                                 <i className={`fa-solid ${plan.isActive ? 'fa-pause' : 'fa-play'}`}></i>
@@ -526,9 +556,14 @@ export default function Subscriptions() {
                       // Check if selected value matches an active plan ID
                       const selectedPlan = activePlans.find((p) => p._id === val);
                       if (selectedPlan) {
-                        setFormData({ ...formData, subscriptionPlanId: val, subscriptionPlan: selectedPlan.planName });
+                        // Auto-calculate end date based on plan duration
+                        const startDate = editing?.subscriptionStartDate ? new Date(editing.subscriptionStartDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                        const endDate = calculateEndDate(val, startDate);
+                        setFormData({ ...formData, subscriptionPlanId: val, subscriptionPlan: selectedPlan.planName, subscriptionEndDate: endDate });
+                        setCalculatedEndDate(endDate);
                       } else {
-                        setFormData({ ...formData, subscriptionPlanId: '', subscriptionPlan: val });
+                        setFormData({ ...formData, subscriptionPlanId: '', subscriptionPlan: val, subscriptionEndDate: '' });
+                        setCalculatedEndDate('');
                       }
                     }}
                     required
@@ -543,8 +578,17 @@ export default function Subscriptions() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>End Date</label>
-                  <input type="date" value={formData.subscriptionEndDate} onChange={(e) => setFormData({ ...formData, subscriptionEndDate: e.target.value })} />
+                  <label>End Date (auto-calculated)</label>
+                  <input
+                    type="date"
+                    value={formData.subscriptionEndDate}
+                    readOnly
+                    className="form-control"
+                    style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
+                  />
+                  <small style={{ color: '#888', fontSize: '12px' }}>
+                    End date is calculated automatically based on the selected plan's duration.
+                  </small>
                 </div>
               </form>
             )}

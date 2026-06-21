@@ -1,4 +1,5 @@
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
+import Pharmacy from '../models/Pharmacy.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 // @desc    Create a subscription plan
@@ -154,7 +155,7 @@ export const togglePlanStatus = async (req, res, next) => {
   }
 };
 
-// @desc    Soft delete subscription plan
+// @desc    Delete subscription plan (only if never used)
 // @route   DELETE /api/subscription-plans/:id
 // @access  Private/SuperAdmin
 export const deletePlan = async (req, res, next) => {
@@ -164,8 +165,24 @@ export const deletePlan = async (req, res, next) => {
       return ApiResponse.error(res, 'Subscription plan not found', 404);
     }
 
-    plan.isDeleted = true;
-    await plan.save();
+    // Check if any pharmacies (current or historical) reference this plan
+    const assignedCount = await Pharmacy.countDocuments({
+      $or: [
+        { subscriptionPlanId: plan._id },
+        { subscriptionPlan: { $regex: `^${plan.planName}$`, $options: 'i' } },
+      ],
+    });
+
+    if (assignedCount > 0) {
+      return ApiResponse.error(
+        res,
+        'This subscription plan is already in use and cannot be deleted.',
+        400
+      );
+    }
+
+    // Permanently delete since no pharmacy has ever used it
+    await SubscriptionPlan.deleteOne({ _id: plan._id });
 
     return ApiResponse.success(res, null, 'Subscription plan deleted successfully');
   } catch (error) {

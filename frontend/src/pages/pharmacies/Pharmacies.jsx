@@ -5,10 +5,12 @@ import {
   createPharmacy,
   updatePharmacy,
   deletePharmacy,
+  togglePharmacyStatus,
 } from '../../redux/slices/pharmacySlice';
 import { fetchActivePlans } from '../../redux/slices/subscriptionPlanSlice';
 import Drawer from '../../components/common/Drawer';
-import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
+import { pharmacyService } from '../../services/pharmacyService';
+import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/sweetAlert';
 
 const initialFormState = {
   pharmacyName: '',
@@ -32,6 +34,8 @@ export default function Pharmacies() {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [viewDrawerOpen, setViewDrawerOpen] = useState(false);
+  const [viewPharmacy, setViewPharmacy] = useState(null);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(initialFormState);
   const [submitting, setSubmitting] = useState(false);
@@ -91,9 +95,28 @@ export default function Pharmacies() {
     setDrawerOpen(true);
   };
 
+  const openViewDrawer = (pharmacy) => {
+    // Fetch full pharmacy details including admin info
+    pharmacyService.getPharmacy(pharmacy._id).then((res) => {
+      if (res.data?.data) {
+        setViewPharmacy(res.data.data);
+      } else {
+        setViewPharmacy(pharmacy);
+      }
+    }).catch(() => {
+      setViewPharmacy(pharmacy);
+    });
+    setViewDrawerOpen(true);
+  };
+
   const closeDrawer = () => {
     setDrawerOpen(false);
     setEditing(null);
+  };
+
+  const closeViewDrawer = () => {
+    setViewDrawerOpen(false);
+    setViewPharmacy(null);
   };
 
   const handleChange = (e) => {
@@ -136,14 +159,37 @@ export default function Pharmacies() {
     }
   };
 
-  const handleDelete = async (id) => {
-    const confirmed = await confirmDelete('this pharmacy');
+  const handleToggleStatus = async (pharmacy) => {
+    const newStatus = pharmacy.status === 'active' ? 'inactive' : 'active';
+    const action = newStatus === 'active' ? 'activate' : 'deactivate';
+    
+    const confirmed = await showConfirm(
+      `${action === 'deactivate' ? 'Deactivate' : 'Activate'} Pharmacy`,
+      action === 'deactivate'
+        ? `Are you sure you want to deactivate "${pharmacy.pharmacyName}"? All users of this pharmacy will be blocked from logging in.`
+        : `Are you sure you want to activate "${pharmacy.pharmacyName}"? All users will be able to log in again.`,
+      action === 'deactivate' ? 'warning' : 'question'
+    );
+    if (!confirmed) return;
+
+    try {
+      await dispatch(togglePharmacyStatus({ id: pharmacy._id, status: newStatus })).unwrap();
+      showSuccess(`Pharmacy ${action}d successfully`);
+      loadPharmacies();
+    } catch (error) {
+      showError(error || `Failed to ${action} pharmacy`);
+    }
+  };
+
+  const handleDelete = async (id, pharmacyName) => {
+    const confirmed = await confirmDelete(`"${pharmacyName}" pharmacy`);
     if (!confirmed) return;
     try {
       await dispatch(deletePharmacy(id)).unwrap();
       showSuccess('Pharmacy deleted successfully');
+      loadPharmacies();
     } catch (error) {
-      showError(error || 'Delete failed');
+      showError(error || 'Failed to delete pharmacy');
     }
   };
 
@@ -237,10 +283,20 @@ export default function Pharmacies() {
                       </td>
                       <td>
                         <div className="action-buttons">
-                          <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(pharmacy)}>
+                          <button className="btn btn-info btn-sm" onClick={() => openViewDrawer(pharmacy)} title="View Details">
+                            <i className="fa-solid fa-eye"></i>
+                          </button>
+                          <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(pharmacy)} title="Edit">
                             <i className="fa-solid fa-edit"></i>
                           </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(pharmacy._id)}>
+                          <button
+                            className={`btn btn-sm ${pharmacy.status === 'active' ? 'btn-secondary' : 'btn-success'}`}
+                            onClick={() => handleToggleStatus(pharmacy)}
+                            title={pharmacy.status === 'active' ? 'Deactivate' : 'Activate'}
+                          >
+                            <i className={`fa-solid ${pharmacy.status === 'active' ? 'fa-pause' : 'fa-play'}`}></i>
+                          </button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(pharmacy._id, pharmacy.pharmacyName)} title="Delete">
                             <i className="fa-solid fa-trash"></i>
                           </button>
                         </div>
@@ -263,6 +319,7 @@ export default function Pharmacies() {
         </div>
       </div>
 
+      {/* Create/Edit Drawer */}
       <Drawer
         isOpen={drawerOpen}
         onClose={closeDrawer}
@@ -352,6 +409,175 @@ export default function Pharmacies() {
             </>
           )}
         </form>
+      </Drawer>
+
+      {/* View Details Drawer */}
+      <Drawer
+        isOpen={viewDrawerOpen}
+        onClose={closeViewDrawer}
+        title={viewPharmacy ? `Pharmacy Details - ${viewPharmacy.pharmacyName}` : 'Pharmacy Details'}
+        footer={
+          <button type="button" className="btn btn-secondary" onClick={closeViewDrawer}>Close</button>
+        }
+      >
+        {viewPharmacy && (
+          <div style={{ padding: '4px 0' }}>
+            {/* Status Banner */}
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              marginBottom: '20px',
+              backgroundColor: viewPharmacy.status === 'active' ? '#e8f5e9' : '#fff3e0',
+              border: `1px solid ${viewPharmacy.status === 'active' ? '#a5d6a7' : '#ffcc80'}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}>
+              <i className={`fa-solid ${viewPharmacy.status === 'active' ? 'fa-check-circle' : 'fa-exclamation-triangle'}`}
+                style={{ fontSize: '24px', color: viewPharmacy.status === 'active' ? '#4caf50' : '#ff9800' }}></i>
+              <div>
+                <strong style={{ fontSize: '15px', color: viewPharmacy.status === 'active' ? '#2e7d32' : '#e65100' }}>
+                  {viewPharmacy.status === 'active' ? 'Active' : 'Inactive'}
+                </strong>
+                <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#666' }}>
+                  {viewPharmacy.status === 'active'
+                    ? 'This pharmacy is active and all users can log in.'
+                    : 'This pharmacy is deactivated. Users cannot log in.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Pharmacy Information Card */}
+            <div className="card" style={{ marginBottom: '16px', border: '1px solid var(--gray-200)' }}>
+              <div className="card-header" style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid var(--gray-200)' }}>
+                <h6 style={{ margin: 0, color: 'var(--primary-color)' }}>
+                  <i className="fa-solid fa-hospital"></i> Pharmacy Information
+                </h6>
+              </div>
+              <div className="card-body" style={{ padding: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Pharmacy Code</label>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>{viewPharmacy.pharmacyCode || viewPharmacy._id?.slice(-6).toUpperCase() || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Pharmacy Name</label>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>{viewPharmacy.pharmacyName}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Owner Name</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.ownerName}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Email</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.email}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Phone</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.phone}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>License Number</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.licenseNumber || 'N/A'}</span>
+                  </div>
+                </div>
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Address</label>
+                  <span style={{ fontSize: '14px' }}>{viewPharmacy.address || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pharmacy Admin Card */}
+            <div className="card" style={{ marginBottom: '16px', border: '1px solid var(--gray-200)' }}>
+              <div className="card-header" style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid var(--gray-200)' }}>
+                <h6 style={{ margin: 0, color: 'var(--primary-color)' }}>
+                  <i className="fa-solid fa-user-shield"></i> Pharmacy Admin
+                </h6>
+              </div>
+              <div className="card-body" style={{ padding: '16px' }}>
+                {viewPharmacy.pharmacyAdmin ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Admin Name</label>
+                      <span style={{ fontSize: '14px', fontWeight: 500 }}>{viewPharmacy.pharmacyAdmin.name}</span>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Admin Email</label>
+                      <span style={{ fontSize: '14px' }}>{viewPharmacy.pharmacyAdmin.email}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '14px', color: '#888', margin: 0 }}>No admin assigned</p>
+                )}
+              </div>
+            </div>
+
+            {/* Subscription Card */}
+            <div className="card" style={{ marginBottom: '16px', border: '1px solid var(--gray-200)' }}>
+              <div className="card-header" style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid var(--gray-200)' }}>
+                <h6 style={{ margin: 0, color: 'var(--primary-color)' }}>
+                  <i className="fa-solid fa-credit-card"></i> Subscription Details
+                </h6>
+              </div>
+              <div className="card-body" style={{ padding: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Subscription Plan</label>
+                    <span className={`badge ${viewPharmacy.subscriptionPlan === 'free' ? 'badge-secondary' : 'badge-info'}`} style={{ textTransform: 'capitalize' }}>
+                      {viewPharmacy.subscriptionPlan}
+                    </span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Subscription Status</label>
+                    <span className={`badge ${getStatusBadge(viewPharmacy.status)}`} style={{ textTransform: 'capitalize' }}>
+                      {viewPharmacy.status}
+                    </span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Start Date</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.subscriptionStartDate ? new Date(viewPharmacy.subscriptionStartDate).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>End Date</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.subscriptionEndDate ? new Date(viewPharmacy.subscriptionEndDate).toLocaleDateString() : 'No end date'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* System Info Card */}
+            <div className="card" style={{ marginBottom: '16px', border: '1px solid var(--gray-200)' }}>
+              <div className="card-header" style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid var(--gray-200)' }}>
+                <h6 style={{ margin: 0, color: 'var(--primary-color)' }}>
+                  <i className="fa-solid fa-circle-info"></i> System Information
+                </h6>
+              </div>
+              <div className="card-body" style={{ padding: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Total Users</label>
+                    <span style={{ fontSize: '14px' }}>—</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Created Date</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.createdAt ? new Date(viewPharmacy.createdAt).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Last Updated</label>
+                    <span style={{ fontSize: '14px' }}>{viewPharmacy.updatedAt ? new Date(viewPharmacy.updatedAt).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '2px' }}>Status</label>
+                    <span className={`badge ${getStatusBadge(viewPharmacy.status)}`} style={{ textTransform: 'capitalize' }}>
+                      {viewPharmacy.status === 'active' ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </Drawer>
     </div>
   );

@@ -1,6 +1,10 @@
 import Pharmacy from '../models/Pharmacy.js';
 import User from '../models/User.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
+import Medicine from '../models/Medicine.js';
+import Category from '../models/Category.js';
+import Brand from '../models/Brand.js';
+import Supplier from '../models/Supplier.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 // Helper to resolve subscription plan: if it's an ObjectId, look up plan name
@@ -114,7 +118,7 @@ export const getPharmacies = async (req, res, next) => {
   }
 };
 
-// @desc    Get single pharmacy
+// @desc    Get single pharmacy with admin details
 // @route   GET /api/pharmacies/:id
 // @access  Private/SuperAdmin
 export const getPharmacy = async (req, res, next) => {
@@ -123,7 +127,14 @@ export const getPharmacy = async (req, res, next) => {
     if (!pharmacy) {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
-    return ApiResponse.success(res, pharmacy);
+
+    // Find the admin user for this pharmacy
+    const adminUser = await User.findOne({ pharmacyId: pharmacy._id, role: 'admin' }).select('name email phone');
+
+    const pharmacyData = pharmacy.toObject();
+    pharmacyData.pharmacyAdmin = adminUser || null;
+
+    return ApiResponse.success(res, pharmacyData);
   } catch (error) {
     next(error);
   }
@@ -163,7 +174,7 @@ export const updatePharmacy = async (req, res, next) => {
   }
 };
 
-// @desc    Delete pharmacy
+// @desc    Delete pharmacy with related data check
 // @route   DELETE /api/pharmacies/:id
 // @access  Private/SuperAdmin
 export const deletePharmacy = async (req, res, next) => {
@@ -173,11 +184,25 @@ export const deletePharmacy = async (req, res, next) => {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
 
-    // Deactivate all users under this pharmacy
-    await User.updateMany(
-      { pharmacyId: pharmacy._id },
-      { isActive: false }
-    );
+    // Check for related data before allowing deletion
+    const relatedChecks = await Promise.all([
+      User.countDocuments({ pharmacyId: pharmacy._id }),
+      Medicine.countDocuments({ pharmacyId: pharmacy._id, isDeleted: false }),
+      Category.countDocuments({ pharmacyId: pharmacy._id }),
+      Brand.countDocuments({ pharmacyId: pharmacy._id }),
+      Supplier.countDocuments({ pharmacyId: pharmacy._id }),
+    ]);
+
+    const [userCount, medicineCount, categoryCount, brandCount, supplierCount] = relatedChecks;
+    const totalRelated = userCount + medicineCount + categoryCount + brandCount + supplierCount;
+
+    if (totalRelated > 0) {
+      return ApiResponse.error(
+        res,
+        'Cannot delete this pharmacy because it contains related data. Please deactivate it instead.',
+        400
+      );
+    }
 
     await pharmacy.deleteOne();
     return ApiResponse.success(res, null, 'Pharmacy deleted successfully');
@@ -233,8 +258,8 @@ export const togglePharmacyStatus = async (req, res, next) => {
 
     pharmacy.status = status;
 
-    // If suspending, deactivate all pharmacy users
-    if (status === 'suspended') {
+    // If deactivating or suspending, deactivate all pharmacy users
+    if (status === 'inactive' || status === 'suspended') {
       await User.updateMany(
         { pharmacyId: pharmacy._id },
         { isActive: false }
