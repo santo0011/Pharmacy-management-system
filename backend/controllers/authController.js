@@ -86,6 +86,28 @@ export const getMe = async (req, res, next) => {
   }
 };
 
+// @desc    Update current user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+export const updateProfile = async (req, res, next) => {
+  try {
+    const { name, phone } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return ApiResponse.error(res, 'User not found', 404);
+    }
+
+    if (name) user.name = name;
+    if (phone !== undefined) user.phone = phone;
+
+    const updatedUser = await user.save();
+    return ApiResponse.success(res, updatedUser, 'Profile updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get all users
 // @route   GET /api/auth/users
 // @access  Private/SuperAdmin

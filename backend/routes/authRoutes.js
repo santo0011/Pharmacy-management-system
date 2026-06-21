@@ -1,5 +1,5 @@
 import express from 'express';
-import { login, getMe, getUsers, createUser, updateUser, deleteUser, resetPassword } from '../controllers/authController.js';
+import { login, getMe, updateProfile, getUsers, createUser, updateUser, deleteUser, resetPassword } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { loginValidator } from '../validators/authValidator.js';
 import { createUserValidator, updateUserValidator, resetPasswordValidator } from '../validators/userValidator.js';
@@ -12,6 +12,7 @@ router.post('/login', loginValidator, validate, login);
 
 // Protected routes
 router.get('/me', protect, getMe);
+router.put('/profile', protect, updateProfile);
 
 // Super Admin only routes
 router.get('/users', protect, authorize('super_admin'), getUsers);

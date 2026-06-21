@@ -6,6 +6,7 @@ import {
   updatePharmacy,
   deletePharmacy,
 } from '../../redux/slices/pharmacySlice';
+import { fetchActivePlans } from '../../redux/slices/subscriptionPlanSlice';
 import Drawer from '../../components/common/Drawer';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
@@ -16,18 +17,17 @@ const initialFormState = {
   phone: '',
   address: '',
   licenseNumber: '',
-  // Admin fields
   adminName: '',
   adminEmail: '',
   adminPassword: '',
   adminPhone: '',
-  // Subscription fields
-  subscriptionPlan: 'free',
+  subscriptionPlan: '',
 };
 
 export default function Pharmacies() {
   const dispatch = useDispatch();
   const { items, total, loading } = useSelector((state) => state.pharmacies);
+  const { activePlans } = useSelector((state) => state.subscriptionPlans);
 
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,6 +35,8 @@ export default function Pharmacies() {
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(initialFormState);
   const [submitting, setSubmitting] = useState(false);
+  const [localActivePlans, setLocalActivePlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
 
   const loadPharmacies = useCallback(() => {
     const params = { page: currentPage, limit: 10 };
@@ -47,6 +49,16 @@ export default function Pharmacies() {
   }, [loadPharmacies]);
 
   useEffect(() => {
+    setPlansLoading(true);
+    dispatch(fetchActivePlans()).then((res) => {
+      if (res.payload?.data) {
+        setLocalActivePlans(res.payload.data);
+      }
+      setPlansLoading(false);
+    });
+  }, [dispatch]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [search]);
 
@@ -54,7 +66,10 @@ export default function Pharmacies() {
 
   const openCreateDrawer = () => {
     setEditing(null);
-    setFormData(initialFormState);
+    setFormData({
+      ...initialFormState,
+      subscriptionPlan: localActivePlans.length > 0 ? localActivePlans[0]._id : (activePlans.length > 0 ? activePlans[0]._id : ''),
+    });
     setDrawerOpen(true);
   };
 
@@ -71,7 +86,7 @@ export default function Pharmacies() {
       adminEmail: '',
       adminPassword: '',
       adminPhone: '',
-      subscriptionPlan: pharmacy.subscriptionPlan || 'free',
+      subscriptionPlan: pharmacy.subscriptionPlanId || pharmacy.subscriptionPlan || 'free',
     });
     setDrawerOpen(true);
   };
@@ -98,7 +113,6 @@ export default function Pharmacies() {
     setSubmitting(true);
     try {
       if (editing) {
-        // Editing only updates pharmacy info (not admin)
         const pharmacyData = {
           pharmacyName: formData.pharmacyName,
           ownerName: formData.ownerName,
@@ -110,7 +124,6 @@ export default function Pharmacies() {
         await dispatch(updatePharmacy({ id: editing._id, ...pharmacyData })).unwrap();
         showSuccess('Pharmacy updated successfully');
       } else {
-        // Creating includes pharmacy + admin + subscription in one API call
         await dispatch(createPharmacy(formData)).unwrap();
         showSuccess('Pharmacy created with Admin account successfully');
       }
@@ -153,6 +166,13 @@ export default function Pharmacies() {
     </>
   );
 
+  const noPlansMessage = (
+    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--gray-500)' }}>
+      <i className="fa-solid fa-exclamation-circle"></i>
+      <p>No subscription plans available. Please create a subscription plan first in <a href="/subscriptions" style={{ color: 'var(--primary-color)' }}>Subscription Management</a>.</p>
+    </div>
+  );
+
   return (
     <div>
       <div className="page-header">
@@ -160,9 +180,15 @@ export default function Pharmacies() {
           <h2>Pharmacy Management</h2>
           <p>Manage all registered pharmacies on the platform</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreateDrawer}>
-          <i className="fa-solid fa-plus"></i> Add Pharmacy
-        </button>
+        {localActivePlans.length === 0 && !plansLoading ? (
+          <button className="btn btn-primary" disabled title="Create a subscription plan first">
+            <i className="fa-solid fa-plus"></i> Add Pharmacy
+          </button>
+        ) : (
+          <button className="btn btn-primary" onClick={openCreateDrawer}>
+            <i className="fa-solid fa-plus"></i> Add Pharmacy
+          </button>
+        )}
       </div>
 
       <div className="card">
@@ -274,47 +300,55 @@ export default function Pharmacies() {
             <input type="text" name="licenseNumber" value={formData.licenseNumber} onChange={handleChange} placeholder="Enter license number" />
           </div>
 
-          {!editing && (
+          {localActivePlans.length === 0 && !plansLoading ? (
+            noPlansMessage
+          ) : (
             <>
-              <hr style={{ margin: '20px 0', borderColor: 'var(--gray-200)' }} />
-              <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
-                <i className="fa-solid fa-user-shield"></i> Pharmacy Admin Account
-              </h4>
-              <p style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '16px' }}>
-                An admin account will be automatically created and linked to this pharmacy.
-              </p>
-              <div className="form-group">
-                <label>Admin Full Name *</label>
-                <input type="text" name="adminName" value={formData.adminName} onChange={handleChange} placeholder="Enter admin name" required />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="form-group">
-                  <label>Admin Email *</label>
-                  <input type="email" name="adminEmail" value={formData.adminEmail} onChange={handleChange} placeholder="Admin login email" required />
-                </div>
-                <div className="form-group">
-                  <label>Admin Password *</label>
-                  <input type="password" name="adminPassword" value={formData.adminPassword} onChange={handleChange} placeholder="Admin password" required />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Admin Phone</label>
-                <input type="text" name="adminPhone" value={formData.adminPhone} onChange={handleChange} placeholder="Admin phone number" />
-              </div>
+              {!editing && (
+                <>
+                  <hr style={{ margin: '20px 0', borderColor: 'var(--gray-200)' }} />
+                  <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+                    <i className="fa-solid fa-user-shield"></i> Pharmacy Admin Account
+                  </h4>
+                  <p style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '16px' }}>
+                    An admin account will be automatically created and linked to this pharmacy.
+                  </p>
+                  <div className="form-group">
+                    <label>Admin Full Name *</label>
+                    <input type="text" name="adminName" value={formData.adminName} onChange={handleChange} placeholder="Enter admin name" required />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-group">
+                      <label>Admin Email *</label>
+                      <input type="email" name="adminEmail" value={formData.adminEmail} onChange={handleChange} placeholder="Admin login email" required />
+                    </div>
+                    <div className="form-group">
+                      <label>Admin Password *</label>
+                      <input type="password" name="adminPassword" value={formData.adminPassword} onChange={handleChange} placeholder="Admin password" required />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Admin Phone</label>
+                    <input type="text" name="adminPhone" value={formData.adminPhone} onChange={handleChange} placeholder="Admin phone number" />
+                  </div>
 
-              <hr style={{ margin: '20px 0', borderColor: 'var(--gray-200)' }} />
-              <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
-                <i className="fa-solid fa-credit-card"></i> Subscription Plan
-              </h4>
-              <div className="form-group">
-                <label>Subscription Plan</label>
-                <select name="subscriptionPlan" value={formData.subscriptionPlan} onChange={handleChange}>
-                  <option value="free">Free</option>
-                  <option value="basic">Basic</option>
-                  <option value="premium">Premium</option>
-                  <option value="enterprise">Enterprise</option>
-                </select>
-              </div>
+                  <hr style={{ margin: '20px 0', borderColor: 'var(--gray-200)' }} />
+                  <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+                    <i className="fa-solid fa-credit-card"></i> Subscription Plan
+                  </h4>
+                  <div className="form-group">
+                    <label>Subscription Plan</label>
+                    <select name="subscriptionPlan" value={formData.subscriptionPlan} onChange={handleChange} required>
+                      <option value="">-- Select Plan --</option>
+                      {localActivePlans.map((plan) => (
+                        <option key={plan._id} value={plan._id}>
+                          {plan.planName} (₹{plan.price} / {plan.duration} {plan.durationUnit})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
             </>
           )}
         </form>

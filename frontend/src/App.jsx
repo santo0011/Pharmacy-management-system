@@ -9,6 +9,13 @@ import Brands from './pages/brands/Brands';
 import Suppliers from './pages/suppliers/Suppliers';
 import Pharmacies from './pages/pharmacies/Pharmacies';
 import Staff from './pages/staff/Staff';
+import Medicines from './pages/medicines/Medicines';
+import MedicineForm from './pages/medicines/MedicineForm';
+import MedicineDetail from './pages/medicines/MedicineDetail';
+import Subscriptions from './pages/subscriptions/Subscriptions';
+import Payments from './pages/payments/Payments';
+import Settings from './pages/settings/Settings';
+import Profile from './pages/profile/Profile';
 
 function PublicRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -52,20 +59,23 @@ export default function App() {
 
         {/* Super Admin routes */}
         <Route path="pharmacies" element={<Pharmacies />} />
-        <Route path="subscriptions" element={<Dashboard />} />
-        <Route path="payments" element={<Dashboard />} />
-        <Route path="settings" element={<Dashboard />} />
-        <Route path="profile" element={<Dashboard />} />
+        <Route path="subscriptions" element={<Subscriptions />} />
+        <Route path="payments" element={<Payments />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="profile" element={<Profile />} />
 
         {/* Pharmacy User routes */}
         <Route path="categories" element={<Categories />} />
         <Route path="brands" element={<Brands />} />
         <Route path="suppliers" element={<Suppliers />} />
-        <Route path="medicines" element={<Dashboard />} />
         <Route path="purchases" element={<Dashboard />} />
         <Route path="sales" element={<Dashboard />} />
         <Route path="customers" element={<Dashboard />} />
         <Route path="reports" element={<Dashboard />} />
+        <Route path="medicines" element={<Medicines />} />
+        <Route path="medicines/new" element={<MedicineForm />} />
+        <Route path="medicines/:id" element={<MedicineDetail />} />
+        <Route path="medicines/:id/edit" element={<MedicineForm />} />
         <Route path="staff" element={<Staff />} />
       </Route>
 

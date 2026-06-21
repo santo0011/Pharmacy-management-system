@@ -1,6 +1,22 @@
 import Pharmacy from '../models/Pharmacy.js';
 import User from '../models/User.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import ApiResponse from '../utils/apiResponse.js';
+
+// Helper to resolve subscription plan: if it's an ObjectId, look up plan name
+const resolveSubscriptionPlan = async (subscriptionPlan) => {
+  if (!subscriptionPlan) {
+    return { planName: 'free', planId: null };
+  }
+  // Check if it's a valid ObjectId (24 hex chars)
+  if (/^[0-9a-fA-F]{24}$/.test(subscriptionPlan)) {
+    const plan = await SubscriptionPlan.findById(subscriptionPlan);
+    if (plan) {
+      return { planName: plan.planName, planId: plan._id };
+    }
+  }
+  return { planName: subscriptionPlan, planId: null };
+};
 
 // @desc    Create a new pharmacy with admin account and subscription
 // @route   POST /api/pharmacies
@@ -24,6 +40,9 @@ export const createPharmacy = async (req, res, next) => {
       return ApiResponse.error(res, 'Admin email already registered', 400);
     }
 
+    // Resolve subscription plan name from ObjectId if needed
+    const resolved = await resolveSubscriptionPlan(subscriptionPlan);
+
     // 1. Create Pharmacy
     const pharmacy = await Pharmacy.create({
       pharmacyName,
@@ -32,7 +51,8 @@ export const createPharmacy = async (req, res, next) => {
       phone,
       address,
       licenseNumber,
-      subscriptionPlan: subscriptionPlan || 'free',
+      subscriptionPlan: resolved.planName,
+      subscriptionPlanId: resolved.planId,
       subscriptionStartDate: subscriptionStartDate || Date.now(),
       subscriptionEndDate: subscriptionEndDate || null,
       createdBy: req.user._id,
@@ -246,14 +266,19 @@ export const updateSubscription = async (req, res, next) => {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
 
-    const { subscriptionPlan, subscriptionStartDate, subscriptionEndDate } = req.body;
+    const { subscriptionPlan, subscriptionPlanId, subscriptionStartDate, subscriptionEndDate } = req.body;
 
-    if (subscriptionPlan) {
-      const validPlans = ['free', 'basic', 'premium', 'enterprise'];
-      if (!validPlans.includes(subscriptionPlan)) {
-        return ApiResponse.error(res, 'Invalid subscription plan', 400);
+    if (subscriptionPlanId) {
+      const plan = await SubscriptionPlan.findOne({ _id: subscriptionPlanId, isDeleted: false, isActive: true });
+      if (!plan) {
+        return ApiResponse.error(res, 'Invalid or inactive subscription plan', 400);
       }
+      pharmacy.subscriptionPlan = plan.planName;
+      pharmacy.subscriptionPlanId = plan._id;
+    } else if (subscriptionPlan) {
+      // Allow free/basic/premium/enterprise as fallback for existing records
       pharmacy.subscriptionPlan = subscriptionPlan;
+      pharmacy.subscriptionPlanId = null;
     }
 
     pharmacy.subscriptionStartDate = subscriptionStartDate || pharmacy.subscriptionStartDate;

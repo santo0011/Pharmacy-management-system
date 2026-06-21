@@ -27,18 +27,21 @@ const medicineSchema = mongoose.Schema(
       ref: 'Supplier',
       required: [true, 'Supplier is required'],
     },
+    hsnCode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     batchNumber: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
     barcode: {
       type: String,
-      unique: true,
+      default: '',
       sparse: true,
       trim: true,
-      default: '',
     },
     manufacturingDate: {
       type: Date,
@@ -95,6 +98,20 @@ const medicineSchema = mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    pharmacyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Pharmacy',
+      required: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     isDeleted: {
       type: Boolean,
       default: false,
@@ -109,6 +126,9 @@ const medicineSchema = mongoose.Schema(
   }
 );
 
+// Compound unique indexes for pharmacy-level uniqueness
+medicineSchema.index({ batchNumber: 1, pharmacyId: 1 }, { unique: true });
+medicineSchema.index({ barcode: 1, pharmacyId: 1 }, { unique: true, sparse: true });
 medicineSchema.index({ medicineName: 'text', genericName: 'text', batchNumber: 'text', barcode: 'text' });
 
 medicineSchema.statics.isLowStock = function (stock, minAlert) {

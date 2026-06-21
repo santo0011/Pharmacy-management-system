@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { confirmAction } from '../utils/sweetAlert';
 
 export default function SuperAdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -61,7 +62,7 @@ export default function SuperAdminLayout() {
             <i className="fa-solid fa-user"></i>
             <span>Profile</span>
           </NavLink>
-          <a className="sidebar-logout" onClick={logout} style={{ cursor: 'pointer' }}>
+          <a className="sidebar-logout" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }} style={{ cursor: 'pointer' }}>
             <i className="fa-solid fa-right-from-bracket"></i>
             <span>Logout</span>
           </a>

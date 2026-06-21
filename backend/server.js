@@ -13,7 +13,11 @@ import categoryRoutes from './routes/categoryRoutes.js';
 import brandRoutes from './routes/brandRoutes.js';
 import supplierRoutes from './routes/supplierRoutes.js';
 import pharmacyRoutes from './routes/pharmacyRoutes.js';
+import subscriptionPlanRoutes from './routes/subscriptionPlanRoutes.js';
+import settingRoutes from './routes/settingRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
+import medicineRoutes from './routes/medicineRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 dotenv.config();
 
@@ -41,7 +45,11 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/brands', brandRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/pharmacies', pharmacyRoutes);
+app.use('/api/subscription-plans', subscriptionPlanRoutes);
+app.use('/api/settings', settingRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/medicines', medicineRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

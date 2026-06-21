@@ -39,8 +39,12 @@ const pharmacySchema = mongoose.Schema(
     },
     subscriptionPlan: {
       type: String,
-      enum: ['free', 'basic', 'premium', 'enterprise'],
       default: 'free',
+    },
+    subscriptionPlanId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SubscriptionPlan',
+      default: null,
     },
     subscriptionStartDate: {
       type: Date,
