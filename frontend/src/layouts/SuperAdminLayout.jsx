@@ -12,7 +12,6 @@ export default function SuperAdminLayout() {
     const titles = {
       '/': 'Dashboard',
       '/pharmacies': 'Pharmacy Management',
-      '/users': 'User Management',
       '/subscriptions': 'Subscription Management',
       '/payments': 'Payment Management',
       '/settings': 'Platform Settings',
@@ -26,7 +25,6 @@ export default function SuperAdminLayout() {
     { path: '/pharmacies', label: 'Pharmacies', icon: 'fa-solid fa-hospital' },
     { path: '/subscriptions', label: 'Subscriptions', icon: 'fa-solid fa-credit-card' },
     { path: '/payments', label: 'Payments', icon: 'fa-solid fa-money-bill-wave' },
-    { path: '/users', label: 'Users', icon: 'fa-solid fa-users-gear' },
     { path: '/settings', label: 'Settings', icon: 'fa-solid fa-gear' },
   ];
 

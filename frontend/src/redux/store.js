@@ -5,6 +5,7 @@ import categoryReducer from './slices/categorySlice';
 import brandReducer from './slices/brandSlice';
 import supplierReducer from './slices/supplierSlice';
 import pharmacyReducer from './slices/pharmacySlice';
+import staffReducer from './slices/staffSlice';
 
 export const store = configureStore({
   reducer: {
@@ -14,5 +15,6 @@ export const store = configureStore({
     brands: brandReducer,
     suppliers: supplierReducer,
     pharmacies: pharmacyReducer,
+    staff: staffReducer,
   },
 });

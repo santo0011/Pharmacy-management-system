@@ -16,6 +16,13 @@ const initialFormState = {
   phone: '',
   address: '',
   licenseNumber: '',
+  // Admin fields
+  adminName: '',
+  adminEmail: '',
+  adminPassword: '',
+  adminPhone: '',
+  // Subscription fields
+  subscriptionPlan: 'free',
 };
 
 export default function Pharmacies() {
@@ -60,6 +67,11 @@ export default function Pharmacies() {
       phone: pharmacy.phone,
       address: pharmacy.address || '',
       licenseNumber: pharmacy.licenseNumber || '',
+      adminName: '',
+      adminEmail: '',
+      adminPassword: '',
+      adminPhone: '',
+      subscriptionPlan: pharmacy.subscriptionPlan || 'free',
     });
     setDrawerOpen(true);
   };
@@ -76,19 +88,34 @@ export default function Pharmacies() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.pharmacyName.trim() || !formData.ownerName.trim() || !formData.email.trim() || !formData.phone.trim()) {
-      showError('Please fill in all required fields');
+      showError('Please fill in all pharmacy required fields');
+      return;
+    }
+    if (!editing && (!formData.adminName.trim() || !formData.adminEmail.trim() || !formData.adminPassword.trim())) {
+      showError('Please fill in all Pharmacy Admin fields');
       return;
     }
     setSubmitting(true);
     try {
       if (editing) {
-        await dispatch(updatePharmacy({ id: editing._id, ...formData })).unwrap();
+        // Editing only updates pharmacy info (not admin)
+        const pharmacyData = {
+          pharmacyName: formData.pharmacyName,
+          ownerName: formData.ownerName,
+          email: formData.email,
+          phone: formData.phone,
+          address: formData.address,
+          licenseNumber: formData.licenseNumber,
+        };
+        await dispatch(updatePharmacy({ id: editing._id, ...pharmacyData })).unwrap();
         showSuccess('Pharmacy updated successfully');
       } else {
+        // Creating includes pharmacy + admin + subscription in one API call
         await dispatch(createPharmacy(formData)).unwrap();
-        showSuccess('Pharmacy created successfully');
+        showSuccess('Pharmacy created with Admin account successfully');
       }
       closeDrawer();
+      loadPharmacies();
     } catch (error) {
       showError(error || 'Operation failed');
     } finally {
@@ -121,7 +148,7 @@ export default function Pharmacies() {
       <button type="button" className="btn btn-secondary" onClick={closeDrawer}>Cancel</button>
       <button type="submit" form="pharmacyForm" className="btn btn-primary" disabled={submitting}>
         {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-        {editing ? 'Update' : 'Create'}
+        {editing ? 'Update Pharmacy' : 'Create Pharmacy'}
       </button>
     </>
   );
@@ -210,8 +237,16 @@ export default function Pharmacies() {
         </div>
       </div>
 
-      <Drawer isOpen={drawerOpen} onClose={closeDrawer} title={editing ? 'Edit Pharmacy' : 'Add Pharmacy'} footer={drawerFooter}>
+      <Drawer
+        isOpen={drawerOpen}
+        onClose={closeDrawer}
+        title={editing ? 'Edit Pharmacy' : 'Create New Pharmacy'}
+        footer={drawerFooter}
+      >
         <form id="pharmacyForm" onSubmit={handleSubmit}>
+          <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+            <i className="fa-solid fa-hospital"></i> Pharmacy Information
+          </h4>
           <div className="form-group">
             <label>Pharmacy Name *</label>
             <input type="text" name="pharmacyName" value={formData.pharmacyName} onChange={handleChange} placeholder="Enter pharmacy name" required />
@@ -220,13 +255,15 @@ export default function Pharmacies() {
             <label>Owner Name *</label>
             <input type="text" name="ownerName" value={formData.ownerName} onChange={handleChange} placeholder="Enter owner name" required />
           </div>
-          <div className="form-group">
-            <label>Email *</label>
-            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter email" required />
-          </div>
-          <div className="form-group">
-            <label>Phone *</label>
-            <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="Enter phone number" required />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label>Email *</label>
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Pharmacy email" required />
+            </div>
+            <div className="form-group">
+              <label>Phone *</label>
+              <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="Phone number" required />
+            </div>
           </div>
           <div className="form-group">
             <label>Address</label>
@@ -236,6 +273,50 @@ export default function Pharmacies() {
             <label>License Number</label>
             <input type="text" name="licenseNumber" value={formData.licenseNumber} onChange={handleChange} placeholder="Enter license number" />
           </div>
+
+          {!editing && (
+            <>
+              <hr style={{ margin: '20px 0', borderColor: 'var(--gray-200)' }} />
+              <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+                <i className="fa-solid fa-user-shield"></i> Pharmacy Admin Account
+              </h4>
+              <p style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '16px' }}>
+                An admin account will be automatically created and linked to this pharmacy.
+              </p>
+              <div className="form-group">
+                <label>Admin Full Name *</label>
+                <input type="text" name="adminName" value={formData.adminName} onChange={handleChange} placeholder="Enter admin name" required />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label>Admin Email *</label>
+                  <input type="email" name="adminEmail" value={formData.adminEmail} onChange={handleChange} placeholder="Admin login email" required />
+                </div>
+                <div className="form-group">
+                  <label>Admin Password *</label>
+                  <input type="password" name="adminPassword" value={formData.adminPassword} onChange={handleChange} placeholder="Admin password" required />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Admin Phone</label>
+                <input type="text" name="adminPhone" value={formData.adminPhone} onChange={handleChange} placeholder="Admin phone number" />
+              </div>
+
+              <hr style={{ margin: '20px 0', borderColor: 'var(--gray-200)' }} />
+              <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+                <i className="fa-solid fa-credit-card"></i> Subscription Plan
+              </h4>
+              <div className="form-group">
+                <label>Subscription Plan</label>
+                <select name="subscriptionPlan" value={formData.subscriptionPlan} onChange={handleChange}>
+                  <option value="free">Free</option>
+                  <option value="basic">Basic</option>
+                  <option value="premium">Premium</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+            </>
+          )}
         </form>
       </Drawer>
     </div>

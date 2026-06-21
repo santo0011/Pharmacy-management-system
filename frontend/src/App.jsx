@@ -7,8 +7,8 @@ import Dashboard from './pages/dashboard/Dashboard';
 import Categories from './pages/categories/Categories';
 import Brands from './pages/brands/Brands';
 import Suppliers from './pages/suppliers/Suppliers';
-import Users from './pages/users/Users';
 import Pharmacies from './pages/pharmacies/Pharmacies';
+import Staff from './pages/staff/Staff';
 
 function PrivateRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -66,7 +66,6 @@ export default function App() {
         <Route path="pharmacies" element={<Pharmacies />} />
         <Route path="subscriptions" element={<Dashboard />} />
         <Route path="payments" element={<Dashboard />} />
-        <Route path="users" element={<Users />} />
         <Route path="settings" element={<Dashboard />} />
         <Route path="profile" element={<Dashboard />} />
       </Route>
@@ -89,7 +88,7 @@ export default function App() {
         <Route path="sales" element={<Dashboard />} />
         <Route path="customers" element={<Dashboard />} />
         <Route path="reports" element={<Dashboard />} />
-        <Route path="staff" element={<Dashboard />} />
+        <Route path="staff" element={<Staff />} />
         <Route path="settings" element={<Dashboard />} />
       </Route>
 

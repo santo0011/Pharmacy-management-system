@@ -2,18 +2,29 @@ import Pharmacy from '../models/Pharmacy.js';
 import User from '../models/User.js';
 import ApiResponse from '../utils/apiResponse.js';
 
-// @desc    Create a new pharmacy
+// @desc    Create a new pharmacy with admin account and subscription
 // @route   POST /api/pharmacies
 // @access  Private/SuperAdmin
 export const createPharmacy = async (req, res, next) => {
   try {
-    const { pharmacyName, ownerName, email, phone, address, licenseNumber } = req.body;
+    const {
+      pharmacyName, ownerName, email, phone, address, licenseNumber,
+      adminName, adminEmail, adminPassword, adminPhone,
+      subscriptionPlan, subscriptionStartDate, subscriptionEndDate
+    } = req.body;
 
     const existingPharmacy = await Pharmacy.findOne({ email });
     if (existingPharmacy) {
       return ApiResponse.error(res, 'Pharmacy with this email already exists', 400);
     }
 
+    // Check if admin email is already taken
+    const existingAdmin = await User.findOne({ email: adminEmail });
+    if (existingAdmin) {
+      return ApiResponse.error(res, 'Admin email already registered', 400);
+    }
+
+    // 1. Create Pharmacy
     const pharmacy = await Pharmacy.create({
       pharmacyName,
       ownerName,
@@ -21,10 +32,32 @@ export const createPharmacy = async (req, res, next) => {
       phone,
       address,
       licenseNumber,
+      subscriptionPlan: subscriptionPlan || 'free',
+      subscriptionStartDate: subscriptionStartDate || Date.now(),
+      subscriptionEndDate: subscriptionEndDate || null,
       createdBy: req.user._id,
     });
 
-    return ApiResponse.success(res, pharmacy, 'Pharmacy created successfully', 201);
+    // 2. Create Pharmacy Admin user linked to the pharmacy
+    const adminUser = await User.create({
+      name: adminName,
+      email: adminEmail,
+      password: adminPassword,
+      role: 'admin',
+      phone: adminPhone || '',
+      pharmacyId: pharmacy._id,
+      isActive: true,
+    });
+
+    return ApiResponse.success(
+      res,
+      {
+        pharmacy,
+        admin: adminUser,
+      },
+      'Pharmacy created with Admin account successfully',
+      201
+    );
   } catch (error) {
     next(error);
   }
