@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
+import { fetchCategories } from '../../redux/slices/categorySlice';
+import { fetchBrands } from '../../redux/slices/brandSlice';
+import { fetchSuppliers } from '../../redux/slices/supplierSlice';
 import {
   createMedicine,
   updateMedicine,
   fetchMedicine,
   clearSelectedMedicine,
 } from '../../redux/slices/medicineSlice';
-import { fetchCategories } from '../../redux/slices/categorySlice';
-import { fetchBrands } from '../../redux/slices/brandSlice';
-import { fetchSuppliers } from '../../redux/slices/supplierSlice';
 import { showSuccess, showError } from '../../utils/sweetAlert';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -50,6 +50,10 @@ export default function MedicineForm() {
   const [imagePreview, setImagePreview] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // Barcode scanner state
+  const [showScanner, setShowScanner] = useState(false);
+  const scannerRef = useRef(null);
+  const scannerInstanceRef = useRef(null);
 
   useEffect(() => {
     dispatch(fetchCategories({ limit: 100 }));
@@ -93,6 +97,46 @@ export default function MedicineForm() {
       }
     }
   }, [selectedMedicine, isEditing]);
+
+  // Barcode scanner functions
+  const startScanner = async () => {
+    setShowScanner(true);
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      if (!scannerInstanceRef.current) {
+        scannerInstanceRef.current = new Html5Qrcode("barcode-scanner");
+      }
+      await scannerInstanceRef.current.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        (decodedText) => {
+          handleChange({ target: { name: 'barcode', value: decodedText } });
+          stopScanner();
+        },
+        () => {}
+      );
+    } catch (err) {
+      showError('Failed to access camera. Please try typing the barcode manually.');
+      setShowScanner(false);
+    }
+  };
+
+  const stopScanner = async () => {
+    if (scannerInstanceRef.current) {
+      try {
+        await scannerInstanceRef.current.stop();
+        scannerInstanceRef.current.clear();
+      } catch (err) {}
+    }
+    setShowScanner(false);
+  };
+
+  // Clean up scanner on unmount
+  useEffect(() => {
+    return () => {
+      stopScanner();
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -243,7 +287,12 @@ export default function MedicineForm() {
                   </div>
                   <div className="form-group">
                     <label>Barcode</label>
-                    <input type="text" name="barcode" value={formData.barcode} onChange={handleChange} placeholder="Barcode" />
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input type="text" name="barcode" value={formData.barcode} onChange={handleChange} placeholder="Barcode" style={{ flex: 1 }} />
+                      <button type="button" className="btn btn-info btn-sm" onClick={startScanner} title="Scan Barcode/QR" style={{ whiteSpace: 'nowrap' }}>
+                        <i className="fa-solid fa-camera"></i> Scan
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -318,6 +367,43 @@ export default function MedicineForm() {
           </form>
         </div>
       </div>
+
+      {/* Barcode Scanner Overlay */}
+      {showScanner && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div style={{ color: '#fff', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
+            <i className="fa-solid fa-camera"></i> Point camera at barcode
+          </div>
+          <div
+            id="barcode-scanner"
+            style={{
+              width: '100%',
+              maxWidth: '500px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={stopScanner}
+            style={{ marginTop: '16px' }}
+          >
+            <i className="fa-solid fa-times"></i> Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

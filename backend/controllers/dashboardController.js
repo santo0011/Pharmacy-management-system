@@ -1,7 +1,84 @@
 import Pharmacy from '../models/Pharmacy.js';
 import User from '../models/User.js';
 import Medicine from '../models/Medicine.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import ApiResponse from '../utils/apiResponse.js';
+
+// Helper to check subscription status for a pharmacy
+export const getSubscriptionStatus = async (req, res, next) => {
+  try {
+    const pharmacy = await Pharmacy.findById(req.user.pharmacyId);
+    if (!pharmacy) {
+      return ApiResponse.error(res, 'Pharmacy not found', 404);
+    }
+
+    const now = new Date();
+    const endDate = pharmacy.subscriptionEndDate ? new Date(pharmacy.subscriptionEndDate) : null;
+    let status = 'active';
+    let daysRemaining = null;
+
+    if (endDate) {
+      const diffTime = endDate - now;
+      daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (daysRemaining <= 0) {
+        status = 'expired';
+      } else if (daysRemaining <= 3) {
+        status = 'expiring_soon';
+      }
+    }
+
+    return ApiResponse.success(res, {
+      status,
+      daysRemaining,
+      endDate: pharmacy.subscriptionEndDate,
+      plan: pharmacy.subscriptionPlan,
+      hasSubscription: !!pharmacy.subscriptionPlanId,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get pharmacy user dashboard statistics
+// @route   GET /api/dashboard/pharmacy
+// @access  Private/Admin
+export const getPharmacyDashboard = async (req, res, next) => {
+  try {
+    const pharmacyId = req.pharmacyId;
+
+    // Medicine stats
+    const totalMedicines = await Medicine.countDocuments({ pharmacyId, isDeleted: false });
+    const activeMedicines = await Medicine.countDocuments({ pharmacyId, isDeleted: false, status: true });
+    const lowStockMedicines = await Medicine.countDocuments({
+      pharmacyId, isDeleted: false,
+      $expr: { $lte: ['$currentStock', '$minStockAlert'] },
+    });
+
+    // Recent medicines (last 5)
+    const recentMedicines = await Medicine.find({ pharmacyId, isDeleted: false })
+      .sort({ createdAt: -1 }).limit(5)
+      .populate('category', 'name')
+      .populate('brand', 'name')
+      .select('medicineName sellingPrice currentStock minStockAlert expiryDate medicineImage');
+
+    // Low stock medicines
+    const lowStockItems = await Medicine.find({
+      pharmacyId, isDeleted: false,
+      $expr: { $lte: ['$currentStock', '$minStockAlert'] },
+    }).sort({ currentStock: 1 }).limit(5)
+      .select('medicineName currentStock minStockAlert unit sellingPrice');
+
+    return ApiResponse.success(res, {
+      totalMedicines,
+      activeMedicines,
+      lowStockMedicines,
+      recentMedicines,
+      lowStockItems,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // @desc    Get Super Admin dashboard statistics
 // @route   GET /api/dashboard/super-admin
