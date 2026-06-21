@@ -22,11 +22,7 @@ export default function Login() {
 
   useEffect(() => {
     if (user) {
-      if (user.role === 'super_admin') {
-        navigate('/');
-      } else {
-        navigate('/pharmacy');
-      }
+      navigate('/');
     }
   }, [user, navigate]);
 
