@@ -995,6 +995,28 @@ tbody tr:hover {
   }
 }
 
+/* ===== Checkbox Styles ===== */
+input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+
+label input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  vertical-align: middle;
+  margin-top: -2px;
+}
+
+.status-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
 /* ===== Additional UI Styles ===== */
 
 /* Button Info */
@@ -1055,4 +1077,333 @@ tbody tr:hover {
 
 .btn-close:hover {
   color: var(--gray-800);
+}
+
+/* ===== Search Dropdown ===== */
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  z-index: 1050;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-top: 4px;
+}
+
+.search-dropdown-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--gray-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.search-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.search-dropdown-item:hover {
+  background: var(--primary-light);
+}
+
+.search-dropdown-item.active {
+  background: var(--primary-light);
+}
+
+.search-dropdown-item .item-name {
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.search-dropdown-item .item-details {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.search-dropdown-item .item-price {
+  font-weight: 600;
+  color: var(--primary-color, var(--primary));
+  font-size: 14px;
+}
+
+.search-dropdown-item .item-stock {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.search-dropdown-item .item-stock.low {
+  color: var(--danger) !important;
+}
+
+.search-dropdown-empty {
+  padding: 12px 14px;
+  color: var(--gray-500);
+  text-align: center;
+  font-size: 14px;
+}
+
+/* ===== Form Input Base Styles ===== */
+.input-sm {
+  padding: 6px 8px !important;
+  border: 1px solid var(--gray-300) !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+  transition: all 0.2s !important;
+  background: white !important;
+  color: var(--gray-800) !important;
+}
+
+.input-sm:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1) !important;
+}
+
+/* ===== Purchase Form Specific ===== */
+.purchase-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.purchase-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.inline-discount {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.inline-discount input {
+  width: 80px;
+  padding: 4px 8px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.inline-discount select {
+  padding: 4px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.inline-input-sm {
+  width: 80px;
+  padding: 4px 8px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.summary-box {
+  background: var(--gray-50);
+  padding: 16px;
+  border-radius: var(--radius);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.summary-label {
+  color: var(--gray-600);
+}
+
+.summary-value {
+  font-weight: 600;
+}
+
+.grand-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  padding: 8px 0;
+}
+
+.due-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.due-row.positive {
+  color: var(--success);
+}
+
+.due-row.negative {
+  color: var(--danger);
+}
+
+.due-row .due-value {
+  font-weight: 600;
+}
+
+/* ===== Sale Form Specific ===== */
+.sale-layout {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 20px;
+}
+
+.search-box-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-box-wrapper .search-input-wrap {
+  flex: 1;
+  position: relative;
+  z-index: 1051;
+}
+
+/* Ensure the search card does not clip the dropdown */
+.search-card-no-clip {
+  overflow: visible !important;
+}
+
+/* Make the dropdown appear above everything */
+.search-input-wrap .search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+}
+
+/* Backdrop overlay to capture clicks outside */
+.search-dropdown-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1049;
+  background: transparent;
+}
+
+.search-box-wrapper .search-input-wrap input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  font-size: 15px;
+  transition: all 0.2s;
+}
+
+.search-box-wrapper .search-input-wrap input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+.customer-grid {
+  display: flex;
+  gap: 12px;
+}
+
+.customer-grid .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.cart-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--gray-500);
+}
+
+.cart-empty-state i {
+  font-size: 48px;
+  color: var(--gray-300);
+  margin-bottom: 12px;
+}
+
+.cart-empty-state p {
+  color: var(--gray-500);
+  font-size: 14px;
+}
+
+.cart-item-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+}
+
+.cart-item-name {
+  font-weight: 500;
+}
+
+.cart-item-quantity {
+  color: var(--gray-500);
+}
+
+.cart-item-total {
+  font-weight: 600;
+}
+
+.invoice-summary-sticky {
+  position: sticky;
+  top: 88px;
+}
+
+.qty-input-sm {
+  width: 55px;
+  padding: 4px 6px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.price-input-sm {
+  width: 80px;
+  padding: 4px 6px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.gst-label {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .sale-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .purchase-form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .purchase-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .customer-grid {
+    flex-direction: column;
+  }
 }

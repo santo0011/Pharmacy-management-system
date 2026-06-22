@@ -7,6 +7,8 @@ import {
   updateMedicine,
   deleteMedicine,
   toggleMedicineStatus,
+  checkBarcode,
+  lookupBarcode,
 } from '../controllers/medicineController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
@@ -19,8 +21,12 @@ const router = express.Router();
 router.use(protect);
 router.use(pharmacyScope);
 
-// Stats route must come before /:id
+// Stats must come before /:id
 router.get('/stats', getMedicineStats);
+
+// Barcode routes must come before /:id to prevent route collision
+router.post('/check-barcode', checkBarcode);
+router.post('/lookup-barcode', lookupBarcode);
 
 router.route('/')
   .get(getMedicines)

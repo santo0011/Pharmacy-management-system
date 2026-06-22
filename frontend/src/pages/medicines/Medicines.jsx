@@ -203,9 +203,9 @@ export default function Medicines() {
                   <tr>
                     <th>Image</th>
                     <th>Medicine Name</th>
-                    <th>Category</th>
+                    {/* <th>Category</th>
                     <th>Brand</th>
-                    <th>Supplier</th>
+                    <th>Supplier</th> */}
                     <th>Purchase Price</th>
                     <th>Selling Price</th>
                     <th>Stock</th>
@@ -230,9 +230,9 @@ export default function Medicines() {
                         {med.medicineName}
                         {med.genericName && <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{med.genericName}</div>}
                       </td>
-                      <td>{med.category?.name || '-'}</td>
+                      {/* <td>{med.category?.name || '-'}</td>
                       <td>{med.brand?.name || '-'}</td>
-                      <td>{med.supplier?.supplierName || '-'}</td>
+                      <td>{med.supplier?.supplierName || '-'}</td> */}
                       <td>₹{med.purchasePrice?.toFixed(2)}</td>
                       <td>₹{med.sellingPrice?.toFixed(2)}</td>
                       <td>

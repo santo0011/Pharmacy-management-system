@@ -278,7 +278,7 @@ export const updateMedicine = async (req, res, next) => {
   }
 };
 
-// @desc    Delete medicine (soft delete)
+// @desc    Delete medicine (hard delete with dependency check)
 // @route   DELETE /api/medicines/:id
 // @access  Private (Pharmacy Admin)
 export const deleteMedicine = async (req, res, next) => {
@@ -288,11 +288,122 @@ export const deleteMedicine = async (req, res, next) => {
       return ApiResponse.error(res, 'Medicine not found', 404);
     }
 
-    medicine.isDeleted = true;
-    medicine.deletedAt = new Date();
-    await medicine.save();
+    // Check if this medicine is referenced by other records (Sales, Purchases, Stock History)
+    // Placeholder for future reference checks when those modules exist:
+    // const salesCount = await Sale.countDocuments({ medicineId: medicine._id });
+    // const purchaseCount = await Purchase.countDocuments({ medicineId: medicine._id });
+    // const stockHistoryCount = await StockHistory.countDocuments({ medicineId: medicine._id });
+    // if (salesCount > 0 || purchaseCount > 0 || stockHistoryCount > 0) {
+    //   return ApiResponse.error(res, 'Cannot delete medicine. It is referenced by sales, purchases, or stock history records.', 400);
+    // }
+
+    // Delete the medicine image if it exists
+    if (medicine.medicineImage) {
+      const imagePath = path.join(__dirname, '..', medicine.medicineImage);
+      try { fs.unlinkSync(imagePath); } catch (err) { /* file may not exist */ }
+    }
+
+    // Permanently delete the medicine
+    await Medicine.deleteOne({ _id: medicine._id });
 
     return ApiResponse.success(res, null, 'Medicine deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Check if barcode exists in this pharmacy
+// @route   POST /api/medicines/check-barcode
+// @access  Private
+export const checkBarcode = async (req, res, next) => {
+  try {
+    const { barcode, excludeId } = req.body;
+
+    if (!barcode || !barcode.trim()) {
+      return ApiResponse.success(res, { exists: false });
+    }
+
+    const query = {
+      barcode: barcode.trim(),
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    };
+
+    // If editing, exclude the current medicine
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    const existing = await Medicine.findOne(query);
+    return ApiResponse.success(res, { exists: !!existing });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Lookup barcode from external API / auto-fill medicine info
+// @route   POST /api/medicines/lookup-barcode
+// @access  Private
+export const lookupBarcode = async (req, res, next) => {
+  try {
+    const { barcode } = req.body;
+
+    if (!barcode || !barcode.trim()) {
+      return ApiResponse.error(res, 'Barcode is required', 400);
+    }
+
+    // First check if barcode exists in our database
+    const existing = await Medicine.findOne({
+      barcode: barcode.trim(),
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    }).populate('category', 'name')
+      .populate('brand', 'name')
+      .populate('supplier', 'supplierName');
+
+    if (existing) {
+      return ApiResponse.success(res, {
+        found: true,
+        inDatabase: true,
+        medicine: existing,
+      });
+    }
+
+    // Try to fetch from Open Food Facts or similar public database
+    try {
+      const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode.trim()}.json`);
+      const data = await response.json();
+
+      if (data.status === 1 && data.product) {
+        const product = data.product;
+        const autoFill = {
+          medicineName: product.product_name || '',
+          genericName: product.generic_name || '',
+          brand: product.brands || '',
+          manufacturer: product.manufacturer || '',
+          category: product.categories || '',
+          strength: product.quantity || '',
+          dosageForm: product.product_quantity || '',
+          packSize: product.packaging || '',
+          barcode: barcode.trim(),
+        };
+
+        return ApiResponse.success(res, {
+          found: true,
+          inDatabase: false,
+          autoFill,
+        });
+      }
+    } catch (fetchError) {
+      // External API failed, that's ok - just return not found
+    }
+
+    // Barcode not found anywhere
+    return ApiResponse.success(res, {
+      found: false,
+      inDatabase: false,
+      barcode: barcode.trim(),
+    });
   } catch (error) {
     next(error);
   }

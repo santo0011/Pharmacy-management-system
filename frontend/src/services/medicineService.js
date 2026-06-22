@@ -12,4 +12,6 @@ export const medicineService = {
   }),
   deleteMedicine: (id) => API.delete(`/medicines/${id}`),
   toggleStatus: (id) => API.patch(`/medicines/${id}/status`),
+  checkBarcode: (barcode, excludeId = null) => API.post('/medicines/check-barcode', { barcode, excludeId }),
+  lookupBarcode: (barcode) => API.post('/medicines/lookup-barcode', { barcode }),
 };

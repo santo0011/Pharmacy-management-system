@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchCategories } from '../../redux/slices/categorySlice';
@@ -10,7 +10,8 @@ import {
   fetchMedicine,
   clearSelectedMedicine,
 } from '../../redux/slices/medicineSlice';
-import { showSuccess, showError } from '../../utils/sweetAlert';
+import { medicineService } from '../../services/medicineService';
+import { showSuccess, showError, showWarning, showInfo } from '../../utils/sweetAlert';
 import { useAuth } from '../../hooks/useAuth';
 
 const initialFormState = {
@@ -50,10 +51,29 @@ export default function MedicineForm() {
   const [imagePreview, setImagePreview] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
   // Barcode scanner state
   const [showScanner, setShowScanner] = useState(false);
-  const scannerRef = useRef(null);
+  const [scannerLoading, setScannerLoading] = useState(false);
+  const [scannerError, setScannerError] = useState('');
+  const [scannerPermission, setScannerPermission] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState([]);
+  const [selectedCameraId, setSelectedCameraId] = useState('');
+
+  // Barcode lookup state
+  const [barcodeChecking, setBarcodeChecking] = useState(false);
+  const [barcodeLookupMessage, setBarcodeLookupMessage] = useState('');
+
   const scannerInstanceRef = useRef(null);
+  const scannerContainerRef = useRef(null);
+  const isProcessingScan = useRef(false);
+  const formDataRef = useRef(formData);
+  const barcodeCheckInProgress = useRef(false);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   useEffect(() => {
     dispatch(fetchCategories({ limit: 100 }));
@@ -65,6 +85,7 @@ export default function MedicineForm() {
     }
 
     return () => {
+      cleanupScanner();
       dispatch(clearSelectedMedicine());
     };
   }, [dispatch, id, isEditing]);
@@ -98,52 +119,323 @@ export default function MedicineForm() {
     }
   }, [selectedMedicine, isEditing]);
 
-  // Barcode scanner functions
-  const startScanner = async () => {
-    setShowScanner(true);
-    try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      if (!scannerInstanceRef.current) {
-        scannerInstanceRef.current = new Html5Qrcode("barcode-scanner");
-      }
-      await scannerInstanceRef.current.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          handleChange({ target: { name: 'barcode', value: decodedText } });
-          stopScanner();
-        },
-        () => {}
-      );
-    } catch (err) {
-      showError('Failed to access camera. Please try typing the barcode manually.');
-      setShowScanner(false);
-    }
-  };
+  // --- Scanner Functions ---
 
-  const stopScanner = async () => {
+  const cleanupScanner = useCallback(async () => {
     if (scannerInstanceRef.current) {
       try {
         await scannerInstanceRef.current.stop();
         scannerInstanceRef.current.clear();
-      } catch (err) {}
+      } catch (err) {
+        // Ignore cleanup errors
+      }
+      scannerInstanceRef.current = null;
     }
     setShowScanner(false);
+    setScannerLoading(false);
+    setScannerError('');
+    setScannerPermission(false);
+    setAvailableCameras([]);
+    setSelectedCameraId('');
+    isProcessingScan.current = false;
+  }, []);
+
+  const getAvailableCameras = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+      setAvailableCameras(videoDevices);
+      if (videoDevices.length > 0) {
+        // Prefer environment (rear) camera
+        const rearCam = videoDevices.find(
+          (d) => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear') || d.label.toLowerCase().includes('environment')
+        );
+        setSelectedCameraId(rearCam ? rearCam.deviceId : videoDevices[0].deviceId);
+      }
+      return videoDevices;
+    } catch (err) {
+      return [];
+    }
   };
 
-  // Clean up scanner on unmount
-  useEffect(() => {
-    return () => {
-      stopScanner();
-    };
-  }, []);
+  const startScanner = async () => {
+    setScannerError('');
+    setScannerLoading(true);
+    setShowScanner(true);
+    setScannerPermission(false);
+
+    try {
+      // First request camera permission explicitly
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      // Stop the test stream immediately; we just needed permission
+      stream.getTracks().forEach((track) => track.stop());
+      setScannerPermission(true);
+
+      // Get available cameras
+      await getAvailableCameras();
+
+      // Dynamically import html5-qrcode
+      const { Html5Qrcode } = await import('html5-qrcode');
+
+      if (scannerInstanceRef.current) {
+        await scannerInstanceRef.current.stop().catch(() => {});
+        scannerInstanceRef.current.clear().catch(() => {});
+        scannerInstanceRef.current = null;
+      }
+
+      // Create scanner with specific element ID
+      if (scannerContainerRef.current) {
+        scannerContainerRef.current.innerHTML = '';
+      }
+
+      scannerInstanceRef.current = new Html5Qrcode('barcode-scanner-reader');
+
+      const cameraConfig = selectedCameraId
+        ? { deviceId: { exact: selectedCameraId } }
+        : { facingMode: 'environment' };
+
+      isProcessingScan.current = false;
+
+      await scannerInstanceRef.current.start(
+        cameraConfig,
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        (decodedText) => {
+          // Prevent duplicate scans
+          if (isProcessingScan.current) return;
+
+          isProcessingScan.current = true;
+          handleBarcodeDetected(decodedText);
+        },
+        () => {}
+      );
+
+      setScannerLoading(false);
+    } catch (err) {
+      setScannerLoading(false);
+      console.error('Scanner error:', err);
+
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setScannerError('Camera permission denied. Please allow camera access and try again, or type the barcode manually.');
+      } else if (err.name === 'NotFoundError') {
+        setScannerError('No camera found on this device. Please type the barcode manually.');
+      } else if (err.name === 'NotReadableError') {
+        setScannerError('Camera is already in use by another application. Please close other apps and try again.');
+      } else {
+        setScannerError('Failed to access camera. Please try typing the barcode manually.');
+      }
+    }
+  };
+
+  const switchCamera = async (deviceId) => {
+    setSelectedCameraId(deviceId);
+    setScannerLoading(true);
+    setScannerError('');
+
+    try {
+      if (scannerInstanceRef.current) {
+        await scannerInstanceRef.current.stop().catch(() => {});
+      }
+
+      const { Html5Qrcode } = await import('html5-qrcode');
+
+      if (scannerContainerRef.current) {
+        scannerContainerRef.current.innerHTML = '';
+      }
+
+      scannerInstanceRef.current = new Html5Qrcode('barcode-scanner-reader');
+
+      isProcessingScan.current = false;
+
+      await scannerInstanceRef.current.start(
+        { deviceId: { exact: deviceId } },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        (decodedText) => {
+          if (isProcessingScan.current) return;
+
+          isProcessingScan.current = true;
+          handleBarcodeDetected(decodedText);
+        },
+        () => {}
+      );
+
+      setScannerLoading(false);
+    } catch (err) {
+      setScannerLoading(false);
+      setScannerError('Failed to switch camera. Please try again.');
+    }
+  };
+
+  const stopScanner = async () => {
+    await cleanupScanner();
+  };
+
+  // --- Barcode Handling ---
+
+  const handleBarcodeDetected = async (barcode) => {
+    // Prevent concurrent barcode lookups
+    if (barcodeCheckInProgress.current) return;
+    barcodeCheckInProgress.current = true;
+
+    try {
+      // Fill barcode field immediately
+      setFormData((prev) => ({ ...prev, barcode }));
+      setBarcodeLookupMessage('');
+      setBarcodeChecking(true);
+
+      // Close scanner overlay immediately after successful scan
+      await cleanupScanner();
+
+      // Lookup barcode - this checks our DB first, then external API
+      const lookupResponse = await medicineService.lookupBarcode(barcode);
+      const lookupData = lookupResponse.data;
+
+      if (lookupData.data?.found) {
+        if (lookupData.data.inDatabase) {
+          // 🟢 Barcode found in our database - load all medicine details
+          const existing = lookupData.data.medicine;
+          showInfo('Medicine found in database! Loading details.');
+
+          setFormData((prev) => ({
+            ...prev,
+            medicineName: existing.medicineName || '',
+            genericName: existing.genericName || '',
+            category: existing.category?._id || existing.category || '',
+            brand: existing.brand?._id || existing.brand || '',
+            supplier: existing.supplier?._id || existing.supplier || '',
+            barcode: barcode,
+            hsnCode: existing.hsnCode || '',
+            unit: existing.unit || 'Tablet',
+            rackNumber: existing.rackNumber || '',
+            description: existing.description || '',
+            // The user still needs to enter batch-specific fields
+            batchNumber: '',
+            manufacturingDate: '',
+            expiryDate: '',
+            purchasePrice: '',
+            sellingPrice: '',
+            gst: existing.gst || '',
+            currentStock: '',
+            minStockAlert: existing.minStockAlert || '10',
+            status: true,
+          }));
+
+          // Load image preview if exists
+          if (existing.medicineImage) {
+            setImagePreview(existing.medicineImage);
+          }
+        } else if (lookupData.data.autoFill) {
+          // 🟡 Barcode found in external API - auto-fill what we can
+          const auto = lookupData.data.autoFill;
+          showInfo('Medicine found! Auto-filling details.');
+
+          let matchedCategory = '';
+          let matchedBrand = '';
+
+          if (auto.category && categories?.length > 0) {
+            const cat = categories.find(
+              (c) => auto.category.toLowerCase().includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(auto.category.toLowerCase())
+            );
+            if (cat) matchedCategory = cat._id;
+          }
+
+          if (auto.brand && brands?.length > 0) {
+            const br = brands.find(
+              (b) => auto.brand.toLowerCase().includes(b.name.toLowerCase()) || b.name.toLowerCase().includes(auto.brand.toLowerCase())
+            );
+            if (br) matchedBrand = br._id;
+          }
+
+          setFormData((prev) => ({
+            ...prev,
+            medicineName: auto.medicineName || prev.medicineName,
+            genericName: auto.genericName || prev.genericName,
+            barcode: barcode,
+            category: matchedCategory || prev.category,
+            brand: matchedBrand || prev.brand,
+          }));
+        }
+      } else {
+        // 🔴 Barcode not found anywhere
+        showInfo('Medicine not found. Please enter the details manually.');
+        // Keep the scanned barcode in the barcode field
+        setFormData((prev) => ({ ...prev, barcode }));
+      }
+    } catch (err) {
+      showInfo('Medicine not found in database. Please enter the details manually.');
+      setFormData((prev) => ({ ...prev, barcode }));
+    } finally {
+      setBarcodeChecking(false);
+      barcodeCheckInProgress.current = false;
+    }
+  };
+
+  // --- Manual Barcode Validation ---
+  // Uses formDataRef to avoid stale closure issues in event handlers
+
+  const validateBarcode = async (barcodeValue) => {
+    // Skip validation if barcode is empty or null
+    if (!barcodeValue || !barcodeValue.trim()) {
+      setBarcodeLookupMessage('');
+      return true;
+    }
+
+    // Prevent concurrent validations
+    if (barcodeCheckInProgress.current) return false;
+    barcodeCheckInProgress.current = true;
+
+    setBarcodeChecking(true);
+    try {
+      const response = await medicineService.checkBarcode(barcodeValue.trim(), isEditing ? id : null);
+      const data = response.data;
+
+      if (data.data?.exists) {
+        setBarcodeLookupMessage('Barcode already exists in your pharmacy.');
+        showWarning('Barcode already exists!');
+        return false;
+      }
+
+      setBarcodeLookupMessage('');
+      return true;
+    } catch (err) {
+      setBarcodeLookupMessage('');
+      return true; // Allow submission if validation fails
+    } finally {
+      setBarcodeChecking(false);
+      barcodeCheckInProgress.current = false;
+    }
+  };
+
+  // --- Form Handling ---
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
+
+    // Immediately update ref for synchronous access
+    formDataRef.current = {
+      ...formDataRef.current,
+      [name]: newValue,
+    };
+
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: newValue,
     }));
+
+    // If barcode field changed manually, clear lookup message
+    if (name === 'barcode') {
+      setBarcodeLookupMessage('');
+    }
+  };
+
+  const handleBarcodeBlur = (e) => {
+    const barcodeValue = e.target.value;
+    // Only validate if barcode is non-empty
+    if (barcodeValue && barcodeValue.trim()) {
+      validateBarcode(barcodeValue);
+    }
   };
 
   const handleImageChange = (e) => {
@@ -157,25 +449,35 @@ export default function MedicineForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.medicineName.trim()) { showError('Medicine name is required'); return; }
-    if (!formData.category) { showError('Category is required'); return; }
-    if (!formData.brand) { showError('Brand is required'); return; }
-    if (!formData.supplier) { showError('Supplier is required'); return; }
-    if (!formData.batchNumber.trim()) { showError('Batch number is required'); return; }
-    if (!formData.expiryDate) { showError('Expiry date is required'); return; }
-    if (!formData.purchasePrice || parseFloat(formData.purchasePrice) <= 0) { showError('Purchase price must be greater than 0'); return; }
-    if (!formData.sellingPrice || parseFloat(formData.sellingPrice) <= 0) { showError('Selling price must be greater than 0'); return; }
-    if (formData.manufacturingDate && formData.expiryDate && new Date(formData.manufacturingDate) >= new Date(formData.expiryDate)) {
+    // Use ref to get latest form data values (avoids stale closure issues)
+    const currentData = formDataRef.current;
+
+    if (!currentData.medicineName.trim()) { showError('Medicine name is required'); return; }
+    if (!currentData.category) { showError('Category is required'); return; }
+    if (!currentData.brand) { showError('Brand is required'); return; }
+    if (!currentData.supplier) { showError('Supplier is required'); return; }
+    if (!currentData.batchNumber.trim()) { showError('Batch number is required'); return; }
+    if (!currentData.expiryDate) { showError('Expiry date is required'); return; }
+    if (!currentData.purchasePrice || parseFloat(currentData.purchasePrice) <= 0) { showError('Purchase price must be greater than 0'); return; }
+    if (!currentData.sellingPrice || parseFloat(currentData.sellingPrice) <= 0) { showError('Selling price must be greater than 0'); return; }
+    if (currentData.manufacturingDate && currentData.expiryDate && new Date(currentData.manufacturingDate) >= new Date(currentData.expiryDate)) {
       showError('Manufacturing date must be before expiry date');
       return;
+    }
+
+    // Validate barcode if provided before submission
+    const barcodeValue = currentData.barcode;
+    if (barcodeValue && barcodeValue.trim()) {
+      const isValid = await validateBarcode(barcodeValue);
+      if (!isValid) return;
     }
 
     setSubmitting(true);
     try {
       const formDataObj = new FormData();
-      Object.keys(formData).forEach((key) => {
-        if (formData[key] !== '' && formData[key] !== null) {
-          formDataObj.append(key, formData[key]);
+      Object.keys(currentData).forEach((key) => {
+        if (currentData[key] !== '' && currentData[key] !== null) {
+          formDataObj.append(key, currentData[key]);
         }
       });
       if (imageFile) formDataObj.append('medicineImage', imageFile);
@@ -288,11 +590,40 @@ export default function MedicineForm() {
                   <div className="form-group">
                     <label>Barcode</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <input type="text" name="barcode" value={formData.barcode} onChange={handleChange} placeholder="Barcode" style={{ flex: 1 }} />
-                      <button type="button" className="btn btn-info btn-sm" onClick={startScanner} title="Scan Barcode/QR" style={{ whiteSpace: 'nowrap' }}>
-                        <i className="fa-solid fa-camera"></i> Scan
+                      <input
+                        type="text"
+                        name="barcode"
+                        value={formData.barcode}
+                        onChange={handleChange}
+                        onBlur={handleBarcodeBlur}
+                        placeholder="Barcode"
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-info btn-sm"
+                        onClick={startScanner}
+                        title="Scan Barcode/QR"
+                        style={{ whiteSpace: 'nowrap' }}
+                        disabled={scannerLoading}
+                      >
+                        {scannerLoading ? (
+                          <i className="fa-solid fa-spinner fa-spin"></i>
+                        ) : (
+                          <i className="fa-solid fa-camera"></i>
+                        )} Scan
                       </button>
                     </div>
+                    {barcodeChecking && (
+                      <small style={{ color: 'var(--gray-500)' }}>
+                        <i className="fa-solid fa-spinner fa-spin"></i> Checking barcode...
+                      </small>
+                    )}
+                    {barcodeLookupMessage && (
+                      <small style={{ color: 'var(--danger-color)' }}>
+                        <i className="fa-solid fa-exclamation-circle"></i> {barcodeLookupMessage}
+                      </small>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -340,7 +671,7 @@ export default function MedicineForm() {
                 </div>
                 <div className="form-group">
                   <label>
-                    <input type="checkbox" name="status" checked={formData.status} onChange={handleChange} style={{ width: 'auto', marginRight: '8px' }} />
+                    <input type="checkbox" name="status" checked={formData.status} onChange={handleChange} style={{ marginRight: '6px' }} />
                     Active
                   </label>
                 </div>
@@ -359,7 +690,7 @@ export default function MedicineForm() {
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-secondary" onClick={() => navigate('/medicines')}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
+              <button type="submit" className="btn btn-primary" disabled={submitting || barcodeChecking}>
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
                 {isEditing ? 'Update Medicine' : 'Create Medicine'}
               </button>
@@ -382,26 +713,71 @@ export default function MedicineForm() {
             justifyContent: 'center',
           }}
         >
-          <div style={{ color: '#fff', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
-            <i className="fa-solid fa-camera"></i> Point camera at barcode
-          </div>
-          <div
-            id="barcode-scanner"
-            style={{
-              width: '100%',
-              maxWidth: '500px',
-              borderRadius: '12px',
-              overflow: 'hidden',
-            }}
-          />
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={stopScanner}
-            style={{ marginTop: '16px' }}
-          >
-            <i className="fa-solid fa-times"></i> Cancel
-          </button>
+          {scannerLoading ? (
+            <div style={{ color: '#fff', textAlign: 'center', padding: '40px' }}>
+              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '48px', marginBottom: '16px' }}></i>
+              <div style={{ fontSize: '16px', fontWeight: 500 }}>Accessing camera...</div>
+              <div style={{ fontSize: '13px', marginTop: '8px', color: '#aaa' }}>Please allow camera permission when prompted</div>
+            </div>
+          ) : scannerError ? (
+            <div style={{ color: '#fff', textAlign: 'center', padding: '40px', maxWidth: '400px' }}>
+              <i className="fa-solid fa-exclamation-triangle" style={{ fontSize: '48px', marginBottom: '16px', color: '#f59e0b' }}></i>
+              <div style={{ fontSize: '16px', fontWeight: 500, marginBottom: '8px' }}>Camera Error</div>
+              <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '16px' }}>{scannerError}</p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button type="button" className="btn btn-info" onClick={startScanner}>
+                  <i className="fa-solid fa-redo"></i> Try Again
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={stopScanner}>
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ color: '#fff', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
+                <i className="fa-solid fa-camera"></i> Point camera at barcode
+              </div>
+
+              {/* Camera switch buttons */}
+              {availableCameras.length > 1 && (
+                <div style={{ marginBottom: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {availableCameras.map((cam) => (
+                    <button
+                      key={cam.deviceId}
+                      type="button"
+                      className={`btn btn-sm ${cam.deviceId === selectedCameraId ? 'btn-primary' : 'btn-outline-light'}`}
+                      onClick={() => switchCamera(cam.deviceId)}
+                      style={{ fontSize: '12px', color: cam.deviceId === selectedCameraId ? '#fff' : '#ccc' }}
+                    >
+                      <i className="fa-solid fa-camera"></i>{' '}
+                      {cam.label || `Camera ${availableCameras.indexOf(cam) + 1}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div
+                id="barcode-scanner-reader"
+                ref={scannerContainerRef}
+                style={{
+                  width: '100%',
+                  maxWidth: '500px',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  minHeight: '300px',
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={stopScanner}
+                style={{ marginTop: '16px' }}
+              >
+                <i className="fa-solid fa-times"></i> Cancel
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

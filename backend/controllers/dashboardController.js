@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Pharmacy from '../models/Pharmacy.js';
 import User from '../models/User.js';
 import Medicine from '../models/Medicine.js';
@@ -48,32 +49,68 @@ export const getPharmacyDashboard = async (req, res, next) => {
 
     // Medicine stats
     const totalMedicines = await Medicine.countDocuments({ pharmacyId, isDeleted: false });
-    const activeMedicines = await Medicine.countDocuments({ pharmacyId, isDeleted: false, status: true });
     const lowStockMedicines = await Medicine.countDocuments({
       pharmacyId, isDeleted: false,
       $expr: { $lte: ['$currentStock', '$minStockAlert'] },
     });
 
-    // Recent medicines (last 5)
-    const recentMedicines = await Medicine.find({ pharmacyId, isDeleted: false })
-      .sort({ createdAt: -1 }).limit(5)
-      .populate('category', 'name')
-      .populate('brand', 'name')
-      .select('medicineName sellingPrice currentStock minStockAlert expiryDate medicineImage');
-
-    // Low stock medicines
+    // Low stock medicines (detailed)
     const lowStockItems = await Medicine.find({
       pharmacyId, isDeleted: false,
       $expr: { $lte: ['$currentStock', '$minStockAlert'] },
-    }).sort({ currentStock: 1 }).limit(5)
-      .select('medicineName currentStock minStockAlert unit sellingPrice');
+    }).sort({ currentStock: 1 }).limit(10)
+      .populate('category', 'name')
+      .select('medicineName currentStock minStockAlert unit sellingPrice category');
+
+    // Stock distribution by category
+    const stockDistribution = await Medicine.aggregate([
+      { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false } },
+      {
+        $group: {
+          _id: '$category',
+          count: { $sum: 1 },
+          totalStock: { $sum: '$currentStock' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'category',
+        },
+      },
+      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
+      { $sort: { count: -1 } },
+      { $limit: 8 },
+    ]);
+
+    // Top selling medicines (placeholder from stock data - will be real when sales exist)
+    const topMedicines = await Medicine.find({ pharmacyId, isDeleted: false })
+      .sort({ currentStock: -1 })
+      .limit(5)
+      .populate('category', 'name')
+      .select('medicineName sellingPrice currentStock category');
 
     return ApiResponse.success(res, {
       totalMedicines,
-      activeMedicines,
       lowStockMedicines,
-      recentMedicines,
       lowStockItems,
+      stockDistribution: stockDistribution.map((s) => ({
+        name: s.category?.name || 'Uncategorized',
+        count: s.count,
+        totalStock: s.totalStock,
+      })),
+      topMedicines,
+      // Placeholder for sales data (will be real when sales module is built)
+      dailySales: [],
+      monthlyRevenue: [],
+      weeklySales: [],
+      topCategories: stockDistribution.slice(0, 5).map((s) => ({
+        name: s.category?.name || 'Uncategorized',
+        count: s.count,
+      })),
+      recentSales: [],
     });
   } catch (error) {
     next(error);
