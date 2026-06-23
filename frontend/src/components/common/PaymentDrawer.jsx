@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react';
 import Drawer from './Drawer';
 import { customerService } from '../../services/customerService';
-import { showSuccess, showError } from '../../utils/sweetAlert';
+import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
+
+const PAYMENT_METHODS = [
+  { value: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave' },
+  { value: 'card', label: 'Card', icon: 'fa-solid fa-credit-card' },
+  { value: 'upi', label: 'UPI', icon: 'fa-solid fa-mobile-screen' },
+  { value: 'bank_transfer', label: 'Bank Transfer', icon: 'fa-solid fa-building-columns' },
+  { value: 'other', label: 'Other', icon: 'fa-solid fa-ellipsis' },
+];
 
 export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComplete }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [payments, setPayments] = useState({});
+  const [paymentMethods, setPaymentMethods] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -23,12 +32,15 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
       const { data: res } = await customerService.getCustomerDueInvoices(customerId, { name });
       if (res.data) {
         setData(res.data);
-        // Initialize payment amounts
+        // Initialize payment amounts and methods
         const initPayments = {};
+        const initMethods = {};
         res.data.invoices.forEach(inv => {
           initPayments[inv._id] = '';
+          initMethods[inv._id] = 'cash';
         });
         setPayments(initPayments);
+        setPaymentMethods(initMethods);
       }
     } catch (error) {
       showError(error.response?.data?.message || 'Failed to load due invoices');
@@ -44,12 +56,25 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
       return;
     }
 
+    // Find invoice for confirmation details
+    const invoice = data?.invoices?.find(inv => inv._id === invoiceId);
+    const method = paymentMethods[invoiceId] || 'cash';
+    const methodLabel = PAYMENT_METHODS.find(m => m.value === method)?.label || method;
+
+    // Show confirmation before processing payment
+    const confirmed = await confirmAction(
+      'Confirm Payment',
+      `Invoice: ${invoice?.invoiceNumber || ''}\nAmount: ₹${Number(amount).toFixed(2)}\nPayment Method: ${methodLabel}`,
+      'Yes, Collect Payment'
+    );
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       await customerService.payDue({
         saleId: invoiceId,
         amount,
-        paymentMethod: 'cash',
+        paymentMethod: method,
       });
       showSuccess('Payment received successfully');
       // Refresh data
@@ -64,13 +89,24 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
 
   const handlePayFull = async (invoice) => {
     setPayments(prev => ({ ...prev, [invoice._id]: invoice.dueAmount }));
-    // Auto-trigger payment
+
+    const method = paymentMethods[invoice._id] || 'cash';
+    const methodLabel = PAYMENT_METHODS.find(m => m.value === method)?.label || method;
+
+    // Show confirmation before processing full payment
+    const confirmed = await confirmAction(
+      'Confirm Full Payment',
+      `Invoice: ${invoice.invoiceNumber}\nAmount: ₹${Number(invoice.dueAmount).toFixed(2)}\nPayment Method: ${methodLabel}`,
+      'Yes, Pay Full Amount'
+    );
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       await customerService.payDue({
         saleId: invoice._id,
         amount: invoice.dueAmount,
-        paymentMethod: 'cash',
+        paymentMethod: method,
       });
       showSuccess('Payment received successfully');
       await fetchDueInvoices();
@@ -196,58 +232,95 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
 
                     {/* Payment Input */}
                     {invoice.dueAmount > 0 && (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <div style={{ flex: 1, position: 'relative' }}>
-                          <span style={{
-                            position: 'absolute',
-                            left: '10px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            color: '#888',
-                            fontWeight: 600,
-                            fontSize: '14px',
-                          }}>₹</span>
-                          <input
-                            type="number"
-                            placeholder="Enter amount"
-                            value={payments[invoice._id] || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (Number(val) > invoice.dueAmount) {
-                                showError(`Maximum payable is ₹${invoice.dueAmount.toFixed(2)}`);
-                                return;
-                              }
-                              setPayments(prev => ({ ...prev, [invoice._id]: val }));
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '8px 8px 8px 28px',
-                              border: '1px solid var(--gray-200)',
-                              borderRadius: '6px',
-                              fontSize: '14px',
-                            }}
-                            min="0"
-                            max={invoice.dueAmount}
-                            step="0.01"
-                            onWheel={(e) => e.target.blur()}
-                          />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {/* Payment Method Selector */}
+                        <div>
+                          <label style={{ fontSize: '12px', color: '#666', fontWeight: 500, marginBottom: '4px', display: 'block' }}>
+                            <i className="fa-solid fa-credit-card"></i> Payment Method
+                          </label>
+                          <div className="payment-method-grid" style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(5, 1fr)',
+                            gap: '6px',
+                          }}>
+                            {PAYMENT_METHODS.map((method) => (
+                              <button
+                                key={method.value}
+                                type="button"
+                                className={`btn btn-sm ${paymentMethods[invoice._id] === method.value ? 'btn-primary' : 'btn-secondary'}`}
+                                onClick={() => setPaymentMethods(prev => ({ ...prev, [invoice._id]: method.value }))}
+                                style={{
+                                  fontSize: '11px',
+                                  padding: '6px 4px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  border: paymentMethods[invoice._id] === method.value ? '2px solid var(--primary)' : '1px solid var(--gray-200)',
+                                }}
+                                title={method.label}
+                              >
+                                <i className={method.icon} style={{ fontSize: '14px' }}></i>
+                                <span>{method.label}</span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => handlePay(invoice._id)}
-                          disabled={submitting || !payments[invoice._id] || Number(payments[invoice._id]) <= 0}
-                          style={{ whiteSpace: 'nowrap', height: '38px' }}
-                        >
-                          {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Pay'}
-                        </button>
-                        <button
-                          className="btn btn-success btn-sm"
-                          onClick={() => handlePayFull(invoice)}
-                          disabled={submitting}
-                          style={{ whiteSpace: 'nowrap', height: '38px' }}
-                        >
-                          {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Full Pay'}
-                        </button>
+
+                        {/* Amount Input and Pay Buttons */}
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <div style={{ flex: 1, position: 'relative' }}>
+                            <span style={{
+                              position: 'absolute',
+                              left: '10px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              color: '#888',
+                              fontWeight: 600,
+                              fontSize: '14px',
+                            }}>₹</span>
+                            <input
+                              type="number"
+                              placeholder="Enter amount"
+                              value={payments[invoice._id] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (Number(val) > invoice.dueAmount) {
+                                  showError(`Maximum payable is ₹${invoice.dueAmount.toFixed(2)}`);
+                                  return;
+                                }
+                                setPayments(prev => ({ ...prev, [invoice._id]: val }));
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '8px 8px 8px 28px',
+                                border: '1px solid var(--gray-200)',
+                                borderRadius: '6px',
+                                fontSize: '14px',
+                              }}
+                              min="0"
+                              max={invoice.dueAmount}
+                              step="0.01"
+                              onWheel={(e) => e.target.blur()}
+                            />
+                          </div>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => handlePay(invoice._id)}
+                            disabled={submitting || !payments[invoice._id] || Number(payments[invoice._id]) <= 0}
+                            style={{ whiteSpace: 'nowrap', height: '38px' }}
+                          >
+                            {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Pay'}
+                          </button>
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={() => handlePayFull(invoice)}
+                            disabled={submitting}
+                            style={{ whiteSpace: 'nowrap', height: '38px' }}
+                          >
+                            {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Full Pay'}
+                          </button>
+                        </div>
                       </div>
                     )}
 

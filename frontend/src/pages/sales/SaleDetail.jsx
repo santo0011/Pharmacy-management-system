@@ -15,10 +15,14 @@ export default function SaleDetail() {
   const [showHistory, setShowHistory] = useState(false);
   const [paying, setPaying] = useState(false);
   const [payAmount, setPayAmount] = useState('');
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [showPayments, setShowPayments] = useState(false);
 
   useEffect(() => {
     dispatch(fetchSale(id));
     fetchEditHistory();
+    fetchPaymentHistory();
     return () => dispatch(clearSelectedSale());
   }, [dispatch, id]);
 
@@ -33,6 +37,20 @@ export default function SaleDetail() {
       console.error('Failed to load edit history');
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchPaymentHistory = async () => {
+    setPaymentsLoading(true);
+    try {
+      const { data } = await saleService.getSalePayments(id);
+      if (data.data) {
+        setPaymentHistory(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to load payment history');
+    } finally {
+      setPaymentsLoading(false);
     }
   };
 
@@ -54,6 +72,17 @@ export default function SaleDetail() {
   if (loading || !sale) {
     return <div className="loading-spinner" style={{ marginTop: '40px' }}><i className="fa-solid fa-spinner fa-spin"></i></div>;
   }
+
+  // Determine if a field is monetary (should show ₹ symbol)
+  const isMonetaryField = (field) => {
+    const monetaryFields = [
+      'subtotal', 'taxAmount', 'discountAmount', 'discount', 'grandTotal',
+      'paidAmount', 'dueAmount', 'sellingPrice', 'price', 'total',
+      'amount', 'previousDue', 'remainingDue',
+    ];
+    const fieldLower = (field || '').toLowerCase();
+    return monetaryFields.some(mf => fieldLower.includes(mf));
+  };
 
   const InfoRow = ({ label, value }) => (
     <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
@@ -145,6 +174,78 @@ export default function SaleDetail() {
         </div>
       </div>
 
+      {/* Bill Payment History Section */}
+      <div className="card" style={{ marginBottom: '20px' }}>
+        <div className="card-header">
+          <h5>
+            <i className="fa-solid fa-credit-card"></i> Bill Payment History
+            {paymentHistory.length > 0 && (
+              <span style={{ fontSize: '12px', color: 'var(--gray-500)', fontWeight: 400, marginLeft: '8px' }}>
+                ({paymentHistory.length} payment(s))
+              </span>
+            )}
+          </h5>
+          {paymentHistory.length > 0 && (
+            <button className="btn btn-sm btn-secondary" onClick={() => setShowPayments(!showPayments)}>
+              {showPayments ? 'Hide' : 'Show'} Payments
+            </button>
+          )}
+        </div>
+        {showPayments && (
+          <div className="card-body" style={{ padding: 0 }}>
+            {paymentsLoading ? (
+              <div className="loading-spinner" style={{ padding: '30px' }}>
+                <i className="fa-solid fa-spinner fa-spin"></i>
+              </div>
+            ) : paymentHistory.length === 0 ? (
+              <div className="empty-state" style={{ padding: '30px' }}>
+                <i className="fa-solid fa-check-circle" style={{ fontSize: '36px', color: '#22c55e' }}></i>
+                <h4>No Payment History</h4>
+                <p>No payments have been recorded for this invoice.</p>
+              </div>
+            ) : (
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Date & Time</th>
+                      <th>Amount</th>
+                      <th>Remaining Due</th>
+                      <th>Payment Method</th>
+                      <th>Collected By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentHistory.map((payment, idx) => (
+                      <tr key={payment._id}>
+                        <td>{idx + 1}</td>
+                        <td>{new Date(payment.paymentDate || payment.createdAt).toLocaleString()}</td>
+                        <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(payment.amount).toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>
+                          ₹{Number(payment.remainingDue).toFixed(2)}
+                        </td>
+                        <td>
+                          <span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>
+                            {payment.paymentMethod ? payment.paymentMethod.replace('_', ' ') : 'Cash'}
+                          </span>
+                        </td>
+                        <td>{payment.createdBy?.name || 'Unknown'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        {paymentHistory.length === 0 && (
+          <div className="card-body" style={{ padding: '16px', textAlign: 'center', color: 'var(--gray-500)' }}>
+            <i className="fa-solid fa-info-circle"></i> No payment history available for this invoice.
+          </div>
+        )}
+      </div>
+
       {/* Edit History Section */}
       <div className="card">
         <div className="card-header">
@@ -229,13 +330,13 @@ export default function SaleDetail() {
                                     <td style={{ fontWeight: 500 }}>{change.label || change.field}</td>
                                     <td style={{ color: change.changeType === 'added' ? '#16a34a' : '#dc2626' }}>
                                       {change.previousValue !== null && change.previousValue !== undefined
-                                        ? (typeof change.previousValue === 'number' ? `₹${change.previousValue.toFixed(2)}` : String(change.previousValue))
+                                        ? (isMonetaryField(change.field) ? `₹${Number(change.previousValue).toFixed(2)}` : String(change.previousValue))
                                         : <span style={{ color: '#888', fontStyle: 'italic' }}>none</span>
                                       }
                                     </td>
                                     <td style={{ color: change.changeType === 'removed' ? '#dc2626' : '#16a34a' }}>
                                       {change.newValue !== null && change.newValue !== undefined
-                                        ? (typeof change.newValue === 'number' ? `₹${change.newValue.toFixed(2)}` : String(change.newValue))
+                                        ? (isMonetaryField(change.field) ? `₹${Number(change.newValue).toFixed(2)}` : String(change.newValue))
                                         : <span style={{ color: '#888', fontStyle: 'italic' }}>removed</span>
                                       }
                                     </td>

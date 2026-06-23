@@ -8,6 +8,7 @@ import {
   returnSale,
   getSaleStats,
   getSaleEditHistory,
+  getSalePayments,
 } from '../controllers/saleController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
@@ -18,6 +19,7 @@ router.use(protect);
 router.use(pharmacyScope);
 
 router.get('/stats', getSaleStats);
+router.get('/:id/payments', getSalePayments);
 router.get('/:id/history', getSaleEditHistory);
 router.route('/')
   .get(getSales)

@@ -9,4 +9,5 @@ export const saleService = {
   deleteSale: (id) => API.delete(`/sales/${id}`),
   getSaleStats: () => API.get('/sales/stats'),
   getSaleEditHistory: (id) => API.get(`/sales/${id}/history`),
+  getSalePayments: (id) => API.get(`/sales/${id}/payments`),
 };

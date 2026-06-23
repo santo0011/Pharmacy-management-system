@@ -4,6 +4,7 @@ import Medicine from '../models/Medicine.js';
 import Customer from '../models/Customer.js';
 import Purchase from '../models/Purchase.js';
 import SaleEditHistory from '../models/SaleEditHistory.js';
+import PaymentTransaction from '../models/PaymentTransaction.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 const generateInvoiceNumber = async (pharmacyId) => {
@@ -76,6 +77,25 @@ export const getSale = async (req, res, next) => {
       .populate('createdBy', 'name');
     if (!sale) return ApiResponse.error(res, 'Sale not found', 404);
     return ApiResponse.success(res, sale);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get payment history for a specific sale
+// @route   GET /api/sales/:id/payments
+// @access  Private
+export const getSalePayments = async (req, res, next) => {
+  try {
+    const payments = await PaymentTransaction.find({
+      sale: req.params.id,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    })
+      .populate('createdBy', 'name')
+      .sort({ paymentDate: 1 });
+
+    return ApiResponse.success(res, payments);
   } catch (error) {
     next(error);
   }
@@ -177,6 +197,21 @@ export const createSale = async (req, res, next) => {
       pharmacyId: req.pharmacyId,
       createdBy: req.user._id,
     }], { session });
+
+    // Record initial payment transaction if paid amount > 0
+    if (paid > 0) {
+      await PaymentTransaction.create([{
+        sale: sale._id,
+        customer: customerDoc?._id || null,
+        pharmacyId: req.pharmacyId,
+        amount: paid,
+        previousDue: grandTotal,
+        remainingDue: grandTotal - paid,
+        paymentMethod: paymentMethod || 'cash',
+        notes: 'Initial payment at sale creation',
+        createdBy: req.user._id,
+      }], { session });
+    }
 
     // Deduct stock
     await deductStock(saleItems, req.pharmacyId, session);

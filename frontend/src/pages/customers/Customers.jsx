@@ -22,6 +22,7 @@ export default function Customers() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [paymentCustomer, setPaymentCustomer] = useState(null);
   const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState('purchases');
 
   // --- Fetch All Customers ---
   const fetchCustomers = useCallback(async () => {
@@ -67,6 +68,7 @@ export default function Customers() {
   // --- View Customer Detail (Enhanced) ---
   const handleViewCustomer = async (customer) => {
     setSelectedCustomer(customer);
+    setDetailTab('purchases');
     setDetailLoading(true);
     try {
       // Priority: customerRef (MongoDB ObjectId from due pipeline), _id (from all customers), phone, name
@@ -308,7 +310,7 @@ export default function Customers() {
       {/* Enhanced Customer Detail Drawer */}
       {selectedCustomer && (
         <div className="modal-overlay" onClick={() => { setSelectedCustomer(null); setCustomerDetail(null); }}>
-          <div className="drawer open" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+          <div className="drawer open" onClick={(e) => e.stopPropagation()} style={{ width: '750px' }}>
             <div className="drawer-header">
               <h3>
                 <i className="fa-solid fa-user"></i> {selectedCustomer.customerName}
@@ -322,10 +324,10 @@ export default function Customers() {
                 <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
               ) : customerDetail ? (
                 <>
-                  {/* Customer Info Card - Enhanced */}
+                  {/* Customer Info Card - Enhanced with Summary Cards */}
                   <div className="card" style={{ marginBottom: '16px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' }}>
                     <div className="card-body">
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                         <div>
                           <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</label>
                           <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '2px', color: '#0f172a' }}>{customerDetail.customer?.customerName}</div>
@@ -335,21 +337,40 @@ export default function Customers() {
                           <div style={{ fontWeight: 500, marginTop: '2px' }}>{customerDetail.customer?.customerPhone || '-'}</div>
                         </div>
                         <div>
-                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Bills</label>
-                          <div style={{ fontWeight: 500, marginTop: '2px' }}>{customerDetail.customer?.totalPurchases || 0}</div>
+                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Address</label>
+                          <div style={{ fontWeight: 500, marginTop: '2px', fontSize: '13px' }}>{customerDetail.customer?.customerAddress || '-'}</div>
                         </div>
-                        <div>
-                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Spent</label>
-                          <div style={{ fontWeight: 700, color: 'var(--primary)', marginTop: '2px', fontSize: '18px' }}>₹{Number(customerDetail.customer?.totalSpent || 0).toFixed(2)}</div>
+                      </div>
+
+                      {/* Summary Cards - Total Purchases, Total Paid, Total Due */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                        <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '12px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Purchases</div>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>{customerDetail.customer?.totalPurchases || 0}</div>
                         </div>
+                        <div style={{ background: '#eff6ff', borderRadius: '10px', padding: '12px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Paid</div>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>
+                            ₹{Number(customerDetail.customer?.totalPaid || 0).toFixed(2)}
+                          </div>
+                        </div>
+                        <div style={{ background: Number(customerDetail.customer?.totalDue || 0) > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '10px', padding: '12px', border: `1px solid ${Number(customerDetail.customer?.totalDue || 0) > 0 ? '#fed7aa' : '#bbf7d0'}`, textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: Number(customerDetail.customer?.totalDue || 0) > 0 ? '#9a3412' : '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Due</div>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: Number(customerDetail.customer?.totalDue || 0) > 0 ? '#c2410c' : '#16a34a', marginTop: '4px' }}>
+                            ₹{Number(customerDetail.customer?.totalDue || 0).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
                         <div>
-                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>First Bill</label>
+                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>First Purchase</label>
                           <div style={{ fontWeight: 500, marginTop: '2px', fontSize: '13px' }}>
                             {customerDetail.customer?.firstPurchaseDate ? new Date(customerDetail.customer.firstPurchaseDate).toLocaleDateString() : '-'}
                           </div>
                         </div>
                         <div>
-                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Bill</label>
+                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Purchase</label>
                           <div style={{ fontWeight: 500, marginTop: '2px', fontSize: '13px' }}>
                             {customerDetail.customer?.lastPurchaseDate ? new Date(customerDetail.customer.lastPurchaseDate).toLocaleDateString() : '-'}
                           </div>
@@ -358,80 +379,146 @@ export default function Customers() {
                     </div>
                   </div>
 
-                  {/* Purchase History with Medicine Details */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <h5 style={{ margin: 0 }}>
-                      <i className="fa-solid fa-receipt"></i> Bill History
-                    </h5>
-                    {customerDetail.total > 0 && (
-                      <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{customerDetail.total} bill(s)</span>
-                    )}
+                  {/* Tabs: Purchase History | Payment History */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', borderBottom: '2px solid var(--gray-200)', paddingBottom: '8px' }}>
+                    <button
+                      className={`btn btn-sm ${detailTab === 'purchases' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setDetailTab('purchases')}
+                      style={{ borderRadius: '6px' }}
+                    >
+                      <i className="fa-solid fa-receipt"></i> Purchase History
+                      {customerDetail.total > 0 && (
+                        <span style={{ marginLeft: '4px', fontSize: '11px' }}>({customerDetail.total})</span>
+                      )}
+                    </button>
+                    <button
+                      className={`btn btn-sm ${detailTab === 'payments' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setDetailTab('payments')}
+                      style={{ borderRadius: '6px' }}
+                    >
+                      <i className="fa-solid fa-credit-card"></i> Payment History
+                      {customerDetail.paymentHistory?.length > 0 && (
+                        <span style={{ marginLeft: '4px', fontSize: '11px' }}>({customerDetail.paymentHistory.length})</span>
+                      )}
+                    </button>
                   </div>
-                  {customerDetail.sales?.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {customerDetail.sales.map((sale, idx) => (
-                        <div key={idx} className="card" style={{
-                          margin: 0,
-                          border: '1px solid var(--gray-200)',
-                          borderLeft: `4px solid ${sale.dueAmount > 0 ? '#f97316' : '#22c55e'}`,
-                        }}>
-                          <div className="card-body" style={{ padding: '14px' }}>
-                            {/* Bill Header */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              <div>
-                                <span style={{ fontWeight: 600, fontSize: '14px' }}>{sale.invoiceNumber}</span>
-                                <span style={{ fontSize: '12px', color: '#888', marginLeft: '8px' }}>
-                                  {new Date(sale.saleDate).toLocaleDateString()}
-                                </span>
-                              </div>
-                              <span style={{ fontWeight: 600, color: sale.dueAmount > 0 ? '#dc2626' : '#16a34a', fontSize: '14px' }}>
-                                ₹{Number(sale.grandTotal).toFixed(2)}
-                              </span>
-                            </div>
 
-                            {/* Medicine Items */}
-                            {sale.items && sale.items.length > 0 && (
-                              <div style={{ marginBottom: '8px', padding: '6px 10px', background: '#f9fafb', borderRadius: '6px' }}>
-                                <div style={{ fontSize: '11px', color: '#888', fontWeight: 600, marginBottom: '4px' }}>MEDICINES</div>
-                                <div style={{ fontSize: '13px', lineHeight: '1.8' }}>
-                                  {sale.items.map((item, i) => (
-                                    <span key={i}>
-                                      {i > 0 && ', '}
-                                      <strong>{item.medicineName}</strong> × {item.quantity}
-                                      {item.sellingPrice ? ` (₹${Number(item.sellingPrice).toFixed(2)}/pc)` : ''}
+                  {/* Purchase History Tab */}
+                  {detailTab === 'purchases' && (
+                    <>
+                      {customerDetail.sales?.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {customerDetail.sales.map((sale, idx) => (
+                            <div key={idx} className="card" style={{
+                              margin: 0,
+                              border: '1px solid var(--gray-200)',
+                              borderLeft: `4px solid ${sale.dueAmount > 0 ? '#f97316' : '#22c55e'}`,
+                            }}>
+                              <div className="card-body" style={{ padding: '14px' }}>
+                                {/* Bill Header */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                  <div>
+                                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{sale.invoiceNumber}</span>
+                                    <span style={{ fontSize: '12px', color: '#888', marginLeft: '8px' }}>
+                                      {new Date(sale.saleDate).toLocaleDateString()}
                                     </span>
-                                  ))}
+                                  </div>
+                                  <span className={`badge ${sale.paymentStatus === 'paid' ? 'badge-success' : sale.paymentStatus === 'partial' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '10px' }}>
+                                    {sale.paymentStatus}
+                                  </span>
+                                </div>
+
+                                {/* Medicine Items */}
+                                {sale.items && sale.items.length > 0 && (
+                                  <div style={{ marginBottom: '8px', padding: '6px 10px', background: '#f9fafb', borderRadius: '6px' }}>
+                                    <div style={{ fontSize: '11px', color: '#888', fontWeight: 600, marginBottom: '4px' }}>MEDICINES</div>
+                                    <div style={{ fontSize: '13px', lineHeight: '1.8' }}>
+                                      {sale.items.map((item, i) => (
+                                        <span key={i}>
+                                          {i > 0 && ', '}
+                                          <strong>{item.medicineName}</strong> × {item.quantity}
+                                          {item.sellingPrice ? ` (₹${Number(item.sellingPrice).toFixed(2)}/pc)` : ''}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Payment Summary */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '12px', padding: '6px 10px', background: sale.dueAmount > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '6px' }}>
+                                  <div>
+                                    <span style={{ color: '#888' }}>Amount: </span>
+                                    <span style={{ fontWeight: 600 }}>₹{Number(sale.grandTotal).toFixed(2)}</span>
+                                  </div>
+                                  <div>
+                                    <span style={{ color: '#888' }}>Paid: </span>
+                                    <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(sale.paidAmount).toFixed(2)}</span>
+                                  </div>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <span style={{ color: '#888' }}>Due: </span>
+                                    <span style={{ fontWeight: 700, color: sale.dueAmount > 0 ? '#dc2626' : '#16a34a' }}>
+                                      {sale.dueAmount > 0 ? `₹${Number(sale.dueAmount).toFixed(2)}` : 'Cleared'}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
-                            )}
-
-                            {/* Payment Summary */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '12px', padding: '6px 10px', background: sale.dueAmount > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '6px' }}>
-                              <div>
-                                <span style={{ color: '#888' }}>Paid: </span>
-                                <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(sale.paidAmount).toFixed(2)}</span>
-                              </div>
-                              <div>
-                                <span style={{ color: '#888' }}>Due: </span>
-                                <span style={{ fontWeight: 700, color: sale.dueAmount > 0 ? '#dc2626' : '#16a34a' }}>
-                                  {sale.dueAmount > 0 ? `₹${Number(sale.dueAmount).toFixed(2)}` : 'Cleared'}
-                                </span>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <span className={`badge ${sale.paymentStatus === 'paid' ? 'badge-success' : sale.paymentStatus === 'partial' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '10px' }}>
-                                  {sale.paymentStatus}
-                                </span>
-                              </div>
                             </div>
-                          </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="empty-state" style={{ padding: '20px' }}>
-                      <i className="fa-solid fa-receipt" style={{ fontSize: '36px', color: 'var(--gray-300)' }}></i>
-                      <p>No purchase history available.</p>
-                    </div>
+                      ) : (
+                        <div className="empty-state" style={{ padding: '20px' }}>
+                          <i className="fa-solid fa-receipt" style={{ fontSize: '36px', color: 'var(--gray-300)' }}></i>
+                          <p>No purchase history available.</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Payment History Tab */}
+                  {detailTab === 'payments' && (
+                    <>
+                      {customerDetail.paymentHistory && customerDetail.paymentHistory.length > 0 ? (
+                        <div className="table-container">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Date & Time</th>
+                                <th>Invoice</th>
+                                <th>Amount</th>
+                                <th>Payment Method</th>
+                                <th>Remaining Due</th>
+                                <th>Collected By</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {customerDetail.paymentHistory.map((payment, idx) => (
+                                <tr key={payment._id}>
+                                  <td>{idx + 1}</td>
+                                  <td>{new Date(payment.paymentDate || payment.createdAt).toLocaleString()}</td>
+                                  <td style={{ fontWeight: 500 }}>{payment.sale?.invoiceNumber || '-'}</td>
+                                  <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(payment.amount).toFixed(2)}</td>
+                                  <td>
+                                    <span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>
+                                      {payment.paymentMethod ? payment.paymentMethod.replace('_', ' ') : 'Cash'}
+                                    </span>
+                                  </td>
+                                  <td style={{ fontWeight: 600, color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>
+                                    ₹{Number(payment.remainingDue).toFixed(2)}
+                                  </td>
+                                  <td>{payment.createdBy?.name || 'Unknown'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="empty-state" style={{ padding: '20px' }}>
+                          <i className="fa-solid fa-credit-card" style={{ fontSize: '36px', color: 'var(--gray-300)' }}></i>
+                          <p>No payment history available.</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               ) : (

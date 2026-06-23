@@ -145,6 +145,22 @@ export const getCustomer = async (req, res, next) => {
       if (customer) customerFound = true;
     }
 
+    // Calculate totals for the customer
+    const calcTotals = async (matchQuery) => {
+      const totalsAgg = await Sale.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: null,
+            totalSpent: { $sum: '$grandTotal' },
+            totalPaid: { $sum: '$paidAmount' },
+            totalDue: { $sum: '$dueAmount' },
+          },
+        },
+      ]);
+      return totalsAgg[0] || { totalSpent: 0, totalPaid: 0, totalDue: 0 };
+    };
+
     if (customerFound) {
       // Customer found in Customer collection - fetch sales by customer ref
       const query = {
@@ -159,7 +175,19 @@ export const getCustomer = async (req, res, next) => {
         .sort({ saleDate: -1 })
         .skip(skip)
         .limit(limit)
-        .select('invoiceNumber saleDate grandTotal paidAmount dueAmount paymentMethod items');
+        .select('invoiceNumber saleDate grandTotal paidAmount dueAmount paymentMethod paymentStatus items');
+
+      const totals = await calcTotals(query);
+
+      // Get payment history for customer
+      const saleIds = sales.map(s => s._id);
+      const paymentHistory = await PaymentTransaction.find({
+        sale: { $in: saleIds },
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+      })
+        .populate('createdBy', 'name')
+        .sort({ paymentDate: -1 });
 
       return ApiResponse.success(res, {
         customer: {
@@ -169,11 +197,14 @@ export const getCustomer = async (req, res, next) => {
           customerPhone: customer.phone,
           customerAddress: customer.address,
           totalPurchases: customer.totalPurchases,
-          totalSpent: customer.totalSpent,
+          totalSpent: totals.totalSpent,
+          totalPaid: totals.totalPaid,
+          totalDue: totals.totalDue,
           lastPurchaseDate: customer.lastPurchaseDate,
           firstPurchaseDate: customer.createdAt,
         },
         sales,
+        paymentHistory,
         total,
         page,
         limit,
@@ -201,21 +232,35 @@ export const getCustomer = async (req, res, next) => {
       .sort({ saleDate: -1 })
       .skip(skip)
       .limit(limit)
-      .select('invoiceNumber saleDate grandTotal paidAmount dueAmount paymentMethod items');
+      .select('invoiceNumber saleDate grandTotal paidAmount dueAmount paymentMethod paymentStatus items');
 
     if (sales.length === 0) {
       return ApiResponse.error(res, 'Customer not found', 404);
     }
+
+    const totals = await calcTotals(legacyQuery);
 
     // Build customer summary from sales
     const summary = {
       customerName: sales[0].customerName,
       customerPhone: sales[0].customerPhone,
       totalPurchases: total,
-      totalSpent: sales.reduce((s, sale) => s + (sale.grandTotal || 0), 0),
+      totalSpent: totals.totalSpent,
+      totalPaid: totals.totalPaid,
+      totalDue: totals.totalDue,
       lastPurchaseDate: sales[0].saleDate,
       firstPurchaseDate: sales[sales.length - 1]?.saleDate || sales[0].saleDate,
     };
+
+    // Get payment history
+    const saleIds = sales.map(s => s._id);
+    const paymentHistory = await PaymentTransaction.find({
+      sale: { $in: saleIds },
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    })
+      .populate('createdBy', 'name')
+      .sort({ paymentDate: -1 });
 
     return ApiResponse.success(res, {
       customer: {
@@ -226,14 +271,82 @@ export const getCustomer = async (req, res, next) => {
         customerAddress: '',
         totalPurchases: summary.totalPurchases,
         totalSpent: summary.totalSpent,
+        totalPaid: summary.totalPaid,
+        totalDue: summary.totalDue,
         lastPurchaseDate: summary.lastPurchaseDate,
         firstPurchaseDate: summary.firstPurchaseDate,
       },
       sales,
+      paymentHistory,
       total,
       page,
       limit,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+// @desc    Get customer-specific payment history
+// @route   GET /api/customers/:customerId/payments
+// @access  Private
+export const getCustomerPaymentHistory = async (req, res, next) => {
+  try {
+    const { customerId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Find customer
+    let customer = null;
+    let customerPhone = '';
+    let customerName = '';
+
+    if (mongoose.Types.ObjectId.isValid(customerId)) {
+      customer = await Customer.findOne({ _id: customerId, pharmacyId: req.pharmacyId, isDeleted: false });
+    }
+    if (!customer) {
+      customer = await Customer.findOne({ phone: customerId, pharmacyId: req.pharmacyId, isDeleted: false });
+    }
+
+    if (customer) {
+      customerPhone = customer.phone;
+      customerName = customer.name;
+    }
+
+    // Build match conditions
+    const matchQuery = { pharmacyId: req.pharmacyId, isDeleted: false };
+    const orConditions = [];
+
+    if (customer && customer._id) {
+      orConditions.push({ customer: customer._id });
+    }
+    if (customerPhone) {
+      // Find sales for this customer to get sale IDs
+      const customerSales = await Sale.find({
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        $or: [
+          { customer: customer?._id || null },
+          { customerPhone: customerPhone },
+          { customerName: customerName },
+        ],
+      }).select('_id');
+      const saleIds = customerSales.map(s => s._id);
+      matchQuery.sale = { $in: saleIds };
+    }
+
+    const total = await PaymentTransaction.countDocuments(matchQuery);
+    const payments = await PaymentTransaction.find(matchQuery)
+      .populate({
+        path: 'sale',
+        select: 'invoiceNumber customerName',
+      })
+      .populate('createdBy', 'name')
+      .sort({ paymentDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return ApiResponse.paginated(res, payments, total, page, limit);
   } catch (error) {
     next(error);
   }
