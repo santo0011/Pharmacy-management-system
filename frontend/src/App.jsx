@@ -19,6 +19,8 @@ import Sales from './pages/sales/Sales';
 import SaleForm from './pages/sales/SaleForm';
 import SaleDetail from './pages/sales/SaleDetail';
 import Invoice from './pages/sales/Invoice';
+import Customers from './pages/customers/Customers';
+import Reports from './pages/reports/Reports';
 import Subscriptions from './pages/subscriptions/Subscriptions';
 import Payments from './pages/payments/Payments';
 import Settings from './pages/settings/Settings';
@@ -75,8 +77,8 @@ export default function App() {
         <Route path="categories" element={<Categories />} />
         <Route path="brands" element={<Brands />} />
         <Route path="suppliers" element={<Suppliers />} />
-        <Route path="customers" element={<Dashboard />} />
-        <Route path="reports" element={<Dashboard />} />
+        <Route path="customers" element={<Customers />} />
+        <Route path="reports" element={<Reports />} />
         <Route path="medicines" element={<Medicines />} />
         <Route path="medicines/new" element={<MedicineForm />} />
         <Route path="medicines/:id" element={<MedicineDetail />} />
@@ -88,6 +90,7 @@ export default function App() {
         <Route path="sales" element={<Sales />} />
         <Route path="sales/new" element={<SaleForm />} />
         <Route path="sales/:id" element={<SaleDetail />} />
+        <Route path="sales/:id/edit" element={<SaleForm />} />
         <Route path="sales/:id/invoice" element={<Invoice />} />
         <Route path="staff" element={<Staff />} />
       </Route>

@@ -70,6 +70,7 @@ export const getSale = async (req, res, next) => {
   try {
     const sale = await Sale.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId, isDeleted: false })
       .populate('items.medicine', 'medicineName genericName unit')
+      .populate('pharmacyId', 'pharmacyName phone')
       .populate('createdBy', 'name');
     if (!sale) return ApiResponse.error(res, 'Sale not found', 404);
     return ApiResponse.success(res, sale);
@@ -175,6 +176,126 @@ export const createSale = async (req, res, next) => {
   }
 };
 
+// @desc    Update sale (edit items, prices, etc.)
+// @route   PUT /api/sales/:id
+// @access  Private
+export const updateSale = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const sale = await Sale.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId, isDeleted: false }).session(session);
+    if (!sale) return ApiResponse.error(res, 'Sale not found', 404);
+    if (sale.status !== 'completed') {
+      return ApiResponse.error(res, 'Can only edit completed sales', 400);
+    }
+
+    // Revert old stock first
+    if (sale.isStockDeducted) {
+      await revertStock(sale.items, req.pharmacyId, session);
+    }
+
+    const { customerName, customerPhone, items, discount, discountType, paidAmount, paymentMethod, notes } = req.body;
+
+    if (!items || items.length === 0) {
+      // Re-deduct since we already reverted
+      if (sale.isStockDeducted) await deductStock(sale.items, req.pharmacyId, session);
+      return ApiResponse.error(res, 'At least one item is required', 400);
+    }
+
+    const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
+
+    let subtotal = 0;
+    let taxAmount = 0;
+    const saleItems = [];
+
+    for (const item of parsedItems) {
+      const medicine = await Medicine.findById(item.medicineId).session(session);
+      if (!medicine) {
+        if (sale.isStockDeducted) await deductStock(sale.items, req.pharmacyId, session);
+        return ApiResponse.error(res, `Medicine not found: ${item.medicineName}`, 400);
+      }
+
+      const qty = Number(item.quantity);
+      if (qty <= 0) {
+        if (sale.isStockDeducted) await deductStock(sale.items, req.pharmacyId, session);
+        return ApiResponse.error(res, `Invalid quantity for ${medicine.medicineName}`, 400);
+      }
+      if (medicine.currentStock < qty) {
+        if (sale.isStockDeducted) await deductStock(sale.items, req.pharmacyId, session);
+        return ApiResponse.error(res, `Insufficient stock for ${medicine.medicineName}. Available: ${medicine.currentStock}`, 400);
+      }
+
+      const unitPrice = Number(item.sellingPrice) || medicine.sellingPrice;
+      const gstPct = Number(item.gst) || medicine.gst || 0;
+      const itemDiscount = Number(item.discount) || 0;
+      const itemDiscountType = item.discountType || 'fixed';
+      const itemSubtotal = qty * unitPrice;
+      const itemDiscountAmt = itemDiscountType === 'percentage' ? itemSubtotal * (itemDiscount / 100) : itemDiscount;
+      const itemTotal = itemSubtotal - itemDiscountAmt;
+      const gstAmt = itemTotal * (gstPct / 100);
+
+      subtotal += itemSubtotal;
+      taxAmount += gstAmt;
+
+      saleItems.push({
+        medicine: medicine._id,
+        medicineName: medicine.medicineName,
+        batchNumber: item.batchNumber || medicine.batchNumber || '',
+        quantity: qty,
+        sellingPrice: unitPrice,
+        purchasePrice: medicine.purchasePrice || 0,
+        mrp: item.mrp || medicine.sellingPrice || 0,
+        discount: itemDiscount,
+        discountType: itemDiscountType,
+        discountAmount: itemDiscountAmt,
+        subtotal: itemSubtotal,
+        gst: gstPct,
+        gstAmount: gstAmt,
+        total: itemTotal + gstAmt,
+      });
+    }
+
+    const overallDiscount = Number(discount) || 0;
+    const overallDiscountType = discountType || 'fixed';
+    const discountAmount = overallDiscountType === 'percentage' ? subtotal * (overallDiscount / 100) : overallDiscount;
+    const grandTotal = subtotal + taxAmount - discountAmount;
+    const paid = Number(paidAmount) !== undefined ? Number(paidAmount) : grandTotal;
+    const due = grandTotal - paid;
+
+    sale.set({
+      customerName: customerName || sale.customerName,
+      customerPhone: customerPhone !== undefined ? customerPhone : sale.customerPhone,
+      items: saleItems,
+      subtotal,
+      discount: overallDiscount,
+      discountType: overallDiscountType,
+      discountAmount,
+      taxAmount,
+      grandTotal,
+      paidAmount: paid,
+      dueAmount: Math.max(0, due),
+      paymentMethod: paymentMethod || sale.paymentMethod,
+      paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+      notes: notes !== undefined ? notes : sale.notes,
+      isStockDeducted: true,
+      updatedBy: req.user._id,
+    });
+
+    await sale.save({ session });
+
+    // Deduct new stock
+    await deductStock(saleItems, req.pharmacyId, session);
+
+    await session.commitTransaction();
+    return ApiResponse.success(res, sale, 'Sale updated successfully');
+  } catch (error) {
+    await session.abortTransaction();
+    next(error);
+  } finally {
+    session.endSession();
+  }
+};
+
 export const deleteSale = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -188,13 +309,13 @@ export const deleteSale = async (req, res, next) => {
       await revertStock(sale.items, req.pharmacyId, session);
     }
 
-    sale.isDeleted = true;
-    sale.deletedAt = new Date();
     sale.status = 'cancelled';
+    sale.notes = (sale.notes ? sale.notes + ' | ' : '') + 'Cancelled on ' + new Date().toISOString().split('T')[0];
+    sale.updatedBy = req.user._id;
     await sale.save({ session });
 
     await session.commitTransaction();
-    return ApiResponse.success(res, null, 'Sale cancelled successfully');
+    return ApiResponse.success(res, sale, 'Sale cancelled successfully');
   } catch (error) {
     await session.abortTransaction();
     next(error);

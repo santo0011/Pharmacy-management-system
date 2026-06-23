@@ -15,6 +15,10 @@ export default function SaleDetail() {
     return () => dispatch(clearSelectedSale());
   }, [dispatch, id]);
 
+  const handleEdit = () => {
+    navigate(`/sales/${id}/edit`);
+  };
+
   const handleReturn = async () => {
     const confirmed = await confirmAction('Return Sale', 'Stock will be added back. Continue?');
     if (!confirmed) return;
@@ -49,9 +53,14 @@ export default function SaleDetail() {
             <i className="fa-solid fa-print"></i> Invoice
           </button>
           {sale.status === 'completed' && (
-            <button className="btn btn-info" onClick={handleReturn}>
-              <i className="fa-solid fa-undo"></i> Return
-            </button>
+            <>
+              <button className="btn btn-warning" onClick={handleEdit}>
+                <i className="fa-solid fa-edit"></i> Edit
+              </button>
+              <button className="btn btn-info" onClick={handleReturn}>
+                <i className="fa-solid fa-undo"></i> Return
+              </button>
+            </>
           )}
           <button className="btn btn-secondary" onClick={() => navigate('/sales')}>
             <i className="fa-solid fa-arrow-left"></i> Back

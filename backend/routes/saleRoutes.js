@@ -3,6 +3,7 @@ import {
   getSales,
   getSale,
   createSale,
+  updateSale,
   deleteSale,
   returnSale,
   getSaleStats,
@@ -24,6 +25,7 @@ router.post('/:id/return', authorize('admin', 'pharmacist'), returnSale);
 
 router.route('/:id')
   .get(getSale)
+  .put(authorize('admin', 'pharmacist'), updateSale)
   .delete(authorize('admin', 'pharmacist'), deleteSale);
 
 export default router;

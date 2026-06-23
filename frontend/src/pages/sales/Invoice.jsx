@@ -1,94 +1,115 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchSale, clearSelectedSale } from '../../redux/slices/saleSlice';
+import { getInvoiceHTML, INVOICE_TEMPLATES, PRINT_FORMATS } from '../../utils/invoiceTemplates';
+import { invoiceSettingService } from '../../services/invoiceSettingService';
+import { showSuccess, showError } from '../../utils/sweetAlert';
 
 export default function Invoice() {
   const dispatch = useDispatch();
   const { id } = useParams();
   const navigate = useNavigate();
-  const printRef = useRef();
+  const previewRef = useRef();
   const { selectedSale: sale, loading } = useSelector((state) => state.sales);
+  const [printSettings, setPrintSettings] = useState({ invoiceTemplate: 'classic', printFormat: 'a4' });
 
   useEffect(() => {
     dispatch(fetchSale(id));
     return () => dispatch(clearSelectedSale());
   }, [dispatch, id]);
 
-  const handlePrint = () => {
-    const win = window.open('', '_blank');
-    win.document.write(`
+  // Fetch print settings from pharmacy settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data } = await invoiceSettingService.getMySettings();
+        if (data.data) {
+          setPrintSettings({
+            invoiceTemplate: data.data.invoiceTemplate || 'classic',
+            printFormat: data.data.printFormat || 'a4',
+          });
+        }
+      } catch (error) {
+        // Use defaults
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  // Render preview into iframe whenever sale or settings change
+  const renderPreview = useCallback(() => {
+    if (!sale || !previewRef.current) return;
+
+    const html = getInvoiceHTML(
+      sale,
+      sale.pharmacyId,
+      printSettings.invoiceTemplate,
+      printSettings.printFormat
+    );
+
+    // Inject the HTML body content into the iframe, stripping the outer html/head/script
+    // We want only the styled body content for preview, without auto-print script
+    const iframeDoc = previewRef.current.contentDocument || previewRef.current.contentWindow.document;
+    iframeDoc.open();
+
+    // Extract just the body content from getInvoiceHTML by taking everything between <body> and </body>
+    const bodyMatch = html.match(/<body>([\s\S]*?)<\/body>/i);
+    const bodyContent = bodyMatch ? bodyMatch[1] : '';
+
+    // Also extract styles from the head
+    const styleMatch = html.match(/<head>([\s\S]*?)<\/head>/i);
+    const headContent = styleMatch ? styleMatch[1] : '';
+
+    iframeDoc.write(`
       <html>
         <head>
-          <title>Invoice ${sale?.invoiceNumber}</title>
+          ${headContent}
           <style>
-            @page { size: A4; margin: 15mm; }
-            body { font-family: 'Segoe UI', Arial, sans-serif; color: #333; font-size: 12px; line-height: 1.5; }
-            .invoice-box { max-width: 800px; margin: auto; padding: 20px; }
-            .header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #0ea5e9; }
-            .header .title { font-size: 28px; font-weight: 700; color: #0ea5e9; }
-            .header .details { text-align: right; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; }
-            td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
-            .summary { margin-top: 20px; margin-left: auto; width: 350px; }
-            .summary-row { display: flex; justify-content: space-between; padding: 6px 0; }
-            .summary-row.total { font-size: 18px; font-weight: 700; color: #0ea5e9; border-top: 2px solid #0ea5e9; padding-top: 10px; margin-top: 6px; }
-            .footer { margin-top: 40px; text-align: center; color: #94a3b8; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 16px; }
-            .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
-            .badge-success { background: #dcfce7; color: #16a34a; }
-            @media print { .no-print { display: none; } }
+            body { margin: 0; padding: 0; background: #fff; }
+            @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
           </style>
         </head>
         <body>
-          <div class="invoice-box">
-            <div class="header">
-              <div>
-                <div class="title">PHARMACY</div>
-                <div style="color:#64748b;margin-top:4px;">Medical Store</div>
-              </div>
-              <div class="details">
-                <div style="font-weight:600;font-size:16px;">${sale?.invoiceNumber}</div>
-                <div>${new Date(sale?.saleDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-              </div>
-            </div>
-            <div style="margin-bottom:20px;">
-              <div style="font-weight:600;">Customer: ${sale?.customerName}</div>
-              ${sale?.customerPhone ? `<div>Phone: ${sale.customerPhone}</div>` : ''}
-            </div>
-            <table>
-              <thead><tr><th>#</th><th>Medicine</th><th>Qty</th><th>Price</th><th>GST</th><th>Total</th></tr></thead>
-              <tbody>
-                ${sale?.items?.map((item, idx) => `
-                  <tr>
-                    <td>${idx + 1}</td>
-                    <td style="font-weight:500;">${item.medicineName}</td>
-                    <td>${item.quantity}</td>
-                    <td>₹${Number(item.sellingPrice).toFixed(2)}</td>
-                    <td>${item.gst}%</td>
-                    <td style="font-weight:600;">₹${Number(item.total).toFixed(2)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            <div class="summary">
-              <div class="summary-row"><span>Subtotal:</span><span>₹${Number(sale?.subtotal || 0).toFixed(2)}</span></div>
-              <div class="summary-row"><span>GST:</span><span>₹${Number(sale?.taxAmount || 0).toFixed(2)}</span></div>
-              <div class="summary-row"><span>Discount:</span><span>₹${Number(sale?.discountAmount || 0).toFixed(2)}</span></div>
-              <div class="summary-row total"><span>Grand Total:</span><span>₹${Number(sale?.grandTotal || 0).toFixed(2)}</span></div>
-              <div class="summary-row"><span>Paid:</span><span>₹${Number(sale?.paidAmount || 0).toFixed(2)}</span></div>
-              <div class="summary-row"><span>Due:</span><span style="color:${sale?.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">₹${Number(sale?.dueAmount || 0).toFixed(2)}</span></div>
-              <div class="summary-row"><span>Payment:</span><span style="text-transform:capitalize;">${sale?.paymentMethod} <span class="badge badge-success">${sale?.paymentStatus}</span></span></div>
-            </div>
-            <div class="footer">
-              <div>Thank you for your business!</div>
-              <div style="margin-top:4px;">Invoice generated on ${new Date().toLocaleString()}</div>
-            </div>
-          </div>
-          <script>window.print();window.onafterprint=function(){window.close();};</script>
+          ${bodyContent.replace(/<script>[\s\S]*?<\/script>/gi, '')}
         </body>
       </html>
     `);
+    iframeDoc.close();
+  }, [sale, printSettings]);
+
+  // Re-render preview when sale loads or settings change
+  useEffect(() => {
+    if (sale) {
+      // Small delay to allow iframe to mount on first render
+      const timer = setTimeout(() => renderPreview(), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [sale, renderPreview]);
+
+  const handleSavePreference = async (key, value) => {
+    const updated = { ...printSettings, [key]: value };
+    setPrintSettings(updated);
+    try {
+      await invoiceSettingService.updateMySettings(updated);
+      showSuccess(`${key === 'invoiceTemplate' ? 'Template' : 'Format'} updated`);
+    } catch (error) {
+      showError('Failed to save preference');
+    }
+  };
+
+  const handlePrint = () => {
+    if (!sale) return;
+
+    const html = getInvoiceHTML(
+      sale,
+      sale.pharmacyId,
+      printSettings.invoiceTemplate,
+      printSettings.printFormat
+    );
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
     win.document.close();
   };
 
@@ -113,72 +134,65 @@ export default function Invoice() {
         </div>
       </div>
 
-      <div className="card" ref={printRef} style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <div className="card-body" style={{ padding: '40px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '30px', paddingBottom: '20px', borderBottom: '2px solid var(--primary)' }}>
-            <div>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--primary)' }}>PHARMACY</div>
-              <div style={{ color: 'var(--gray-500)', marginTop: '4px' }}>Medical Store</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 600, fontSize: '16px' }}>{sale.invoiceNumber}</div>
-              <div style={{ color: 'var(--gray-500)', fontSize: '13px' }}>{new Date(sale.saleDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontWeight: 600 }}>Customer: {sale.customerName}</div>
-            {sale.customerPhone && <div style={{ color: 'var(--gray-500)' }}>Phone: {sale.customerPhone}</div>}
-          </div>
-
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr><th>#</th><th>Medicine</th><th>Qty</th><th>Price</th><th>GST</th><th>Total</th></tr>
-              </thead>
-              <tbody>
-                {sale.items?.map((item, idx) => (
-                  <tr key={idx}>
-                    <td>{idx + 1}</td>
-                    <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
-                    <td>{item.quantity}</td>
-                    <td>₹{Number(item.sellingPrice).toFixed(2)}</td>
-                    <td>{item.gst}%</td>
-                    <td style={{ fontWeight: 600 }}>₹{Number(item.total).toFixed(2)}</td>
-                  </tr>
+      {/* Template & Format Selector Bar */}
+      <div className="card" style={{ marginBottom: '16px' }}>
+        <div className="card-body" style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <i className="fa-solid fa-palette"></i> Template:
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {INVOICE_TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    className={`btn btn-sm ${printSettings.invoiceTemplate === tpl.id ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => handleSavePreference('invoiceTemplate', tpl.id)}
+                    title={tpl.description}
+                    style={{ borderRadius: '20px', padding: '4px 12px', fontSize: '12px' }}
+                  >
+                    {tpl.preview} {tpl.name}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+            <div style={{ width: '1px', height: '28px', background: 'var(--gray-300)' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <i className="fa-solid fa-print"></i> Format:
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {PRINT_FORMATS.map((fmt) => (
+                  <button
+                    key={fmt.id}
+                    className={`btn btn-sm ${printSettings.printFormat === fmt.id ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => handleSavePreference('printFormat', fmt.id)}
+                    title={fmt.description}
+                    style={{ borderRadius: '20px', padding: '4px 12px', fontSize: '12px' }}
+                  >
+                    {fmt.preview} {fmt.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
 
-          <div style={{ marginTop: '20px', marginLeft: 'auto', width: '350px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-              <span>Subtotal:</span><span style={{ fontWeight: 600 }}>₹{Number(sale.subtotal || 0).toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-              <span>GST:</span><span style={{ fontWeight: 600 }}>₹{Number(sale.taxAmount || 0).toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-              <span>Discount:</span><span style={{ fontWeight: 600 }}>₹{Number(sale.discountAmount || 0).toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid var(--primary)', fontSize: '18px', fontWeight: 700, color: 'var(--primary)' }}>
-              <span>Grand Total:</span><span>₹{Number(sale.grandTotal || 0).toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-              <span>Paid:</span><span style={{ fontWeight: 600 }}>₹{Number(sale.paidAmount || 0).toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-              <span>Due:</span><span style={{ color: sale.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>₹{Number(sale.dueAmount || 0).toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-              <span>Payment:</span><span style={{ textTransform: 'capitalize' }}>{sale.paymentMethod} <span className="badge badge-success" style={{ marginLeft: '6px' }}>{sale.paymentStatus}</span></span>
-            </div>
-          </div>
-
-          <div style={{ marginTop: '40px', textAlign: 'center', color: 'var(--gray-400)', fontSize: '11px', borderTop: '1px solid var(--gray-200)', paddingTop: '16px' }}>
-            <div>Thank you for your business!</div>
-            <div style={{ marginTop: '4px' }}>Invoice generated on {new Date().toLocaleString()}</div>
-          </div>
+      {/* Live Preview Iframe — rendered exactly as it will print */}
+      <div className="card" style={{ maxWidth: '800px', margin: '0 auto', overflow: 'hidden' }}>
+        <div className="card-body" style={{ padding: 0 }}>
+          <iframe
+            ref={previewRef}
+            title="Invoice Preview"
+            style={{
+              width: '100%',
+              height: '800px',
+              border: 'none',
+              display: 'block',
+            }}
+            sandbox="allow-same-origin"
+          />
         </div>
       </div>
     </div>

@@ -39,8 +39,7 @@ const medicineSchema = mongoose.Schema(
     },
     barcode: {
       type: String,
-      default: '',
-      sparse: true,
+      default: null,
       trim: true,
     },
     manufacturingDate: {
@@ -128,7 +127,16 @@ const medicineSchema = mongoose.Schema(
 
 // Compound unique indexes for pharmacy-level uniqueness
 medicineSchema.index({ batchNumber: 1, pharmacyId: 1 }, { unique: true });
-medicineSchema.index({ barcode: 1, pharmacyId: 1 }, { unique: true, sparse: true });
+// Partial unique index: only enforce uniqueness when barcode is a non-empty string
+medicineSchema.index(
+  { barcode: 1, pharmacyId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      barcode: { $gt: '' },
+    },
+  }
+);
 medicineSchema.index({ medicineName: 'text', genericName: 'text', batchNumber: 'text', barcode: 'text' });
 
 medicineSchema.statics.isLowStock = function (stock, minAlert) {

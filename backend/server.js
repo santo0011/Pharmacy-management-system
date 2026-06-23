@@ -7,6 +7,8 @@ import { fileURLToPath } from 'url';
 import connectDB from './config/db.js';
 import seedSuperAdmin from './config/seed.js';
 import errorHandler from './middleware/errorHandler.js';
+import { syncMedicineIndexes } from './config/syncIndexes.js';
+import { fixCancelledSales } from './config/fixCancelledSales.js';
 
 import authRoutes from './routes/authRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
@@ -19,6 +21,8 @@ import staffRoutes from './routes/staffRoutes.js';
 import medicineRoutes from './routes/medicineRoutes.js';
 import purchaseRoutes from './routes/purchaseRoutes.js';
 import saleRoutes from './routes/saleRoutes.js';
+import customerRoutes from './routes/customerRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 
 dotenv.config();
@@ -28,9 +32,11 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Connect to MongoDB and seed super admin
-connectDB().then(() => {
+// Connect to MongoDB, seed super admin, and sync indexes
+connectDB().then(async () => {
   seedSuperAdmin();
+  await syncMedicineIndexes();
+  await fixCancelledSales();
 });
 
 // Middleware
@@ -53,6 +59,8 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/sales', saleRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 // Health check

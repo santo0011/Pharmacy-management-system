@@ -20,7 +20,7 @@ export default function PurchaseForm() {
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState([{ medicineId: '', medicineName: '', batchNumber: '', quantity: 1, purchasePrice: 0, sellingPrice: 0, mrp: 0, expiryDate: '', gst: 0, barcode: '' }]);
   const [discount, setDiscount] = useState(0);
-  const [discountType, setDiscountType] = useState('fixed');
+  const [discountType, setDiscountType] = useState('percentage');
   const [shippingCost, setShippingCost] = useState(0);
   const [otherCost, setOtherCost] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
@@ -290,8 +290,8 @@ export default function PurchaseForm() {
                     <div className="inline-discount">
                       <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} />
                       <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
-                        <option value="fixed">₹</option>
                         <option value="percentage">%</option>
+                        <option value="fixed">₹</option>
                       </select>
                     </div>
                   </div>

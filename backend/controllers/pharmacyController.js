@@ -281,6 +281,55 @@ export const togglePharmacyStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Get pharmacy invoice settings (for admin users)
+// @route   GET /api/pharmacies/my/invoice-settings
+// @access  Private/Admin
+export const getMyInvoiceSettings = async (req, res, next) => {
+  try {
+    const pharmacy = await Pharmacy.findById(req.pharmacyId).select('invoiceSettings');
+    if (!pharmacy) {
+      return ApiResponse.error(res, 'Pharmacy not found', 404);
+    }
+    return ApiResponse.success(res, {
+      invoiceTemplate: pharmacy.invoiceSettings?.invoiceTemplate || 'classic',
+      printFormat: pharmacy.invoiceSettings?.printFormat || 'a4',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update pharmacy invoice settings (for admin users)
+// @route   PUT /api/pharmacies/my/invoice-settings
+// @access  Private/Admin
+export const updateMyInvoiceSettings = async (req, res, next) => {
+  try {
+    const { invoiceTemplate, printFormat } = req.body;
+
+    const pharmacy = await Pharmacy.findById(req.pharmacyId);
+    if (!pharmacy) {
+      return ApiResponse.error(res, 'Pharmacy not found', 404);
+    }
+
+    if (invoiceTemplate && !['classic', 'modern', 'minimal'].includes(invoiceTemplate)) {
+      return ApiResponse.error(res, 'Invalid invoice template', 400);
+    }
+    if (printFormat && !['a4', '58mm', '80mm'].includes(printFormat)) {
+      return ApiResponse.error(res, 'Invalid print format', 400);
+    }
+
+    pharmacy.invoiceSettings = {
+      invoiceTemplate: invoiceTemplate || pharmacy.invoiceSettings?.invoiceTemplate || 'classic',
+      printFormat: printFormat || pharmacy.invoiceSettings?.printFormat || 'a4',
+    };
+
+    await pharmacy.save();
+    return ApiResponse.success(res, pharmacy.invoiceSettings, 'Invoice settings updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Update pharmacy subscription
 // @route   PUT /api/pharmacies/:id/subscription
 // @access  Private/SuperAdmin

@@ -21,6 +21,11 @@ export const deleteSale = createAsyncThunk('sales/delete', async (id, { rejectWi
   catch (error) { return rejectWithValue(error.response?.data?.message || 'Failed to delete sale'); }
 });
 
+export const updateSale = createAsyncThunk('sales/update', async ({ id, formData }, { rejectWithValue }) => {
+  try { const { data } = await saleService.updateSale(id, formData); return data.data; }
+  catch (error) { return rejectWithValue(error.response?.data?.message || 'Failed to update sale'); }
+});
+
 export const returnSale = createAsyncThunk('sales/return', async (id, { rejectWithValue }) => {
   try { const { data } = await saleService.returnSale(id); return data.data; }
   catch (error) { return rejectWithValue(error.response?.data?.message || 'Failed to return sale'); }

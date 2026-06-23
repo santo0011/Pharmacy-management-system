@@ -159,9 +159,12 @@ export const createMedicine = async (req, res, next) => {
       return ApiResponse.error(res, 'Batch number already exists in this pharmacy', 400);
     }
 
+    // Normalize barcode: null or undefined → null (skips partial unique index)
+    const normalizedBarcode = (barcode && barcode.trim()) ? barcode.trim() : null;
+
     // Check barcode uniqueness if provided
-    if (barcode) {
-      const existingBarcode = await Medicine.findOne({ barcode, pharmacyId: req.pharmacyId });
+    if (normalizedBarcode) {
+      const existingBarcode = await Medicine.findOne({ barcode: normalizedBarcode, pharmacyId: req.pharmacyId });
       if (existingBarcode) {
         return ApiResponse.error(res, 'Barcode already exists in this pharmacy', 400);
       }
@@ -180,7 +183,7 @@ export const createMedicine = async (req, res, next) => {
       supplier,
       hsnCode,
       batchNumber,
-      barcode,
+      barcode: normalizedBarcode,
       manufacturingDate,
       expiryDate,
       purchasePrice,
@@ -199,6 +202,9 @@ export const createMedicine = async (req, res, next) => {
 
     return ApiResponse.success(res, medicine, 'Medicine created successfully', 201);
   } catch (error) {
+
+     console.log("errorrrrr",error.message)
+
     next(error);
   }
 };
@@ -228,9 +234,13 @@ export const updateMedicine = async (req, res, next) => {
       }
     }
 
+    // Normalize barcode: null or undefined → null (skips partial unique index)
+    const normalizedBarcode = (barcode !== undefined && barcode && barcode.trim()) ? barcode.trim() :
+      (barcode !== undefined ? null : medicine.barcode);
+
     // Check barcode uniqueness if changed
-    if (barcode && barcode !== medicine.barcode) {
-      const existingBarcode = await Medicine.findOne({ barcode, pharmacyId: req.pharmacyId, _id: { $ne: medicine._id } });
+    if (normalizedBarcode && normalizedBarcode !== medicine.barcode) {
+      const existingBarcode = await Medicine.findOne({ barcode: normalizedBarcode, pharmacyId: req.pharmacyId, _id: { $ne: medicine._id } });
       if (existingBarcode) {
         return ApiResponse.error(res, 'Barcode already exists in this pharmacy', 400);
       }
@@ -255,7 +265,7 @@ export const updateMedicine = async (req, res, next) => {
     medicine.supplier = supplier || medicine.supplier;
     medicine.hsnCode = hsnCode !== undefined ? hsnCode : medicine.hsnCode;
     medicine.batchNumber = batchNumber || medicine.batchNumber;
-    medicine.barcode = barcode !== undefined ? barcode : medicine.barcode;
+    medicine.barcode = normalizedBarcode;
     medicine.manufacturingDate = manufacturingDate || medicine.manufacturingDate;
     medicine.expiryDate = expiryDate || medicine.expiryDate;
     medicine.purchasePrice = purchasePrice || medicine.purchasePrice;

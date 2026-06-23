@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { createSale } from '../../redux/slices/saleSlice';
+import { useNavigate, useParams } from 'react-router-dom';
+import { createSale, updateSale, fetchSale, clearSelectedSale } from '../../redux/slices/saleSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
 import { showSuccess, showError } from '../../utils/sweetAlert';
 import { medicineService } from '../../services/medicineService';
@@ -9,7 +9,10 @@ import { medicineService } from '../../services/medicineService';
 export default function SaleForm() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = !!id;
   const { items: medicines } = useSelector((state) => state.medicines);
+  const { selectedSale } = useSelector((state) => state.sales);
 
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -29,7 +32,13 @@ export default function SaleForm() {
   useEffect(() => {
     dispatch(fetchMedicines({ limit: 200 }));
     searchRef.current?.focus();
-  }, [dispatch]);
+    if (isEditing && id) {
+      dispatch(fetchSale(id));
+    }
+    return () => {
+      dispatch(clearSelectedSale());
+    };
+  }, [dispatch, id, isEditing]);
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -109,7 +118,7 @@ export default function SaleForm() {
             showError('Medicine not found for this barcode');
           }
         },
-        () => {}
+        () => { }
       );
     } catch (err) {
       setScanning(false);
@@ -142,13 +151,33 @@ export default function SaleForm() {
   const calcDiscount = () => discountType === 'percentage' ? calcSubtotal() * (Number(discount) / 100) : Number(discount);
   const calcGrandTotal = () => calcSubtotal() + calcTax() - calcDiscount();
 
+  // Load sale data when editing
+  useEffect(() => {
+    if (isEditing && selectedSale) {
+      setCustomerName(selectedSale.customerName || 'Walk-in Customer');
+      setCustomerPhone(selectedSale.customerPhone || '');
+      setItems(selectedSale.items?.map(i => ({
+        medicineId: i.medicine?._id || i.medicineId || '',
+        medicineName: i.medicineName,
+        batchNumber: i.batchNumber || '',
+        quantity: i.quantity,
+        sellingPrice: i.sellingPrice,
+        purchasePrice: i.purchasePrice || 0,
+        gst: i.gst || 0,
+        discount: i.discount || 0,
+        discountType: i.discountType || 'fixed',
+        currentStock: 9999,
+      })) || []);
+      setDiscount(selectedSale.discount || 0);
+      setDiscountType(selectedSale.discountType || 'percentage');
+      setPaidAmount(selectedSale.paidAmount || 0);
+      setPaymentMethod(selectedSale.paymentMethod || 'cash');
+    }
+  }, [selectedSale, isEditing]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (items.length === 0) { showError('Add at least one item'); return; }
-    if (items.some(i => i.quantity > i.currentStock)) {
-      showError('Some items have insufficient stock');
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -169,11 +198,18 @@ export default function SaleForm() {
         paidAmount: Number(paidAmount) || calcGrandTotal(),
         paymentMethod,
       };
-      const result = await dispatch(createSale(data)).unwrap();
-      showSuccess('Sale created successfully');
-      navigate(`/sales/${result._id}`);
+
+      if (isEditing) {
+        await dispatch(updateSale({ id, formData: data })).unwrap();
+        showSuccess('Sale updated successfully');
+        navigate(`/sales/${id}`);
+      } else {
+        const result = await dispatch(createSale(data)).unwrap();
+        showSuccess('Sale created successfully');
+        navigate(`/sales/${result._id}`);
+      }
     } catch (error) {
-      showError(error || 'Sale failed');
+      showError(error || 'Operation failed');
     } finally {
       setSubmitting(false);
     }
@@ -185,8 +221,8 @@ export default function SaleForm() {
     <div>
       <div className="page-header">
         <div>
-          <h2><i className="fa-solid fa-cash-register"></i> POS / Billing</h2>
-          <p>Create a new sale</p>
+          <h2><i className="fa-solid fa-cash-register"></i> {isEditing ? 'Edit Sale' : 'POS / Billing'}</h2>
+          <p>{isEditing ? 'Update sale order' : 'Create a new sale'}</p>
         </div>
       </div>
 
@@ -386,7 +422,7 @@ export default function SaleForm() {
                 style={{ marginTop: '16px', padding: '14px', fontSize: '16px', fontWeight: 700 }}
               >
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-                {submitting ? ' Processing...' : ` ₹${gt.toFixed(2)} • Complete Sale`}
+                {submitting ? ' Processing...' : ` ₹${gt.toFixed(2)} • ${isEditing ? 'Update Sale' : 'Complete Sale'}`}
               </button>
             </div>
           </div>
