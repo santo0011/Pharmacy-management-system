@@ -1028,6 +1028,18 @@ label input[type="checkbox"] {
   height: 0;
 }
 
+/* ===== Prevent mouse wheel on number inputs ===== */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 0.5;
+  height: 16px;
+}
+input[type="number"]:focus {
+  outline-offset: -2px;
+}
+/* Mouse wheel scroll prevention via JS onWheel blur is handled in components */
+/* This CSS ensures consistent styling */
+
 /* ===== Additional UI Styles ===== */
 
 /* Button Info */

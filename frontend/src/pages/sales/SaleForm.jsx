@@ -322,14 +322,16 @@ export default function SaleForm() {
                             <div className="gst-label">Stock: {item.currentStock}</div>
                           </td>
                           <td>
-                            <input type="number" min="1" max={item.currentStock} value={item.quantity}
+                    <input type="number" min="1" max={item.currentStock} value={item.quantity}
                               onChange={(e) => updateItem(idx, 'quantity', Math.min(Number(e.target.value), item.currentStock))}
-                              className="qty-input-sm" />
+                              className="qty-input-sm"
+                              onWheel={(e) => e.target.blur()} />
                           </td>
                           <td>
                             <input type="number" min="0" step="0.01" value={item.sellingPrice}
                               onChange={(e) => updateItem(idx, 'sellingPrice', e.target.value)}
-                              className="price-input-sm" />
+                              className="price-input-sm"
+                              onWheel={(e) => e.target.blur()} />
                           </td>
                           <td className="gst-label">
                             {item.gst > 0 && <div>GST: {item.gst}%</div>}
@@ -381,7 +383,7 @@ export default function SaleForm() {
               <div className="summary-row" style={{ alignItems: 'center' }}>
                 <span className="summary-label">Discount:</span>
                 <div className="inline-discount">
-                  <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+                  <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
                   <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
                     <option value="fixed">₹</option>
                     <option value="percentage">%</option>
@@ -409,8 +411,16 @@ export default function SaleForm() {
 
               <div className="form-group">
                 <label>Paid Amount</label>
-                <input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)}
-                  className="form-select" style={{ width: '100%' }} />
+                <input type="number" value={paidAmount} onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (val > gt) {
+                    showError(`Paid amount (₹${val.toFixed(2)}) cannot exceed Grand Total (₹${gt.toFixed(2)})`);
+                    return;
+                  }
+                  setPaidAmount(e.target.value);
+                }}
+                  className="form-select" style={{ width: '100%' }}
+                  onWheel={(e) => e.target.blur()} />
               </div>
 
               {Number(paidAmount) > 0 && (

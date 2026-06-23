@@ -6,6 +6,7 @@ import {
   updateSupplier,
   deleteSupplier,
   toggleSupplierStatus,
+  getSupplierDues,
 } from '../controllers/supplierController.js';
 import { protect } from '../middleware/auth.js';
 import { pharmacyScope, pharmacyOnly } from '../middleware/pharmacyAccess.js';
@@ -25,6 +26,7 @@ router.route('/:id')
   .put(updateSupplier)
   .delete(deleteSupplier);
 
+router.get('/dues', getSupplierDues);
 router.patch('/:id/status', toggleSupplierStatus);
 
 export default router;

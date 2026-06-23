@@ -142,6 +142,9 @@ export const createSale = async (req, res, next) => {
     const discountAmount = overallDiscountType === 'percentage' ? subtotal * (overallDiscount / 100) : overallDiscount;
     const grandTotal = subtotal + taxAmount - discountAmount;
     const paid = Number(paidAmount) || grandTotal;
+    if (paid > grandTotal) {
+      return ApiResponse.error(res, `Paid amount (₹${paid.toFixed(2)}) exceeds Grand Total (₹${grandTotal.toFixed(2)}). Please enter a valid amount.`, 400);
+    }
     const due = grandTotal - paid;
 
     const [sale] = await Sale.create([{

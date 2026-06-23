@@ -12,7 +12,7 @@ export const getSalesReport = async (req, res, next) => {
     const pharmacyId = req.pharmacyId;
     const { startDate, endDate, paymentMethod, period } = req.query;
 
-    const match = { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } };
+    const match = { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $nin: ['cancelled', 'returned'] } };
 
     if (startDate) match.saleDate = { ...match.saleDate, $gte: new Date(startDate) };
     if (endDate) match.saleDate = { ...match.saleDate, $lte: new Date(endDate) };
@@ -99,7 +99,7 @@ export const getPurchaseReport = async (req, res, next) => {
     const pharmacyId = req.pharmacyId;
     const { startDate, endDate, period } = req.query;
 
-    const match = { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } };
+    const match = { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $nin: ['cancelled', 'returned'] } };
 
     if (startDate) match.purchaseDate = { ...match.purchaseDate, $gte: new Date(startDate) };
     if (endDate) match.purchaseDate = { ...match.purchaseDate, $lte: new Date(endDate) };
@@ -149,7 +149,7 @@ export const getProfitLossReport = async (req, res, next) => {
     const pharmacyId = req.pharmacyId;
     const { startDate, endDate, period } = req.query;
 
-    const match = { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } };
+    const match = { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $nin: ['cancelled', 'returned'] } };
 
     if (startDate) match.saleDate = { ...match.saleDate, $gte: new Date(startDate) };
     if (endDate) match.saleDate = { ...match.saleDate, $lte: new Date(endDate) };

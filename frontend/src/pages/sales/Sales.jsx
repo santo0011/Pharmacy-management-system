@@ -113,11 +113,11 @@ export default function Sales() {
                           <button className="btn btn-success btn-sm" onClick={() => navigate(`/sales/${s._id}/invoice`)} title="Invoice / Print">
                             <i className="fa-solid fa-print"></i>
                           </button>
-                          {s.status === 'completed' && (
+                          {/* {s.status === 'completed' && (
                             <button className="btn btn-danger btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="Cancel / Return">
                               <i className="fa-solid fa-ban"></i>
                             </button>
-                          )}
+                          )} */}
                         </div>
                       </td>
                     </tr>
