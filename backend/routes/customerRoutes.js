@@ -1,13 +1,26 @@
 import express from 'express';
-import { getCustomers, getCustomer, getCustomerDues, payDue } from '../controllers/customerController.js';
+import {
+  getCustomers,
+  getCustomer,
+  getCustomerDues,
+  getCustomerDueInvoices,
+  payDue,
+  getPaymentHistory,
+  searchCustomers,
+  createCustomer,
+} from '../controllers/customerController.js';
 import { protect } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
 
 const router = express.Router();
 
-router.get('/', protect, pharmacyScope, getCustomers);
+router.get('/search', protect, pharmacyScope, searchCustomers);
+router.post('/create', protect, pharmacyScope, createCustomer);
 router.get('/dues', protect, pharmacyScope, getCustomerDues);
+router.get('/payment-history', protect, pharmacyScope, getPaymentHistory);
 router.post('/pay-due', protect, pharmacyScope, payDue);
-router.get('/:phone', protect, pharmacyScope, getCustomer);
+router.get('/:phoneOrId/due-invoices', protect, pharmacyScope, getCustomerDueInvoices);
+router.get('/:phoneOrId', protect, pharmacyScope, getCustomer);
+router.get('/', protect, pharmacyScope, getCustomers);
 
 export default router;

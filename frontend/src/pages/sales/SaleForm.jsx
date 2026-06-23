@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createSale, updateSale, fetchSale, clearSelectedSale } from '../../redux/slices/saleSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
 import { showSuccess, showError } from '../../utils/sweetAlert';
-import { medicineService } from '../../services/medicineService';
+import { customerService } from '../../services/customerService';
 
 export default function SaleForm() {
   const dispatch = useDispatch();
@@ -16,6 +16,7 @@ export default function SaleForm() {
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerRef, setCustomerRef] = useState(null);
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage');
@@ -26,8 +27,61 @@ export default function SaleForm() {
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [scanning, setScanning] = useState(false);
+
+  // Customer search states
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+
   const searchRef = useRef(null);
   const searchContainerRef = useRef(null);
+  const customerSearchRef = useRef(null);
+  const customerContainerRef = useRef(null);
+
+  const fetchCustomers = useCallback(async (q) => {
+    if (!q || q.trim().length < 1) {
+      setCustomerSearchResults([]);
+      setShowCustomerDropdown(false);
+      return;
+    }
+    setCustomerSearchLoading(true);
+    try {
+      const { data } = await customerService.searchCustomers(q);
+      if (data.data) {
+        setCustomerSearchResults(data.data);
+        setShowCustomerDropdown(data.data.length > 0);
+      }
+    } catch (error) {
+      console.error('Customer search error:', error);
+    } finally {
+      setCustomerSearchLoading(false);
+    }
+  }, []);
+
+  const debounceTimer = useRef(null);
+
+  const handleCustomerSearch = (value) => {
+    setCustomerSearchQuery(value);
+    setCustomerName(value);
+    // Clear customer ref if name is manually changed
+    setCustomerRef(null);
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    debounceTimer.current = setTimeout(() => {
+      fetchCustomers(value);
+    }, 300);
+  };
+
+  const selectCustomer = (customer) => {
+    setCustomerName(customer.name);
+    setCustomerPhone(customer.phone);
+    setCustomerRef(customer);
+    setCustomerSearchQuery(customer.name);
+    setShowCustomerDropdown(false);
+  };
 
   useEffect(() => {
     dispatch(fetchMedicines({ limit: 200 }));
@@ -61,9 +115,12 @@ export default function SaleForm() {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
+      if (customerContainerRef.current && !customerContainerRef.current.contains(event.target)) {
+        setShowCustomerDropdown(false);
+      }
     };
 
-    if (showDropdown) {
+    if (showDropdown || showCustomerDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
     }
@@ -72,7 +129,7 @@ export default function SaleForm() {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [showDropdown]);
+  }, [showDropdown, showCustomerDropdown]);
 
   const addItem = (medicine) => {
     const existing = items.find(i => i.medicineId === medicine._id);
@@ -156,6 +213,7 @@ export default function SaleForm() {
     if (isEditing && selectedSale) {
       setCustomerName(selectedSale.customerName || '');
       setCustomerPhone(selectedSale.customerPhone || '');
+      setCustomerSearchQuery(selectedSale.customerName || '');
       setItems(selectedSale.items?.map(i => ({
         medicineId: i.medicine?._id || i.medicineId || '',
         medicineName: i.medicineName,
@@ -185,9 +243,32 @@ export default function SaleForm() {
 
     setSubmitting(true);
     try {
-      const data = {
-        customerName,
-        customerPhone,
+      // If customerRef exists, use the customer with customerId
+      let finalCustomerId = '';
+      let finalCustomerName = customerName;
+      let finalCustomerPhone = customerPhone;
+
+      if (customerRef && customerRef._id) {
+        finalCustomerId = customerRef._id;
+      } else if (customerName && customerPhone) {
+        // Try to find/create customer
+        try {
+          const { data } = await customerService.createCustomer({
+            name: customerName,
+            phone: customerPhone,
+          });
+          if (data.data && data.data._id) {
+            finalCustomerId = data.data._id;
+          }
+        } catch (err) {
+          // Silently continue - customer creation is a bonus feature
+          console.error('Could not create customer record:', err);
+        }
+      }
+
+      const formData = {
+        customerName: finalCustomerName,
+        customerPhone: finalCustomerPhone,
         items: items.map(i => ({
           medicineId: i.medicineId,
           medicineName: i.medicineName,
@@ -203,12 +284,17 @@ export default function SaleForm() {
         paymentMethod,
       };
 
+      // Add customer ref if available
+      if (finalCustomerId) {
+        formData.customer = finalCustomerId;
+      }
+
       if (isEditing) {
-        await dispatch(updateSale({ id, formData: data })).unwrap();
+        await dispatch(updateSale({ id, formData })).unwrap();
         showSuccess('Sale updated successfully');
         navigate(`/sales/${id}`);
       } else {
-        const result = await dispatch(createSale(data)).unwrap();
+        const result = await dispatch(createSale(formData)).unwrap();
         showSuccess('Sale created successfully');
         navigate(`/sales/${result._id}`);
       }
@@ -276,15 +362,71 @@ export default function SaleForm() {
             </div>
           </div>
 
-          <div className="card">
+          <div className="card customer-card-no-clip">
             <div className="card-header">
               <h5>Customer</h5>
             </div>
-            <div className="card-body">
+            <div className="card-body" ref={customerContainerRef}>
               <div className="customer-grid">
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <input type="text" placeholder="Customer Name *" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-                    className="form-select" style={{ width: '100%' }} required />
+                <div className="form-group customer-search-wrapper">
+                  <input
+                    type="text"
+                    placeholder="Search customer by name or phone..."
+                    value={customerSearchQuery}
+                    onChange={(e) => handleCustomerSearch(e.target.value)}
+                    className="form-select"
+                    style={{ width: '100%' }}
+                    ref={customerSearchRef}
+                    autoComplete="off"
+                  />
+                  {showCustomerDropdown && customerSearchResults.length > 0 && (
+                    <div className="customer-dropdown">
+                      {customerSearchResults.map(c => (
+                        <div
+                          key={c._id}
+                          onClick={() => selectCustomer(c)}
+                          style={{
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid var(--gray-100)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = ''}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 500 }}>{c.name}</div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>{c.phone}</div>
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 500 }}>
+                            {c.totalPurchases > 0 ? `${c.totalPurchases} purchase(s)` : 'New'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showCustomerDropdown && customerSearchQuery.trim() && customerSearchResults.length === 0 && !customerSearchLoading && (
+                    <div className="customer-dropdown" style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
+                      No customer found. A new customer will be created on billing.
+                    </div>
+                  )}
+                  {customerSearchLoading && (
+                    <div className="customer-dropdown" style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
+                      <i className="fa-solid fa-spinner fa-spin"></i> Searching...
+                    </div>
+                  )}
+                  {customerRef && (
+                    <div style={{
+                      marginTop: '4px',
+                      fontSize: '11px',
+                      color: 'var(--primary)',
+                      fontWeight: 500,
+                    }}>
+                      <i className="fa-solid fa-check-circle"></i> Existing customer selected
+                    </div>
+                  )}
                 </div>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <input type="text" placeholder="Phone (optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}

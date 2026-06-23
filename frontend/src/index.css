@@ -1348,6 +1348,54 @@ input[type="number"]:focus {
   margin-bottom: 0;
 }
 
+/* Customer autocomplete dropdown - fix z-index and overflow */
+.customer-search-wrapper {
+  position: relative;
+  z-index: 1052;
+}
+
+.customer-search-wrapper .customer-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  z-index: 1053;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  margin-top: 4px;
+}
+
+.customer-search-wrapper .customer-dropdown-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--gray-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.customer-search-wrapper .customer-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.customer-search-wrapper .customer-dropdown-item:hover {
+  background: var(--primary-light);
+}
+
+/* Ensure the customer card does not clip the dropdown */
+.customer-card-no-clip {
+  overflow: visible !important;
+}
+
+.customer-card-no-clip .card-body {
+  overflow: visible !important;
+}
+
 .cart-empty-state {
   text-align: center;
   padding: 60px 20px;

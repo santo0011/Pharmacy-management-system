@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { customerService } from '../../services/customerService';
 import { showError } from '../../utils/sweetAlert';
+import PaymentDrawer from '../../components/common/PaymentDrawer';
 
 export default function Customers() {
   const [activeTab, setActiveTab] = useState('all');
@@ -19,6 +20,8 @@ export default function Customers() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerDetail, setCustomerDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [paymentCustomer, setPaymentCustomer] = useState(null);
+  const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
 
   // --- Fetch All Customers ---
   const fetchCustomers = useCallback(async () => {
@@ -61,18 +64,19 @@ export default function Customers() {
     if (activeTab === 'due') fetchDueCustomers();
   }, [fetchDueCustomers, activeTab]);
 
-  // --- View Customer Detail ---
+  // --- View Customer Detail (Enhanced) ---
   const handleViewCustomer = async (customer) => {
     setSelectedCustomer(customer);
     setDetailLoading(true);
     try {
-      const phone = customer.customerPhone;
-      if (!phone) {
-        showError('This customer does not have a phone number. Cannot load details.');
+      // Priority: customerRef (MongoDB ObjectId from due pipeline), _id (from all customers), phone, name
+      const identifier = customer.customerRef || customer._id || customer.customerPhone || customer.customerName;
+      if (!identifier) {
+        showError('Cannot load customer details - no identifier available.');
         setDetailLoading(false);
         return;
       }
-      const { data } = await customerService.getCustomer(phone);
+      const { data } = await customerService.getCustomer(identifier);
       if (data.data) {
         setCustomerDetail(data.data);
       }
@@ -123,25 +127,23 @@ export default function Customers() {
                   <th>Total Purchases</th>
                   <th>Total Spent</th>
                   <th>Last Purchase</th>
-                  <th>First Purchase</th>
-                  {/* <th></th> */}
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {customers.map((customer, idx) => (
-                  <tr key={idx}>
+                  <tr key={customer._id || idx}>
                     <td>{(page - 1) * limit + idx + 1}</td>
                     <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
                     <td>{customer.customerPhone || '-'}</td>
                     <td>{customer.totalPurchases}</td>
                     <td style={{ fontWeight: 600 }}>₹{Number(customer.totalSpent).toFixed(2)}</td>
                     <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
-                    <td>{customer.firstPurchaseDate ? new Date(customer.firstPurchaseDate).toLocaleDateString() : '-'}</td>
-                    {/* <td>
-                      <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)}>
-                        <i className="fa-solid fa-eye"></i>
+                    <td>
+                      <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)} title="View Details">
+                        <i className="fa-solid fa-eye"></i> View
                       </button>
-                    </td> */}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -170,16 +172,15 @@ export default function Customers() {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <input
             type="text"
-            placeholder="Search by name or phone..."
+            placeholder="Search by name, phone or invoice #..."
             value={dueSearch}
             onChange={(e) => { setDueSearch(e.target.value); setDuePage(1); }}
             className="form-select"
-            style={{ width: '250px' }}
+            style={{ width: '280px' }}
           />
         </div>
       </div>
 
-      {/* Summary Cards */}
       {!dueLoading && dueCustomers.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', padding: '16px' }}>
           <div style={{ background: '#fff7ed', borderRadius: '10px', padding: '14px', border: '1px solid #fed7aa' }}>
@@ -218,7 +219,8 @@ export default function Customers() {
                   <th>Total Paid</th>
                   <th>Total Due</th>
                   <th>Last Purchase</th>
-                  {/* <th></th> */}
+                  <th></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -233,11 +235,28 @@ export default function Customers() {
                       ₹{Number(customer.totalDue).toFixed(2)}
                     </td>
                     <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
-                    {/* <td>
-                      <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)}>
+                    <td>
+                      <button
+                        className="btn btn-info btn-sm"
+                        onClick={() => handleViewCustomer(customer)}
+                        title="View Details"
+                      >
                         <i className="fa-solid fa-eye"></i>
                       </button>
-                    </td> */}
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn-success btn-sm"
+                        onClick={() => {
+                          setPaymentCustomer(customer);
+                          setPaymentDrawerOpen(true);
+                        }}
+                        disabled={customer.totalDue <= 0}
+                        title="Collect Payment"
+                      >
+                        <i className="fa-solid fa-indian-rupee-sign"></i> Payment
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -267,7 +286,6 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '2px solid var(--gray-200)', paddingBottom: '8px' }}>
         <button
           className={`btn ${activeTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
@@ -287,12 +305,14 @@ export default function Customers() {
 
       {activeTab === 'all' ? renderAllCustomers() : renderDueCustomers()}
 
-      {/* Customer Detail Drawer */}
+      {/* Enhanced Customer Detail Drawer */}
       {selectedCustomer && (
         <div className="modal-overlay" onClick={() => { setSelectedCustomer(null); setCustomerDetail(null); }}>
-          <div className="drawer" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+          <div className="drawer open" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="drawer-header">
-              <h3>{selectedCustomer.customerName}</h3>
+              <h3>
+                <i className="fa-solid fa-user"></i> {selectedCustomer.customerName}
+              </h3>
               <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedCustomer(null); setCustomerDetail(null); }}>
                 <i className="fa-solid fa-times"></i>
               </button>
@@ -302,34 +322,34 @@ export default function Customers() {
                 <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
               ) : customerDetail ? (
                 <>
-                  {/* Customer Info Card */}
-                  <div className="card" style={{ marginBottom: '16px', borderLeft: '4px solid var(--primary)' }}>
+                  {/* Customer Info Card - Enhanced */}
+                  <div className="card" style={{ marginBottom: '16px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' }}>
                     <div className="card-body">
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                         <div>
                           <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</label>
-                          <div style={{ fontWeight: 600, fontSize: '15px', marginTop: '2px' }}>{customerDetail.customer?.customerName}</div>
+                          <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '2px', color: '#0f172a' }}>{customerDetail.customer?.customerName}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone</label>
                           <div style={{ fontWeight: 500, marginTop: '2px' }}>{customerDetail.customer?.customerPhone || '-'}</div>
                         </div>
                         <div>
-                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Purchases</label>
+                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Bills</label>
                           <div style={{ fontWeight: 500, marginTop: '2px' }}>{customerDetail.customer?.totalPurchases || 0}</div>
                         </div>
                         <div>
                           <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Spent</label>
-                          <div style={{ fontWeight: 700, color: 'var(--primary)', marginTop: '2px' }}>₹{Number(customerDetail.customer?.totalSpent || 0).toFixed(2)}</div>
+                          <div style={{ fontWeight: 700, color: 'var(--primary)', marginTop: '2px', fontSize: '18px' }}>₹{Number(customerDetail.customer?.totalSpent || 0).toFixed(2)}</div>
                         </div>
                         <div>
-                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>First Purchase</label>
+                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>First Bill</label>
                           <div style={{ fontWeight: 500, marginTop: '2px', fontSize: '13px' }}>
                             {customerDetail.customer?.firstPurchaseDate ? new Date(customerDetail.customer.firstPurchaseDate).toLocaleDateString() : '-'}
                           </div>
                         </div>
                         <div>
-                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Purchase</label>
+                          <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Bill</label>
                           <div style={{ fontWeight: 500, marginTop: '2px', fontSize: '13px' }}>
                             {customerDetail.customer?.lastPurchaseDate ? new Date(customerDetail.customer.lastPurchaseDate).toLocaleDateString() : '-'}
                           </div>
@@ -338,47 +358,78 @@ export default function Customers() {
                     </div>
                   </div>
 
-                  {/* Purchase History */}
+                  {/* Purchase History with Medicine Details */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <h5 style={{ margin: 0 }}>Purchase History</h5>
+                    <h5 style={{ margin: 0 }}>
+                      <i className="fa-solid fa-receipt"></i> Bill History
+                    </h5>
                     {customerDetail.total > 0 && (
-                      <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{customerDetail.total} record(s)</span>
+                      <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{customerDetail.total} bill(s)</span>
                     )}
                   </div>
                   {customerDetail.sales?.length > 0 ? (
-                    <div className="table-container" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Invoice</th>
-                            <th>Date</th>
-                            <th>Items</th>
-                            <th>Total</th>
-                            <th>Paid</th>
-                            <th>Due</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {customerDetail.sales.map((sale, idx) => (
-                            <tr key={idx}>
-                              <td style={{ fontWeight: 500 }}>{sale.invoiceNumber}</td>
-                              <td style={{ fontSize: '13px' }}>{new Date(sale.saleDate).toLocaleDateString()}</td>
-                              <td>{sale.items?.length || 0}</td>
-                              <td style={{ fontWeight: 600 }}>₹{Number(sale.grandTotal).toFixed(2)}</td>
-                              <td style={{ fontWeight: 500, color: '#16a34a' }}>₹{Number(sale.paidAmount).toFixed(2)}</td>
-                              <td style={{
-                                color: sale.dueAmount > 0 ? '#dc2626' : '#16a34a',
-                                fontWeight: 700
-                              }}>
-                                {sale.dueAmount > 0 ? `₹${Number(sale.dueAmount).toFixed(2)}` : 'Cleared'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {customerDetail.sales.map((sale, idx) => (
+                        <div key={idx} className="card" style={{
+                          margin: 0,
+                          border: '1px solid var(--gray-200)',
+                          borderLeft: `4px solid ${sale.dueAmount > 0 ? '#f97316' : '#22c55e'}`,
+                        }}>
+                          <div className="card-body" style={{ padding: '14px' }}>
+                            {/* Bill Header */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <div>
+                                <span style={{ fontWeight: 600, fontSize: '14px' }}>{sale.invoiceNumber}</span>
+                                <span style={{ fontSize: '12px', color: '#888', marginLeft: '8px' }}>
+                                  {new Date(sale.saleDate).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <span style={{ fontWeight: 600, color: sale.dueAmount > 0 ? '#dc2626' : '#16a34a', fontSize: '14px' }}>
+                                ₹{Number(sale.grandTotal).toFixed(2)}
+                              </span>
+                            </div>
+
+                            {/* Medicine Items */}
+                            {sale.items && sale.items.length > 0 && (
+                              <div style={{ marginBottom: '8px', padding: '6px 10px', background: '#f9fafb', borderRadius: '6px' }}>
+                                <div style={{ fontSize: '11px', color: '#888', fontWeight: 600, marginBottom: '4px' }}>MEDICINES</div>
+                                <div style={{ fontSize: '13px', lineHeight: '1.8' }}>
+                                  {sale.items.map((item, i) => (
+                                    <span key={i}>
+                                      {i > 0 && ', '}
+                                      <strong>{item.medicineName}</strong> × {item.quantity}
+                                      {item.sellingPrice ? ` (₹${Number(item.sellingPrice).toFixed(2)}/pc)` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Payment Summary */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '12px', padding: '6px 10px', background: sale.dueAmount > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '6px' }}>
+                              <div>
+                                <span style={{ color: '#888' }}>Paid: </span>
+                                <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(sale.paidAmount).toFixed(2)}</span>
+                              </div>
+                              <div>
+                                <span style={{ color: '#888' }}>Due: </span>
+                                <span style={{ fontWeight: 700, color: sale.dueAmount > 0 ? '#dc2626' : '#16a34a' }}>
+                                  {sale.dueAmount > 0 ? `₹${Number(sale.dueAmount).toFixed(2)}` : 'Cleared'}
+                                </span>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <span className={`badge ${sale.paymentStatus === 'paid' ? 'badge-success' : sale.paymentStatus === 'partial' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '10px' }}>
+                                  {sale.paymentStatus}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="empty-state" style={{ padding: '20px' }}>
+                      <i className="fa-solid fa-receipt" style={{ fontSize: '36px', color: 'var(--gray-300)' }}></i>
                       <p>No purchase history available.</p>
                     </div>
                   )}
@@ -390,6 +441,19 @@ export default function Customers() {
           </div>
         </div>
       )}
+
+      {/* Payment Drawer */}
+      <PaymentDrawer
+        isOpen={paymentDrawerOpen}
+        onClose={() => {
+          setPaymentDrawerOpen(false);
+          setPaymentCustomer(null);
+        }}
+        customer={paymentCustomer}
+        onPaymentComplete={() => {
+          fetchDueCustomers();
+        }}
+      />
     </div>
   );
 }

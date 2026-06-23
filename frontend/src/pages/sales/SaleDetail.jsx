@@ -1,19 +1,40 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchSale, clearSelectedSale, returnSale } from '../../redux/slices/saleSlice';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
+import { saleService } from '../../services/saleService';
 
 export default function SaleDetail() {
   const dispatch = useDispatch();
   const { id } = useParams();
   const navigate = useNavigate();
   const { selectedSale: sale, loading } = useSelector((state) => state.sales);
+  const [editHistory, setEditHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
 
   useEffect(() => {
     dispatch(fetchSale(id));
+    fetchEditHistory();
     return () => dispatch(clearSelectedSale());
   }, [dispatch, id]);
+
+  const fetchEditHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await saleService.getSaleEditHistory(id);
+      if (data.data) {
+        setEditHistory(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to load edit history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const handleEdit = () => {
     navigate(`/sales/${id}/edit`);
@@ -106,7 +127,7 @@ export default function SaleDetail() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header"><h5>Payment Summary</h5></div>
         <div className="card-body">
           <div style={{ maxWidth: '400px' }}>
@@ -122,6 +143,122 @@ export default function SaleDetail() {
             {sale.notes && <InfoRow label="Notes" value={sale.notes} />}
           </div>
         </div>
+      </div>
+
+      {/* Edit History Section */}
+      <div className="card">
+        <div className="card-header">
+          <h5>
+            <i className="fa-solid fa-clock-rotate-left"></i> Edit History / Audit Log
+            {editHistory.length > 0 && (
+              <span style={{ fontSize: '12px', color: 'var(--gray-500)', fontWeight: 400, marginLeft: '8px' }}>
+                ({editHistory.length} edit(s))
+              </span>
+            )}
+          </h5>
+          {editHistory.length > 0 && (
+            <button className="btn btn-sm btn-secondary" onClick={() => setShowHistory(!showHistory)}>
+              {showHistory ? 'Hide' : 'Show'} History
+            </button>
+          )}
+        </div>
+        {showHistory && (
+          <div className="card-body">
+            {historyLoading ? (
+              <div className="loading-spinner" style={{ padding: '30px' }}>
+                <i className="fa-solid fa-spinner fa-spin"></i>
+              </div>
+            ) : editHistory.length === 0 ? (
+              <div className="empty-state" style={{ padding: '30px' }}>
+                <i className="fa-solid fa-check-circle" style={{ fontSize: '36px', color: '#22c55e' }}></i>
+                <h4>No Edit History</h4>
+                <p>This sale has not been edited yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {editHistory.map((entry, historyIdx) => (
+                  <div
+                    key={entry._id}
+                    className="card"
+                    style={{
+                      margin: 0,
+                      border: '1px solid var(--gray-200)',
+                      borderLeft: '4px solid var(--primary)',
+                    }}
+                  >
+                    <div className="card-body" style={{ padding: '16px' }}>
+                      {/* Edit Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div>
+                          <span style={{ fontWeight: 600, fontSize: '14px' }}>Edit #{editHistory.length - historyIdx}</span>
+                          <span style={{ fontSize: '12px', color: '#888', marginLeft: '10px' }}>
+                            {new Date(entry.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="badge badge-info" style={{ fontSize: '11px' }}>
+                            by {entry.editedByName || 'Unknown'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {entry.reason && (
+                        <div style={{ marginBottom: '10px', padding: '8px 12px', background: '#f0f9ff', borderRadius: '6px', fontSize: '13px' }}>
+                          <strong>Reason:</strong> {entry.reason}
+                        </div>
+                      )}
+
+                      {/* Changes List */}
+                      {entry.changes && entry.changes.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#888', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase' }}>
+                            Changes Made
+                          </div>
+                          <div className="table-container">
+                            <table style={{ fontSize: '13px' }}>
+                              <thead>
+                                <tr>
+                                  <th>Field</th>
+                                  <th>Before</th>
+                                  <th>After</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {entry.changes.map((change, changeIdx) => (
+                                  <tr key={changeIdx}>
+                                    <td style={{ fontWeight: 500 }}>{change.label || change.field}</td>
+                                    <td style={{ color: change.changeType === 'added' ? '#16a34a' : '#dc2626' }}>
+                                      {change.previousValue !== null && change.previousValue !== undefined
+                                        ? (typeof change.previousValue === 'number' ? `₹${change.previousValue.toFixed(2)}` : String(change.previousValue))
+                                        : <span style={{ color: '#888', fontStyle: 'italic' }}>none</span>
+                                      }
+                                    </td>
+                                    <td style={{ color: change.changeType === 'removed' ? '#dc2626' : '#16a34a' }}>
+                                      {change.newValue !== null && change.newValue !== undefined
+                                        ? (typeof change.newValue === 'number' ? `₹${change.newValue.toFixed(2)}` : String(change.newValue))
+                                        : <span style={{ color: '#888', fontStyle: 'italic' }}>removed</span>
+                                      }
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {(!entry.changes || entry.changes.length === 0) && (
+                        <div style={{ padding: '12px', textAlign: 'center', color: '#888', fontSize: '13px' }}>
+                          No detailed change tracking for this edit.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

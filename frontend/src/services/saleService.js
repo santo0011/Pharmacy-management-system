@@ -8,4 +8,5 @@ export const saleService = {
   returnSale: (id) => API.post(`/sales/${id}/return`),
   deleteSale: (id) => API.delete(`/sales/${id}`),
   getSaleStats: () => API.get('/sales/stats'),
+  getSaleEditHistory: (id) => API.get(`/sales/${id}/history`),
 };

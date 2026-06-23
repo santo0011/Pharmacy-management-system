@@ -27,6 +27,12 @@ const saleSchema = mongoose.Schema({
     required: true,
     trim: true,
   },
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer',
+    default: null,
+  },
+  customerId: { type: String, default: '' },
   customerName: { type: String, default: 'Walk-in Customer' },
   customerPhone: { type: String, default: '' },
   customerAddress: { type: String, default: '' },

@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
 import Sale from '../models/Sale.js';
 import Medicine from '../models/Medicine.js';
+import Customer from '../models/Customer.js';
 import Purchase from '../models/Purchase.js';
+import SaleEditHistory from '../models/SaleEditHistory.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 const generateInvoiceNumber = async (pharmacyId) => {
@@ -83,7 +85,7 @@ export const createSale = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { customerName, customerPhone, customerAddress, saleDate, items, discount, discountType, paidAmount, paymentMethod, notes } = req.body;
+    const { customer, customerName, customerPhone, customerAddress, saleDate, items, discount, discountType, paidAmount, paymentMethod, notes } = req.body;
 
     if (!items || items.length === 0) return ApiResponse.error(res, 'At least one item is required', 400);
     if (!customerName || customerName.trim() === '' || customerName.trim() === 'Walk-in Customer') {
@@ -147,8 +149,15 @@ export const createSale = async (req, res, next) => {
     }
     const due = grandTotal - paid;
 
+    // If customer ref is provided, look up the customer
+    let customerDoc = null;
+    if (customer) {
+      customerDoc = await Customer.findOne({ _id: customer, pharmacyId: req.pharmacyId, isDeleted: false }).session(session);
+    }
+
     const [sale] = await Sale.create([{
       invoiceNumber,
+      customer: customerDoc?._id || null,
       customerName: customerName || 'Walk-in Customer',
       customerPhone: customerPhone || '',
       customerAddress: customerAddress || '',
@@ -195,12 +204,39 @@ export const updateSale = async (req, res, next) => {
       return ApiResponse.error(res, 'Can only edit completed sales', 400);
     }
 
+    // Snapshot before for edit history
+    const snapshotBefore = {
+      customerName: sale.customerName,
+      customerPhone: sale.customerPhone,
+      items: sale.items.map(i => ({
+        medicineName: i.medicineName,
+        quantity: i.quantity,
+        sellingPrice: i.sellingPrice,
+        discount: i.discount,
+        discountType: i.discountType,
+        discountAmount: i.discountAmount,
+        gst: i.gst,
+        total: i.total,
+      })),
+      subtotal: sale.subtotal,
+      discount: sale.discount,
+      discountType: sale.discountType,
+      discountAmount: sale.discountAmount,
+      taxAmount: sale.taxAmount,
+      grandTotal: sale.grandTotal,
+      paidAmount: sale.paidAmount,
+      dueAmount: sale.dueAmount,
+      paymentMethod: sale.paymentMethod,
+      paymentStatus: sale.paymentStatus,
+      notes: sale.notes,
+    };
+
     // Revert old stock first
     if (sale.isStockDeducted) {
       await revertStock(sale.items, req.pharmacyId, session);
     }
 
-    const { customerName, customerPhone, items, discount, discountType, paidAmount, paymentMethod, notes } = req.body;
+    const { customerName, customerPhone, items, discount, discountType, paidAmount, paymentMethod, notes, reason } = req.body;
 
     if (!items || items.length === 0) {
       // Re-deduct since we already reverted
@@ -289,6 +325,109 @@ export const updateSale = async (req, res, next) => {
 
     await sale.save({ session });
 
+    // Snapshot after for edit history
+    const snapshotAfter = {
+      customerName: sale.customerName,
+      customerPhone: sale.customerPhone,
+      items: saleItems.map(i => ({
+        medicineName: i.medicineName,
+        quantity: i.quantity,
+        sellingPrice: i.sellingPrice,
+        discount: i.discount,
+        discountType: i.discountType,
+        discountAmount: i.discountAmount,
+        gst: i.gst,
+        total: i.total,
+      })),
+      subtotal,
+      discount: overallDiscount,
+      discountType: overallDiscountType,
+      discountAmount,
+      taxAmount,
+      grandTotal,
+      paidAmount: paid,
+      dueAmount: Math.max(0, due),
+      paymentMethod: paymentMethod || sale.paymentMethod,
+      paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+      notes: notes !== undefined ? notes : sale.notes,
+    };
+
+    // Compute changes
+    const changes = [];
+    
+    // Check header fields
+    if (snapshotBefore.customerName !== snapshotAfter.customerName) {
+      changes.push({ field: 'customerName', label: 'Customer Name', previousValue: snapshotBefore.customerName, newValue: snapshotAfter.customerName, changeType: 'modified' });
+    }
+    if (snapshotBefore.customerPhone !== snapshotAfter.customerPhone) {
+      changes.push({ field: 'customerPhone', label: 'Phone', previousValue: snapshotBefore.customerPhone, newValue: snapshotAfter.customerPhone, changeType: 'modified' });
+    }
+    if (snapshotBefore.subtotal !== snapshotAfter.subtotal) {
+      changes.push({ field: 'subtotal', label: 'Subtotal', previousValue: snapshotBefore.subtotal, newValue: snapshotAfter.subtotal, changeType: 'modified' });
+    }
+    if (snapshotBefore.taxAmount !== snapshotAfter.taxAmount) {
+      changes.push({ field: 'taxAmount', label: 'Tax Amount', previousValue: snapshotBefore.taxAmount, newValue: snapshotAfter.taxAmount, changeType: 'modified' });
+    }
+    if (snapshotBefore.discountAmount !== snapshotAfter.discountAmount) {
+      changes.push({ field: 'discountAmount', label: 'Discount', previousValue: snapshotBefore.discountAmount, newValue: snapshotAfter.discountAmount, changeType: 'discount_change' });
+    }
+    if (snapshotBefore.grandTotal !== snapshotAfter.grandTotal) {
+      changes.push({ field: 'grandTotal', label: 'Grand Total', previousValue: snapshotBefore.grandTotal, newValue: snapshotAfter.grandTotal, changeType: 'total_change' });
+    }
+    if (snapshotBefore.paidAmount !== snapshotAfter.paidAmount) {
+      changes.push({ field: 'paidAmount', label: 'Paid Amount', previousValue: snapshotBefore.paidAmount, newValue: snapshotAfter.paidAmount, changeType: 'modified' });
+    }
+    if (snapshotBefore.dueAmount !== snapshotAfter.dueAmount) {
+      changes.push({ field: 'dueAmount', label: 'Due Amount', previousValue: snapshotBefore.dueAmount, newValue: snapshotAfter.dueAmount, changeType: 'modified' });
+    }
+    if (snapshotBefore.paymentMethod !== snapshotAfter.paymentMethod) {
+      changes.push({ field: 'paymentMethod', label: 'Payment Method', previousValue: snapshotBefore.paymentMethod, newValue: snapshotAfter.paymentMethod, changeType: 'modified' });
+    }
+
+    // Check item-level changes
+    const beforeItemMap = {};
+    snapshotBefore.items.forEach((item, idx) => {
+      beforeItemMap[`${item.medicineName}_${idx}`] = item;
+    });
+
+    snapshotAfter.items.forEach((afterItem, idx) => {
+      const beforeItem = snapshotBefore.items[idx];
+      if (!beforeItem) {
+        // New item added
+        changes.push({ field: `items[${idx}].medicineName`, label: `Added Medicine`, previousValue: null, newValue: afterItem.medicineName, changeType: 'added' });
+        changes.push({ field: `items[${idx}].quantity`, label: `${afterItem.medicineName} Qty`, previousValue: 0, newValue: afterItem.quantity, changeType: 'quantity_change' });
+      } else if (beforeItem.medicineName === afterItem.medicineName) {
+        if (beforeItem.quantity !== afterItem.quantity) {
+          changes.push({ field: `items[${idx}].quantity`, label: `${afterItem.medicineName} Qty`, previousValue: beforeItem.quantity, newValue: afterItem.quantity, changeType: 'quantity_change' });
+        }
+        if (beforeItem.sellingPrice !== afterItem.sellingPrice) {
+          changes.push({ field: `items[${idx}].sellingPrice`, label: `${afterItem.medicineName} Price`, previousValue: beforeItem.sellingPrice, newValue: afterItem.sellingPrice, changeType: 'price_change' });
+        }
+      } else {
+        // Item changed to different medicine
+        changes.push({ field: `items[${idx}].medicineName`, label: `Medicine Changed`, previousValue: beforeItem.medicineName, newValue: afterItem.medicineName, changeType: 'modified' });
+      }
+    });
+
+    // Check removed items
+    if (snapshotAfter.items.length < snapshotBefore.items.length) {
+      for (let i = snapshotAfter.items.length; i < snapshotBefore.items.length; i++) {
+        changes.push({ field: `items[${i}].medicineName`, label: `Removed Medicine`, previousValue: snapshotBefore.items[i]?.medicineName, newValue: null, changeType: 'removed' });
+      }
+    }
+
+    // Save edit history
+    await SaleEditHistory.create([{
+      sale: sale._id,
+      pharmacyId: req.pharmacyId,
+      editedBy: req.user._id,
+      editedByName: req.user.name || 'Unknown',
+      reason: reason || '',
+      changes,
+      snapshotBefore: snapshotBefore,
+      snapshotAfter: snapshotAfter,
+    }], { session });
+
     // Deduct new stock
     await deductStock(saleItems, req.pharmacyId, session);
 
@@ -363,6 +502,24 @@ export const returnSale = async (req, res, next) => {
     next(error);
   } finally {
     session.endSession();
+  }
+};
+
+// @desc    Get sale edit history
+// @route   GET /api/sales/:id/history
+// @access  Private
+export const getSaleEditHistory = async (req, res, next) => {
+  try {
+    const history = await SaleEditHistory.find({
+      sale: req.params.id,
+      pharmacyId: req.pharmacyId,
+    })
+      .populate('editedBy', 'name')
+      .sort({ createdAt: -1 });
+    
+    return ApiResponse.success(res, history);
+  } catch (error) {
+    next(error);
   }
 };
 

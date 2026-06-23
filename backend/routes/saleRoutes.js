@@ -7,6 +7,7 @@ import {
   deleteSale,
   returnSale,
   getSaleStats,
+  getSaleEditHistory,
 } from '../controllers/saleController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
@@ -17,6 +18,7 @@ router.use(protect);
 router.use(pharmacyScope);
 
 router.get('/stats', getSaleStats);
+router.get('/:id/history', getSaleEditHistory);
 router.route('/')
   .get(getSales)
   .post(authorize('admin', 'pharmacist', 'cashier'), createSale);
