@@ -43,24 +43,25 @@ export const createCustomer = async (req, res, next) => {
     if (!name || !name.trim()) {
       return ApiResponse.error(res, 'Customer name is required', 400);
     }
-    if (!phone || !phone.trim()) {
-      return ApiResponse.error(res, 'Phone number is required', 400);
-    }
 
-    // Check if customer already exists with this phone in this pharmacy
-    const existing = await Customer.findOne({
-      pharmacyId: req.pharmacyId,
-      phone: phone.trim(),
-      isDeleted: false,
-    });
+    const cleanPhone = (phone || '').trim();
 
-    if (existing) {
-      return ApiResponse.success(res, existing, 'Customer already exists');
+    // Check if customer already exists with this phone in this pharmacy (only if phone provided)
+    if (cleanPhone && cleanPhone !== '0000000000') {
+      const existing = await Customer.findOne({
+        pharmacyId: req.pharmacyId,
+        phone: cleanPhone,
+        isDeleted: false,
+      });
+
+      if (existing) {
+        return ApiResponse.success(res, existing, 'Customer already exists');
+      }
     }
 
     const customer = await Customer.create({
       name: name.trim(),
-      phone: phone.trim(),
+      phone: cleanPhone,
       address: address || '',
       pharmacyId: req.pharmacyId,
     });
@@ -91,6 +92,20 @@ export const getCustomers = async (req, res, next) => {
         { name: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
       ];
+
+      // Also search by invoice number in Sales collection
+      const salesByInvoice = await Sale.find({
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        invoiceNumber: { $regex: search, $options: 'i' },
+        customer: { $ne: null },
+      }).select('customer').lean();
+
+      const customerIdsFromInvoice = [...new Set(salesByInvoice.map(s => s.customer?.toString()).filter(Boolean))];
+
+      if (customerIdsFromInvoice.length > 0) {
+        query.$or.push({ _id: { $in: customerIdsFromInvoice } });
+      }
     }
 
     const total = await Customer.countDocuments(query);

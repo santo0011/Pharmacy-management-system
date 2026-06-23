@@ -53,7 +53,7 @@ export default function Sales() {
                 <option value="">All</option>
                 <option value="completed">Completed</option>
                 <option value="returned">Returned</option>
-                <option value="cancelled">Cancelled</option>
+                {/* <option value="cancelled">Cancelled</option> */}
               </select>
             </div>
             <div className="form-group" style={{ minWidth: '150px', marginBottom: 0 }}>

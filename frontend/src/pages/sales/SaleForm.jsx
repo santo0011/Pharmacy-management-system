@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createSale, updateSale, fetchSale, clearSelectedSale } from '../../redux/slices/saleSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
-import { showSuccess, showError } from '../../utils/sweetAlert';
+import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { customerService } from '../../services/customerService';
 
 export default function SaleForm() {
@@ -241,6 +241,17 @@ export default function SaleForm() {
       return;
     }
 
+    // Show confirmation before completing the sale
+    const dueAmount = Number(paidAmount) > 0 ? Math.max(0, calcGrandTotal() - Number(paidAmount)) : 0;
+    const confirmed = await confirmAction(
+      `${isEditing ? 'Update' : 'Complete'} Sale`,
+      `Customer: ${customerName}\nItems: ${items.length}\nTotal: ₹${calcGrandTotal().toFixed(2)}\nPaid: ₹${(Number(paidAmount) || calcGrandTotal()).toFixed(2)}\nDue: ₹${dueAmount.toFixed(2)}\nMethod: ${paymentMethod}`,
+      `Yes, ${isEditing ? 'Update' : 'Complete'}`
+    );
+    if (!confirmed) {
+      return;
+    }
+
     setSubmitting(true);
     try {
       // If customerRef exists, use the customer with customerId
@@ -250,15 +261,19 @@ export default function SaleForm() {
 
       if (customerRef && customerRef._id) {
         finalCustomerId = customerRef._id;
-      } else if (customerName && customerPhone) {
-        // Try to find/create customer
+      } else if (customerName) {
+        // Create customer record even if phone is not provided
         try {
           const { data } = await customerService.createCustomer({
             name: customerName,
-            phone: customerPhone,
+            phone: customerPhone || '0000000000',
           });
           if (data.data && data.data._id) {
             finalCustomerId = data.data._id;
+            // If customer already existed, use the existing data
+            if (data.message === 'Customer already exists') {
+              finalCustomerId = data.data._id;
+            }
           }
         } catch (err) {
           // Silently continue - customer creation is a bonus feature
