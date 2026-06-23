@@ -68,12 +68,12 @@ export default function App() {
 
         {/* Super Admin routes */}
         <Route path="pharmacies" element={<Pharmacies />} />
-        <Route path="subscriptions" element={<Subscriptions />} />
         <Route path="payments" element={<Payments />} />
         <Route path="settings" element={<Settings />} />
         <Route path="profile" element={<Profile />} />
 
         {/* Pharmacy User routes */}
+        <Route path="subscriptions" element={<Subscriptions />} />
         <Route path="categories" element={<Categories />} />
         <Route path="brands" element={<Brands />} />
         <Route path="suppliers" element={<Suppliers />} />

@@ -14,7 +14,7 @@ export default function SaleForm() {
   const { items: medicines } = useSelector((state) => state.medicines);
   const { selectedSale } = useSelector((state) => state.sales);
 
-  const [customerName, setCustomerName] = useState('Walk-in Customer');
+  const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
@@ -154,7 +154,7 @@ export default function SaleForm() {
   // Load sale data when editing
   useEffect(() => {
     if (isEditing && selectedSale) {
-      setCustomerName(selectedSale.customerName || 'Walk-in Customer');
+      setCustomerName(selectedSale.customerName || '');
       setCustomerPhone(selectedSale.customerPhone || '');
       setItems(selectedSale.items?.map(i => ({
         medicineId: i.medicine?._id || i.medicineId || '',
@@ -178,6 +178,10 @@ export default function SaleForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (items.length === 0) { showError('Add at least one item'); return; }
+    if (!customerName || customerName.trim() === '' || customerName.trim() === 'Walk-in Customer') {
+      showError('Customer name is required. Please enter the customer name before billing.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -279,8 +283,8 @@ export default function SaleForm() {
             <div className="card-body">
               <div className="customer-grid">
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <input type="text" placeholder="Customer Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-                    className="form-select" style={{ width: '100%' }} />
+                  <input type="text" placeholder="Customer Name *" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                    className="form-select" style={{ width: '100%' }} required />
                 </div>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <input type="text" placeholder="Phone (optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}

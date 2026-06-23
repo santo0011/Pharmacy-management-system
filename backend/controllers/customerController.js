@@ -16,6 +16,7 @@ export const getCustomers = async (req, res, next) => {
       pharmacyId: req.pharmacyId,
       isDeleted: false,
       customerName: { $ne: 'Walk-in Customer' },
+      status: { $nin: ['cancelled', 'returned'] },
     };
 
     if (search) {
@@ -86,6 +87,7 @@ export const getCustomer = async (req, res, next) => {
       pharmacyId: req.pharmacyId,
       isDeleted: false,
       customerPhone: phone,
+      status: { $nin: ['cancelled', 'returned'] },
     };
 
     const total = await Sale.countDocuments(query);
@@ -97,7 +99,7 @@ export const getCustomer = async (req, res, next) => {
 
     // Build customer summary
     const summary = await Sale.aggregate([
-      { $match: { pharmacyId: req.pharmacyId, isDeleted: false, customerPhone: phone } },
+      { $match: { pharmacyId: req.pharmacyId, isDeleted: false, customerPhone: phone, status: { $nin: ['cancelled', 'returned'] } } },
       {
         $group: {
           _id: '$customerPhone',
@@ -138,6 +140,7 @@ export const getCustomerDues = async (req, res, next) => {
       pharmacyId: new mongoose.Types.ObjectId(pharmacyId),
       isDeleted: false,
       dueAmount: { $gt: 0 },
+      status: { $nin: ['cancelled', 'returned'] },
     };
 
     if (search) {

@@ -53,14 +53,14 @@ export default function SaleDetail() {
             <i className="fa-solid fa-print"></i> Invoice
           </button>
           {sale.status === 'completed' && (
-            <>
-              <button className="btn btn-warning" onClick={handleEdit}>
-                <i className="fa-solid fa-edit"></i> Edit
-              </button>
-              <button className="btn btn-info" onClick={handleReturn}>
-                <i className="fa-solid fa-undo"></i> Return
-              </button>
-            </>
+            <button className="btn btn-warning" onClick={handleEdit}>
+              <i className="fa-solid fa-edit"></i> Edit
+            </button>
+          )}
+          {(sale.status === 'completed' || sale.status === 'cancelled') && (
+            <button className="btn btn-info" onClick={handleReturn}>
+              <i className="fa-solid fa-undo"></i> {sale.status === 'cancelled' ? 'Re-stock & Close' : 'Return'}
+            </button>
           )}
           <button className="btn btn-secondary" onClick={() => navigate('/sales')}>
             <i className="fa-solid fa-arrow-left"></i> Back

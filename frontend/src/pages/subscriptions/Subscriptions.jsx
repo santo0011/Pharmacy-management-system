@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useAuth } from '../../hooks/useAuth';
 import { fetchPharmacies } from '../../redux/slices/pharmacySlice';
 import {
   fetchPlans,
@@ -9,6 +10,7 @@ import {
   togglePlanStatus,
   deletePlan,
 } from '../../redux/slices/subscriptionPlanSlice';
+import { fetchSubscriptionStatus, clearSubscriptionStatus } from '../../redux/slices/dashboardSlice';
 import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/sweetAlert';
 import { pharmacyService } from '../../services/pharmacyService';
 import Drawer from '../../components/common/Drawer';
@@ -26,13 +28,17 @@ const initialPlanFormState = {
 
 export default function Subscriptions() {
   const dispatch = useDispatch();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
+
   const { items: pharmacies, total: pharmacyTotal, loading: pharmacyLoading } = useSelector((state) => state.pharmacies);
   const { items: plans, total: planTotal, loading: planLoading } = useSelector((state) => state.subscriptionPlans);
-
   const activePlans = useSelector((state) => state.subscriptionPlans.activePlans);
+  const { subscriptionStatus } = useSelector((state) => state.dashboard);
 
-  const [activeTab, setActiveTab] = useState('plans');
+  const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'plans' : 'my-subscription');
 
+  // ------ My Subscription (Admin view) ------
   // ------ Plans State ------
   const [planSearch, setPlanSearch] = useState('');
   const [planPage, setPlanPage] = useState(1);
@@ -52,7 +58,13 @@ export default function Subscriptions() {
   // Load active plans for dropdown
   useEffect(() => {
     dispatch(fetchActivePlans());
-  }, [dispatch]);
+    if (!isSuperAdmin) {
+      dispatch(fetchSubscriptionStatus());
+    }
+    return () => {
+      if (!isSuperAdmin) dispatch(clearSubscriptionStatus());
+    };
+  }, [dispatch, isSuperAdmin]);
 
   // ------ Plans handlers ------
   const loadPlans = useCallback(() => {
@@ -121,12 +133,10 @@ export default function Subscriptions() {
 
       if (editPlan) {
         await dispatch(updatePlan({ id: editPlan._id, ...planData })).unwrap();
-        // Refresh active plans after update
         dispatch(fetchActivePlans());
         showSuccess('Plan updated successfully');
       } else {
         await dispatch(createPlan(planData)).unwrap();
-        // Refresh active plans after create
         dispatch(fetchActivePlans());
         showSuccess('Plan created successfully');
       }
@@ -147,10 +157,8 @@ export default function Subscriptions() {
       'question'
     );
     if (!confirmed) return;
-
     try {
       await dispatch(togglePlanStatus(id)).unwrap();
-      // The Redux slice reducer handles updating both items and activePlans instantly
       showSuccess(`Plan ${action}d successfully`);
     } catch (error) {
       showError(error || 'Failed to toggle status');
@@ -169,7 +177,7 @@ export default function Subscriptions() {
     }
   };
 
-  // ------ Subscription handlers (fixed edit modal) ------
+  // ------ Subscription handlers ------
   const loadPharmacies = useCallback(() => {
     const params = { page: subPage, limit: 10 };
     if (subSearch) params.search = subSearch;
@@ -184,7 +192,6 @@ export default function Subscriptions() {
     setSubPage(1);
   }, [subSearch]);
 
-  // Helper to calculate end date based on plan duration
   const calculateEndDate = (planId, startDate) => {
     if (!planId || !startDate) return '';
     const plan = activePlans.find((p) => p._id === planId);
@@ -192,28 +199,18 @@ export default function Subscriptions() {
     const start = new Date(startDate);
     let end = new Date(start);
     switch (plan.durationUnit) {
-      case 'days':
-        end.setDate(end.getDate() + plan.duration);
-        break;
-      case 'months':
-        end.setMonth(end.getMonth() + plan.duration);
-        break;
-      case 'years':
-        end.setFullYear(end.getFullYear() + plan.duration);
-        break;
-      default:
-        end.setMonth(end.getMonth() + plan.duration);
+      case 'days': end.setDate(end.getDate() + plan.duration); break;
+      case 'months': end.setMonth(end.getMonth() + plan.duration); break;
+      case 'years': end.setFullYear(end.getFullYear() + plan.duration); break;
+      default: end.setMonth(end.getMonth() + plan.duration);
     }
     return end.toISOString().split('T')[0];
   };
 
-  // Helper to check if a value looks like a MongoDB ObjectId
   const isObjectId = (val) => /^[0-9a-fA-F]{24}$/.test(val);
 
-  // Helper to get the display-friendly plan name
   const getPlanDisplayName = (planName) => {
     if (!planName) return 'N/A';
-    // If it's an ObjectId, try to find the name from active plans
     if (isObjectId(planName)) {
       const plan = activePlans.find((p) => p._id === planName);
       return plan ? plan.planName : 'Unknown Plan';
@@ -222,17 +219,14 @@ export default function Subscriptions() {
   };
 
   const openEdit = (pharmacy) => {
-    // Determine if subscriptionPlan is an ObjectId or a name string
     const rawPlan = pharmacy.subscriptionPlan || 'free';
     let planId = pharmacy.subscriptionPlanId || '';
     let planName = rawPlan;
-
     if (isObjectId(rawPlan) && !planId) {
       planId = rawPlan;
       const matched = activePlans.find((p) => p._id === rawPlan);
       planName = matched ? matched.planName : 'free';
     }
-
     setFormData({
       subscriptionPlanId: planId,
       subscriptionPlan: planName,
@@ -253,21 +247,13 @@ export default function Subscriptions() {
     setSubmitting(true);
     try {
       const updateData = {};
-      if (formData.subscriptionPlanId) {
-        updateData.subscriptionPlanId = formData.subscriptionPlanId;
-      } else if (formData.subscriptionPlan) {
-        updateData.subscriptionPlan = formData.subscriptionPlan;
-      }
-      if (formData.subscriptionEndDate) {
-        updateData.subscriptionEndDate = formData.subscriptionEndDate;
-      }
-
+      if (formData.subscriptionPlanId) updateData.subscriptionPlanId = formData.subscriptionPlanId;
+      else if (formData.subscriptionPlan) updateData.subscriptionPlan = formData.subscriptionPlan;
+      if (formData.subscriptionEndDate) updateData.subscriptionEndDate = formData.subscriptionEndDate;
       await pharmacyService.updateSubscription(editing._id, updateData);
       showSuccess('Subscription updated successfully');
-      // Reset and close
       closeEdit();
       loadPharmacies();
-      // Refresh active plans for next time
       dispatch(fetchActivePlans());
     } catch (error) {
       showError(error.response?.data?.message || 'Update failed');
@@ -281,7 +267,6 @@ export default function Subscriptions() {
     return colors[plan] || 'badge-secondary';
   };
 
-  // ------ Plan Drawer Footer ------
   const planDrawerFooter = (
     <>
       <button type="button" className="btn btn-secondary" onClick={closePlanDrawer}>Cancel</button>
@@ -292,7 +277,6 @@ export default function Subscriptions() {
     </>
   );
 
-  // ------ Subscription Drawer Footer ------
   const subscriptionDrawerFooter = (
     <>
       <button type="button" className="btn btn-secondary" onClick={closeEdit}>Cancel</button>
@@ -302,54 +286,163 @@ export default function Subscriptions() {
     </>
   );
 
+  // ------ Admin Subscription Status Card ------
+  const renderMySubscription = () => {
+    if (!subscriptionStatus) {
+      return (
+        <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+      );
+    }
+
+    const statusColor = subscriptionStatus.status === 'active' ? '#22c55e' : subscriptionStatus.status === 'expiring_soon' ? '#f59e0b' : '#ef4444';
+    const statusBg = subscriptionStatus.status === 'active' ? '#f0fdf4' : subscriptionStatus.status === 'expiring_soon' ? '#fffbeb' : '#fef2f2';
+    const statusBorder = subscriptionStatus.status === 'active' ? '#bbf7d0' : subscriptionStatus.status === 'expiring_soon' ? '#fde68a' : '#fecaca';
+
+    const endDate = subscriptionStatus.endDate ? new Date(subscriptionStatus.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A';
+    const daysRemaining = subscriptionStatus.daysRemaining !== undefined ? subscriptionStatus.daysRemaining : 'N/A';
+
+    return (
+      <div className="card" style={{ maxWidth: '600px', margin: '0 auto' }}>
+        <div className="card-header">
+          <h5><i className="fa-solid fa-credit-card"></i> My Subscription</h5>
+        </div>
+        <div className="card-body">
+          {/* Status Banner */}
+          <div style={{
+            padding: '16px',
+            borderRadius: '12px',
+            background: statusBg,
+            border: `1px solid ${statusBorder}`,
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '50%',
+              background: statusColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <i className={`fa-solid ${subscriptionStatus.status === 'active' ? 'fa-check' : 'fa-exclamation'}`} style={{ color: '#fff', fontSize: '18px' }}></i>
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '16px', color: statusColor, textTransform: 'capitalize' }}>
+                {subscriptionStatus.status === 'active' ? 'Active' : subscriptionStatus.status === 'expiring_soon' ? 'Expiring Soon' : 'Expired'}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+                {subscriptionStatus.status === 'active'
+                  ? `Your subscription is active with ${daysRemaining} days remaining`
+                  : subscriptionStatus.status === 'expiring_soon'
+                    ? `Your subscription will expire in ${daysRemaining} days. Please renew soon.`
+                    : 'Your subscription has expired. Please renew to access all features.'}
+              </div>
+            </div>
+          </div>
+
+          {/* Details Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500 }}>Current Plan</div>
+              <div style={{ fontWeight: 700, fontSize: '18px', marginTop: '4px', color: 'var(--gray-900)', textTransform: 'capitalize' }}>
+                {subscriptionStatus.plan || 'Free'}
+              </div>
+            </div>
+            <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500 }}>Days Remaining</div>
+              <div style={{ fontWeight: 700, fontSize: '18px', marginTop: '4px', color: daysRemaining <= 7 && daysRemaining !== 'N/A' ? '#ef4444' : 'var(--gray-900)' }}>
+                {daysRemaining !== 'N/A' ? `${daysRemaining} day${daysRemaining > 1 ? 's' : ''}` : 'N/A'}
+              </div>
+            </div>
+            <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500 }}>Start Date</div>
+              <div style={{ fontWeight: 600, fontSize: '14px', marginTop: '4px', color: 'var(--gray-700)' }}>
+                {subscriptionStatus.startDate ? new Date(subscriptionStatus.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+              </div>
+            </div>
+            <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500 }}>Expiry Date</div>
+              <div style={{ fontWeight: 600, fontSize: '14px', marginTop: '4px', color: subscriptionStatus.status === 'expired' ? '#ef4444' : 'var(--gray-700)' }}>
+                {endDate}
+              </div>
+            </div>
+          </div>
+
+          {subscriptionStatus.status === 'expired' && (
+            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+              <p style={{ color: 'var(--gray-500)', fontSize: '14px', marginBottom: '12px' }}>
+                To continue using all features, please renew your subscription.
+              </p>
+              <button className="btn btn-primary" disabled style={{ opacity: 0.7, cursor: 'not-allowed' }}>
+                <i className="fa-solid fa-credit-card"></i> Contact Support to Renew
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h2>Subscription Management</h2>
-          <p>Manage subscription plans and pharmacy subscriptions</p>
+          <p>{isSuperAdmin ? 'Manage subscription plans and pharmacy subscriptions' : 'View your subscription details'}</p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="tabs" style={{ display: 'flex', gap: '0', marginBottom: '20px', borderBottom: '2px solid var(--gray-200)' }}>
-        <button
-          className={`tab-btn ${activeTab === 'plans' ? 'active' : ''}`}
-          onClick={() => setActiveTab('plans')}
-          style={{
-            padding: '10px 24px',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            fontWeight: activeTab === 'plans' ? '600' : '400',
-            color: activeTab === 'plans' ? 'var(--primary-color)' : 'var(--gray-500)',
-            borderBottom: activeTab === 'plans' ? '2px solid var(--primary-color)' : '2px solid transparent',
-            marginBottom: '-2px',
-            fontSize: '15px',
-          }}
-        >
-          <i className="fa-solid fa-layer-group"></i> Plans
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'subscriptions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('subscriptions')}
-          style={{
-            padding: '10px 24px',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            fontWeight: activeTab === 'subscriptions' ? '600' : '400',
-            color: activeTab === 'subscriptions' ? 'var(--primary-color)' : 'var(--gray-500)',
-            borderBottom: activeTab === 'subscriptions' ? '2px solid var(--primary-color)' : '2px solid transparent',
-            marginBottom: '-2px',
-            fontSize: '15px',
-          }}
-        >
-          <i className="fa-solid fa-credit-card"></i> Subscriptions
-        </button>
+        {!isSuperAdmin && (
+          <button
+            className={`tab-btn ${activeTab === 'my-subscription' ? 'active' : ''}`}
+            onClick={() => setActiveTab('my-subscription')}
+            style={{
+              padding: '10px 24px', border: 'none', background: 'none', cursor: 'pointer',
+              fontWeight: activeTab === 'my-subscription' ? '600' : '400',
+              color: activeTab === 'my-subscription' ? 'var(--primary)' : 'var(--gray-500)',
+              borderBottom: activeTab === 'my-subscription' ? '2px solid var(--primary)' : '2px solid transparent',
+              marginBottom: '-2px', fontSize: '15px',
+            }}
+          >
+            <i className="fa-solid fa-credit-card"></i> My Subscription
+          </button>
+        )}
+        {isSuperAdmin && (
+          <button
+            className={`tab-btn ${activeTab === 'plans' ? 'active' : ''}`}
+            onClick={() => setActiveTab('plans')}
+            style={{
+              padding: '10px 24px', border: 'none', background: 'none', cursor: 'pointer',
+              fontWeight: activeTab === 'plans' ? '600' : '400',
+              color: activeTab === 'plans' ? 'var(--primary)' : 'var(--gray-500)',
+              borderBottom: activeTab === 'plans' ? '2px solid var(--primary)' : '2px solid transparent',
+              marginBottom: '-2px', fontSize: '15px',
+            }}
+          >
+            <i className="fa-solid fa-layer-group"></i> Plans
+          </button>
+        )}
+        {isSuperAdmin && (
+          <button
+            className={`tab-btn ${activeTab === 'subscriptions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('subscriptions')}
+            style={{
+              padding: '10px 24px', border: 'none', background: 'none', cursor: 'pointer',
+              fontWeight: activeTab === 'subscriptions' ? '600' : '400',
+              color: activeTab === 'subscriptions' ? 'var(--primary)' : 'var(--gray-500)',
+              borderBottom: activeTab === 'subscriptions' ? '2px solid var(--primary)' : '2px solid transparent',
+              marginBottom: '-2px', fontSize: '15px',
+            }}
+          >
+            <i className="fa-solid fa-credit-card"></i> Subscriptions
+          </button>
+        )}
       </div>
 
-      {/* ============ TAB 1: Plans Management ============ */}
+      {/* ===== My Subscription (Admin) ===== */}
+      {activeTab === 'my-subscription' && renderMySubscription()}
+
+      {/* ===== Plans Management (Super Admin) ===== */}
       {activeTab === 'plans' && (
         <div>
           <div className="card">
@@ -369,7 +462,6 @@ export default function Subscriptions() {
                   <input type="text" placeholder="Search plans..." value={planSearch} onChange={(e) => setPlanSearch(e.target.value)} />
                 </div>
               </div>
-
               {planLoading ? (
                 <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
               ) : plans?.length > 0 ? (
@@ -395,33 +487,13 @@ export default function Subscriptions() {
                           <td>{plan.duration} {plan.durationUnit}</td>
                           <td>{plan.maxStaff ?? 'Unlimited'}</td>
                           <td>{plan.maxBranches ?? 'Unlimited'}</td>
-                          <td>
-                            {plan.features?.length > 0 ? (
-                              <span style={{ cursor: 'pointer', color: 'var(--primary-color)' }} title={plan.features.join(', ')}>
-                                {plan.features.length} feature{plan.features.length > 1 ? 's' : ''}
-                              </span>
-                            ) : '-'}
-                          </td>
-                          <td>
-                            <span className={`badge ${plan.isActive ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize' }}>
-                              {plan.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
+                          <td>{plan.features?.length > 0 ? (<span style={{ cursor: 'pointer', color: 'var(--primary)' }} title={plan.features.join(', ')}>{plan.features.length} feature{plan.features.length > 1 ? 's' : ''}</span>) : '-'}</td>
+                          <td><span className={`badge ${plan.isActive ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize' }}>{plan.isActive ? 'Active' : 'Inactive'}</span></td>
                           <td>
                             <div className="action-buttons">
-                              <button className="btn btn-warning btn-sm" onClick={() => openEditPlanDrawer(plan)} title="Edit">
-                                <i className="fa-solid fa-edit"></i>
-                              </button>
-                              <button
-                                className={`btn btn-sm ${plan.isActive ? 'btn-secondary' : 'btn-success'}`}
-                                onClick={() => handleTogglePlanStatus(plan._id, plan.planName, plan.isActive)}
-                                title={plan.isActive ? 'Deactivate' : 'Activate'}
-                              >
-                                <i className={`fa-solid ${plan.isActive ? 'fa-pause' : 'fa-play'}`}></i>
-                              </button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleDeletePlan(plan._id)} title="Delete">
-                                <i className="fa-solid fa-trash"></i>
-                              </button>
+                              <button className="btn btn-warning btn-sm" onClick={() => openEditPlanDrawer(plan)} title="Edit"><i className="fa-solid fa-edit"></i></button>
+                              <button className={`btn btn-sm ${plan.isActive ? 'btn-secondary' : 'btn-success'}`} onClick={() => handleTogglePlanStatus(plan._id, plan.planName, plan.isActive)} title={plan.isActive ? 'Deactivate' : 'Activate'}><i className={`fa-solid ${plan.isActive ? 'fa-pause' : 'fa-play'}`}></i></button>
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDeletePlan(plan._id)} title="Delete"><i className="fa-solid fa-trash"></i></button>
                             </div>
                           </td>
                         </tr>
@@ -434,21 +506,12 @@ export default function Subscriptions() {
                   <i className="fa-solid fa-layer-group"></i>
                   <h4>No Plans Found</h4>
                   <p>Create your first subscription plan.</p>
-                  <button className="btn btn-primary" onClick={openCreatePlanDrawer}>
-                    <i className="fa-solid fa-plus"></i> Add Plan
-                  </button>
+                  <button className="btn btn-primary" onClick={openCreatePlanDrawer}><i className="fa-solid fa-plus"></i> Add Plan</button>
                 </div>
               )}
             </div>
           </div>
-
-          {/* Plan Drawer - using reusable Drawer component */}
-          <Drawer
-            isOpen={planDrawerOpen}
-            onClose={closePlanDrawer}
-            title={editPlan ? 'Edit Subscription Plan' : 'Add Subscription Plan'}
-            footer={planDrawerFooter}
-          >
+          <Drawer isOpen={planDrawerOpen} onClose={closePlanDrawer} title={editPlan ? 'Edit Subscription Plan' : 'Add Subscription Plan'} footer={planDrawerFooter}>
             <form id="planForm" onSubmit={handlePlanSubmit}>
               <div className="form-group">
                 <label>Plan Name *</label>
@@ -474,19 +537,19 @@ export default function Subscriptions() {
               </div>
               <div className="form-group">
                 <label>Description</label>
-                <textarea name="description" value={planFormData.description} onChange={handlePlanChange} placeholder="Brief description of the plan" rows="2" />
+                <textarea name="description" value={planFormData.description} onChange={handlePlanChange} placeholder="Brief description" rows="2" />
               </div>
               <div className="form-group">
                 <label>Features (one per line)</label>
-                <textarea name="features" value={planFormData.features} onChange={handlePlanChange} placeholder="Enter features, one per line&#10;e.g. Unlimited medicines&#10;Basic reporting" rows="4" />
+                <textarea name="features" value={planFormData.features} onChange={handlePlanChange} placeholder="Enter features, one per line" rows="4" />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
-                  <label>Max Staff (leave empty for unlimited)</label>
+                  <label>Max Staff</label>
                   <input type="number" name="maxStaff" value={planFormData.maxStaff} onChange={handlePlanChange} placeholder="Unlimited" min="1" />
                 </div>
                 <div className="form-group">
-                  <label>Max Branches (leave empty for unlimited)</label>
+                  <label>Max Branches</label>
                   <input type="number" name="maxBranches" value={planFormData.maxBranches} onChange={handlePlanChange} placeholder="Unlimited" min="1" />
                 </div>
               </div>
@@ -495,7 +558,7 @@ export default function Subscriptions() {
         </div>
       )}
 
-      {/* ============ TAB 2: All Subscriptions (Fixed Edit Modal) ============ */}
+      {/* ===== All Subscriptions (Super Admin) ===== */}
       {activeTab === 'subscriptions' && (
         <div>
           <div className="card">
@@ -537,58 +600,34 @@ export default function Subscriptions() {
               ) : <div className="empty-state" style={{ padding: '30px' }}><p>No pharmacies found</p></div>}
             </div>
           </div>
-
-          {/* Edit Subscription Drawer */}
-          <Drawer
-            isOpen={!!editing}
-            onClose={closeEdit}
-            title={editing ? `Edit Subscription - ${editing.pharmacyName}` : 'Edit Subscription'}
-            footer={subscriptionDrawerFooter}
-          >
+          <Drawer isOpen={!!editing} onClose={closeEdit} title={editing ? `Edit Subscription - ${editing.pharmacyName}` : 'Edit Subscription'} footer={subscriptionDrawerFooter}>
             {editing && (
               <form id="subscriptionForm" onSubmit={handleUpdate}>
                 <div className="form-group">
                   <label>Subscription Plan</label>
-                  <select
-                    value={formData.subscriptionPlanId || formData.subscriptionPlan}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      // Check if selected value matches an active plan ID
-                      const selectedPlan = activePlans.find((p) => p._id === val);
-                      if (selectedPlan) {
-                        // Auto-calculate end date based on plan duration
-                        const startDate = editing?.subscriptionStartDate ? new Date(editing.subscriptionStartDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-                        const endDate = calculateEndDate(val, startDate);
-                        setFormData({ ...formData, subscriptionPlanId: val, subscriptionPlan: selectedPlan.planName, subscriptionEndDate: endDate });
-                        setCalculatedEndDate(endDate);
-                      } else {
-                        setFormData({ ...formData, subscriptionPlanId: '', subscriptionPlan: val, subscriptionEndDate: '' });
-                        setCalculatedEndDate('');
-                      }
-                    }}
-                    required
-                  >
+                  <select value={formData.subscriptionPlanId || formData.subscriptionPlan} onChange={(e) => {
+                    const val = e.target.value;
+                    const selectedPlan = activePlans.find((p) => p._id === val);
+                    if (selectedPlan) {
+                      const startDate = editing?.subscriptionStartDate ? new Date(editing.subscriptionStartDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                      const endDate = calculateEndDate(val, startDate);
+                      setFormData({ ...formData, subscriptionPlanId: val, subscriptionPlan: selectedPlan.planName, subscriptionEndDate: endDate });
+                      setCalculatedEndDate(endDate);
+                    } else {
+                      setFormData({ ...formData, subscriptionPlanId: '', subscriptionPlan: val, subscriptionEndDate: '' });
+                      setCalculatedEndDate('');
+                    }
+                  }} required>
                     <option value="">-- Select Plan --</option>
-                    {/* Dynamic plans from database only - no hardcoded options */}
                     {activePlans.map((plan) => (
-                      <option key={plan._id} value={plan._id}>
-                        {plan.planName} (₹{plan.price} / {plan.duration} {plan.durationUnit})
-                      </option>
+                      <option key={plan._id} value={plan._id}>{plan.planName} (₹{plan.price} / {plan.duration} {plan.durationUnit})</option>
                     ))}
                   </select>
                 </div>
                 <div className="form-group">
                   <label>End Date (auto-calculated)</label>
-                  <input
-                    type="date"
-                    value={formData.subscriptionEndDate}
-                    readOnly
-                    className="form-control"
-                    style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
-                  />
-                  <small style={{ color: '#888', fontSize: '12px' }}>
-                    End date is calculated automatically based on the selected plan's duration.
-                  </small>
+                  <input type="date" value={formData.subscriptionEndDate} readOnly className="form-control" style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }} />
+                  <small style={{ color: '#888', fontSize: '12px' }}>End date is calculated automatically based on the selected plan's duration.</small>
                 </div>
               </form>
             )}

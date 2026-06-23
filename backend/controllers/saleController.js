@@ -86,6 +86,9 @@ export const createSale = async (req, res, next) => {
     const { customerName, customerPhone, customerAddress, saleDate, items, discount, discountType, paidAmount, paymentMethod, notes } = req.body;
 
     if (!items || items.length === 0) return ApiResponse.error(res, 'At least one item is required', 400);
+    if (!customerName || customerName.trim() === '' || customerName.trim() === 'Walk-in Customer') {
+      return ApiResponse.error(res, 'Customer name is required. Please enter a valid customer name.', 400);
+    }
 
     const invoiceNumber = await generateInvoiceNumber(req.pharmacyId);
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
@@ -309,7 +312,12 @@ export const deleteSale = async (req, res, next) => {
       await revertStock(sale.items, req.pharmacyId, session);
     }
 
+    // Clear financials since the sale is being reversed
+    sale.paidAmount = 0;
+    sale.dueAmount = 0;
+    sale.paymentStatus = 'paid';
     sale.status = 'cancelled';
+    sale.isStockDeducted = false;
     sale.notes = (sale.notes ? sale.notes + ' | ' : '') + 'Cancelled on ' + new Date().toISOString().split('T')[0];
     sale.updatedBy = req.user._id;
     await sale.save({ session });
@@ -335,9 +343,14 @@ export const returnSale = async (req, res, next) => {
     // Revert stock
     await revertStock(sale.items, req.pharmacyId, session);
 
+    // Clear financials since the sale is being reversed
+    sale.paidAmount = 0;
+    sale.dueAmount = 0;
+    sale.paymentStatus = 'paid';
     sale.status = 'returned';
     sale.isStockDeducted = false;
     sale.notes = (sale.notes ? sale.notes + ' | ' : '') + 'Returned on ' + new Date().toISOString();
+    sale.updatedBy = req.user._id;
     await sale.save({ session });
 
     await session.commitTransaction();
@@ -359,31 +372,32 @@ export const getSaleStats = async (req, res, next) => {
     const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+    const activeStatus = { $nin: ['cancelled', 'returned'] };
     const pipeline = (matchDate) => [
-      { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: matchDate }, status: { $ne: 'cancelled' } } },
+      { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: matchDate }, status: activeStatus } },
       { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 }, profit: { $sum: { $subtract: ['$grandTotal', { $sum: '$items.purchasePrice' }] } } } },
     ];
 
     const [totalSale, monthlySale, todaySale, weeklySale, dailySales, monthlyRevenue, monthlyPurchaseVsSale, paymentMethodStats] = await Promise.all([
       Sale.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: activeStatus } },
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
       ]),
       Sale.aggregate(pipeline(startOfMonth)),
       Sale.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) }, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) }, status: activeStatus } },
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
       ]),
       Sale.aggregate(pipeline(last7Days)),
       // Daily sales trend (last 30 days)
       Sale.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: last30Days }, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: last30Days }, status: activeStatus } },
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$saleDate' } }, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
       // Monthly revenue (current year)
       Sale.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: startOfYear }, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: startOfYear }, status: activeStatus } },
         { $group: { _id: { $month: '$saleDate' }, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
@@ -395,7 +409,7 @@ export const getSaleStats = async (req, res, next) => {
           { $sort: { _id: 1 } },
         ]);
         const sales = await Sale.aggregate([
-          { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: startOfYear }, status: { $ne: 'cancelled' } } },
+          { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: startOfYear }, status: activeStatus } },
           { $group: { _id: { $month: '$saleDate' }, total: { $sum: '$grandTotal' } } },
           { $sort: { _id: 1 } },
         ]);
@@ -409,14 +423,14 @@ export const getSaleStats = async (req, res, next) => {
       })(),
       // Payment method stats
       Sale.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: activeStatus } },
         { $group: { _id: '$paymentMethod', total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
       ]),
     ]);
 
     // Top selling medicines
     const topMedicines = await Sale.aggregate([
-      { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } } },
+      { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: activeStatus } },
       { $unwind: '$items' },
       { $group: { _id: '$items.medicineName', totalQty: { $sum: '$items.quantity' }, totalRevenue: { $sum: '$items.total' } } },
       { $sort: { totalQty: -1 } },
@@ -424,7 +438,7 @@ export const getSaleStats = async (req, res, next) => {
     ]);
 
     // Recent sales
-    const recentSales = await Sale.find({ pharmacyId, isDeleted: false, status: { $ne: 'cancelled' } })
+    const recentSales = await Sale.find({ pharmacyId, isDeleted: false, status: activeStatus })
       .sort({ createdAt: -1 }).limit(5)
       .select('invoiceNumber customerName grandTotal paymentMethod saleDate');
 

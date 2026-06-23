@@ -20,7 +20,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { Bar, Line } from 'react-chartjs-2';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -75,6 +75,52 @@ export default function Dashboard() {
 
   // ===== SUPER ADMIN DASHBOARD =====
   if (isSuperAdmin) {
+    const total = saData?.totalPharmacies || 0;
+    const active = saData?.activePharmacies || 0;
+    const suspended = saData?.suspendedPharmacies || 0;
+    const users = saData?.totalUsers || 0;
+    const inactive = total - active - suspended;
+
+    const planColors = { free: '#94a3b8', basic: '#3b82f6', premium: '#22c55e', enterprise: '#f59e0b' };
+    const subStats = saData?.subscriptionStats || [];
+    const subscriptionChartData = subStats.length > 0 ? {
+      labels: subStats.map(s => s.plan.charAt(0).toUpperCase() + s.plan.slice(1)),
+      datasets: [{
+        data: subStats.map(s => s.count),
+        backgroundColor: subStats.map(s => planColors[s.plan] || '#94a3b8'),
+        borderWidth: 0,
+      }],
+    } : null;
+
+    const statusDist = saData?.statusDistribution || [];
+    const statusChartData = statusDist.length > 0 ? {
+      labels: statusDist.map(s => s.status.charAt(0).toUpperCase() + s.status.slice(1)),
+      datasets: [{
+        data: statusDist.map(s => s.count),
+        backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'],
+        borderWidth: 0,
+      }],
+    } : null;
+
+    const monthlyReg = saData?.monthlyRegistrations || [];
+    const registrationChartData = monthlyReg.length > 0 ? {
+      labels: monthlyReg.map(m => {
+        const p = m.month.split('-');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months[parseInt(p[1]) - 1] || m.month;
+      }),
+      datasets: [{
+        label: 'New Pharmacies',
+        data: monthlyReg.map(m => m.count),
+        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+        borderColor: '#3b82f6',
+        borderWidth: 1,
+        borderRadius: 4,
+      }],
+    } : null;
+
+    const recentPharmacies = saData?.recentPharmacies || [];
+
     return (
       <div>
         <div className="page-header">
@@ -83,36 +129,124 @@ export default function Dashboard() {
             <p>Overview of your entire pharmacy platform</p>
           </div>
         </div>
+
+        {/* Stats Cards with accent border (matching Admin panel style) */}
         <div className="stats-grid">
-          <div className="stat-card">
+          <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
             <div className="stat-icon blue"><i className="fa-solid fa-hospital"></i></div>
-            <div className="stat-info"><h3>{saData?.totalPharmacies || 0}</h3><p>Total Pharmacies</p></div>
+            <div className="stat-info"><h3>{total}</h3><p>Total Pharmacies</p></div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="stat-icon green"><i className="fa-solid fa-check-circle"></i></div>
-            <div className="stat-info"><h3>{saData?.activePharmacies || 0}</h3><p>Active Pharmacies</p></div>
+            <div className="stat-info"><h3>{active}</h3><p>Active Pharmacies</p></div>
           </div>
-          <div className="stat-card">
-            <div className="stat-icon red"><i className="fa-solid fa-ban"></i></div>
-            <div className="stat-info"><h3>{saData?.suspendedPharmacies || 0}</h3><p>Suspended</p></div>
+          <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+            <div className="stat-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><i className="fa-solid fa-ban"></i></div>
+            <div className="stat-info"><h3>{suspended}</h3><p>Suspended</p></div>
           </div>
-          <div className="stat-card">
-            <div className="stat-icon purple"><i className="fa-solid fa-users"></i></div>
-            <div className="stat-info"><h3>{saData?.totalUsers || 0}</h3><p>Total Users</p></div>
+          <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+            <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-users"></i></div>
+            <div className="stat-info"><h3>{users}</h3><p>Total Users</p></div>
           </div>
         </div>
+
+        {/* Charts Row */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '24px' }}>
+          {/* Monthly Registrations */}
+          <div className="card">
+            <div className="card-header">
+              <h5><i className="fa-solid fa-chart-bar" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Monthly Registrations</h5>
+              <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Last 6 months</span>
+            </div>
+            <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
+              {registrationChartData ? <Bar data={registrationChartData} options={chartOptions} />
+              : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-line" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Registration data will appear here</p></div>}
+            </div>
+          </div>
+          {/* Subscription Distribution */}
+          <div className="card">
+            <div className="card-header">
+              <h5><i className="fa-solid fa-credit-card" style={{ marginRight: '8px', color: '#22c55e' }}></i>Subscription Distribution</h5>
+              <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{subStats.length} plan types</span>
+            </div>
+            <div className="card-body" style={{ padding: '20px', minHeight: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {subscriptionChartData ? (
+                <div style={{ width: '220px' }}>
+                  <Doughnut data={subscriptionChartData} options={{ cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 10, font: { size: 11 }, boxWidth: 12 } } } }} />
+                  <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: 'var(--gray-500)' }}>
+                    <strong>{total}</strong> total pharmacies
+                  </div>
+                </div>
+              ) : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-pie-chart" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Subscription data will appear here</p></div>}
+            </div>
+          </div>
+        </div>
+
+        {/* Charts Row 2 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+          {/* Status Distribution */}
+          <div className="card">
+            <div className="card-header">
+              <h5><i className="fa-solid fa-circle-check" style={{ marginRight: '8px', color: '#22c55e' }}></i>Pharmacy Status</h5>
+              <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{active} active of {total}</span>
+            </div>
+            <div className="card-body" style={{ padding: '20px', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {statusChartData ? (
+                <div style={{ width: '200px' }}>
+                  <Doughnut data={statusChartData} options={{ cutout: '60%', plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 8, font: { size: 11 }, boxWidth: 12 } } } }} />
+                </div>
+              ) : <div style={{ textAlign: 'center', padding: '30px', color: 'var(--gray-500)' }}><p>Status data will appear here</p></div>}
+            </div>
+          </div>
+          {/* Summary Cards */}
+          <div className="card">
+            <div className="card-header">
+              <h5><i className="fa-solid fa-chart-simple" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Quick Summary</h5>
+            </div>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: '11px', color: '#166534', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Rate</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>
+                    {total > 0 ? ((active / total) * 100).toFixed(1) : 0}%
+                  </div>
+                </div>
+                <div style={{ padding: '16px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fecaca' }}>
+                  <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Suspended Rate</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#dc2626', marginTop: '4px' }}>
+                    {total > 0 ? ((suspended / total) * 100).toFixed(1) : 0}%
+                  </div>
+                </div>
+                <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Avg Users/Pharmacy</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--gray-800)', marginTop: '4px' }}>
+                    {total > 0 ? (users / total).toFixed(1) : 0}
+                  </div>
+                </div>
+                <div style={{ padding: '16px', background: '#f0f5ff', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
+                  <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Inactive</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>
+                    {inactive}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Pharmacies */}
         <div className="card" style={{ marginTop: '20px' }}>
           <div className="card-header">
-            <h5><i className="fa-solid fa-clock-rotate-left" style={{ marginRight: '8px', color: 'var(--primary-color)' }}></i>Recent Pharmacies</h5>
+            <h5><i className="fa-solid fa-clock-rotate-left" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Recent Pharmacies</h5>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/pharmacies')}><i className="fa-solid fa-arrow-right"></i> View All</button>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
-            {saData?.recentPharmacies?.length > 0 ? (
+            {recentPharmacies.length > 0 ? (
               <div className="table-container">
                 <table>
                   <thead><tr><th>Pharmacy</th><th>Owner</th><th>Email</th><th>Plan</th><th>Status</th><th>Joined</th></tr></thead>
                   <tbody>
-                    {saData.recentPharmacies.map((p) => (
+                    {recentPharmacies.map((p) => (
                       <tr key={p._id} style={{ cursor: 'pointer' }} onClick={() => navigate('/pharmacies')}>
                         <td style={{ fontWeight: 500 }}>{p.pharmacyName}</td>
                         <td>{p.ownerName}</td>
@@ -223,15 +357,15 @@ export default function Dashboard() {
           <div className="stat-info"><h3>{totalMedicines}</h3><p>Total Products</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-          <div className="stat-icon red"><i className="fa-solid fa-calendar-xmark"></i></div>
+          <div className="stat-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><i className="fa-solid fa-calendar-xmark"></i></div>
           <div className="stat-info"><h3>{expiredCount}</h3><p>Expired</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-          <div className="stat-icon yellow"><i className="fa-solid fa-clock"></i></div>
+          <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-clock"></i></div>
           <div className="stat-info"><h3>{nearExpiryCount}</h3><p>Upcoming Expiry</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-          <div className="stat-icon yellow"><i className="fa-solid fa-triangle-exclamation"></i></div>
+          <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-triangle-exclamation"></i></div>
           <div className="stat-info"><h3>{lowStockCount}</h3><p>Low Stock</p></div>
         </div>
       </div>
@@ -240,7 +374,7 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '24px' }}>
         <div className="card">
           <div className="card-header">
-            <h5><i className="fa-solid fa-chart-line" style={{ marginRight: '8px', color: 'var(--primary-color)' }}></i>Daily Sales Trend</h5>
+            <h5><i className="fa-solid fa-chart-line" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Daily Sales Trend</h5>
             <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{saleStats?.todaySales || 0} today</span>
           </div>
           <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
@@ -250,7 +384,7 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <div className="card-header">
-            <h5><i className="fa-solid fa-coins" style={{ marginRight: '8px', color: 'var(--primary-color)' }}></i>Monthly Revenue</h5>
+            <h5><i className="fa-solid fa-coins" style={{ marginRight: '8px', color: '#22c55e' }}></i>Monthly Revenue</h5>
             <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>₹{(saleStats?.monthlyAmount || 0).toFixed(2)} this month</span>
           </div>
           <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
@@ -264,7 +398,7 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
-            <h5><i className="fa-solid fa-cart-shopping" style={{ marginRight: '8px', color: 'var(--primary-color)' }}></i>Monthly Purchase vs Sales</h5>
+            <h5><i className="fa-solid fa-cart-shopping" style={{ marginRight: '8px', color: '#ef4444' }}></i>Monthly Purchase vs Sales</h5>
           </div>
           <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
             {purchaseVsSaleChart ? <Bar data={purchaseVsSaleChart} options={chartOptions} />
@@ -273,7 +407,7 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <div className="card-header">
-            <h5><i className="fa-solid fa-star" style={{ marginRight: '8px', color: 'var(--primary-color)' }}></i>Top Selling Medicines</h5>
+            <h5><i className="fa-solid fa-star" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Top Selling Medicines</h5>
           </div>
           <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
             {topMedicinesChart ? <Bar data={topMedicinesChart} options={{ ...chartOptions, indexAxis: 'y', plugins: { ...chartOptions.plugins, legend: { display: false } } }} />
@@ -282,7 +416,7 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <div className="card-header">
-            <h5><i className="fa-solid fa-credit-card" style={{ marginRight: '8px', color: 'var(--primary-color)' }}></i>Sales by Payment Method</h5>
+            <h5><i className="fa-solid fa-credit-card" style={{ marginRight: '8px', color: '#8b5cf6' }}></i>Sales by Payment Method</h5>
           </div>
           <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
             {paymentMethodChart ? (
@@ -375,7 +509,7 @@ export default function Dashboard() {
       {saleStats?.recentSales?.length > 0 && (
         <div className="card" style={{ marginTop: '20px' }}>
           <div className="card-header">
-            <h5><i className="fa-solid fa-receipt" style={{ marginRight: '8px', color: 'var(--primary-color)' }}></i>Recent Sales</h5>
+            <h5><i className="fa-solid fa-receipt" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Recent Sales</h5>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}><i className="fa-solid fa-arrow-right"></i> View All</button>
           </div>
           <div className="card-body" style={{ padding: 0 }}>

@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { fetchSales, deleteSale } from '../../redux/slices/saleSlice';
-import { showSuccess, showError, confirmDelete, confirmAction } from '../../utils/sweetAlert';
+import { fetchSales } from '../../redux/slices/saleSlice';
 
 export default function Sales() {
   const dispatch = useDispatch();
@@ -22,17 +21,6 @@ export default function Sales() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setCurrentPage(1); }, [search, filters]);
-
-  const handleDelete = async (id) => {
-    const confirmed = await confirmAction('Cancel Sale', 'Are you sure? Stock will be restored.');
-    if (!confirmed) return;
-    try {
-      await dispatch(deleteSale(id)).unwrap();
-      showSuccess('Sale cancelled');
-    } catch (error) {
-      showError(error || 'Failed');
-    }
-  };
 
   const totalPages = Math.ceil(total / 10);
 
@@ -119,15 +107,15 @@ export default function Sales() {
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="action-buttons">
-                          <button className="btn btn-info btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="View">
+                          <button className="btn btn-info btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="View Details">
                             <i className="fa-solid fa-eye"></i>
                           </button>
-                          <button className="btn btn-success btn-sm" onClick={() => navigate(`/sales/${s._id}/invoice`)} title="Invoice">
+                          <button className="btn btn-success btn-sm" onClick={() => navigate(`/sales/${s._id}/invoice`)} title="Invoice / Print">
                             <i className="fa-solid fa-print"></i>
                           </button>
                           {s.status === 'completed' && (
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s._id)} title="Cancel">
-                              <i className="fa-solid fa-times"></i>
+                            <button className="btn btn-danger btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="Cancel / Return">
+                              <i className="fa-solid fa-ban"></i>
                             </button>
                           )}
                         </div>

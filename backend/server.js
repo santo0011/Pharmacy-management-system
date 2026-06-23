@@ -52,6 +52,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/brands', brandRoutes);
 app.use('/api/suppliers', supplierRoutes);
+// Pharmacy main router (contains /my/invoice-settings via checkSubscription applied above)
 app.use('/api/pharmacies', pharmacyRoutes);
 app.use('/api/subscription-plans', subscriptionPlanRoutes);
 app.use('/api/settings', settingRoutes);

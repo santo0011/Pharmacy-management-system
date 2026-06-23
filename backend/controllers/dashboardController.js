@@ -31,6 +31,7 @@ export const getSubscriptionStatus = async (req, res, next) => {
     return ApiResponse.success(res, {
       status,
       daysRemaining,
+      startDate: pharmacy.subscriptionStartDate,
       endDate: pharmacy.subscriptionEndDate,
       plan: pharmacy.subscriptionPlan,
       hasSubscription: !!pharmacy.subscriptionPlanId,

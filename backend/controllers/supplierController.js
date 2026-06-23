@@ -122,6 +122,22 @@ export const deleteSupplier = async (req, res, next) => {
       return ApiResponse.error(res, 'Supplier not found', 404);
     }
 
+    // Check if any medicines are linked to this supplier
+    const Medicine = (await import('../models/Medicine.js')).default;
+    const medicineCount = await Medicine.countDocuments({
+      supplier: supplier._id,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    });
+
+    if (medicineCount > 0) {
+      return ApiResponse.error(
+        res,
+        `This supplier is associated with ${medicineCount} medicine(s) and cannot be deleted. Remove or reassign the medicines first.`,
+        400
+      );
+    }
+
     await supplier.deleteOne();
 
     return ApiResponse.success(res, null, 'Supplier deleted');

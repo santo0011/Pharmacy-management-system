@@ -7,9 +7,9 @@ import { confirmAction } from '../utils/sweetAlert';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [inventoryOpen, setInventoryOpen] = useState(true);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(true);
-  const [managementOpen, setManagementOpen] = useState(false);
+  const [managementOpen, setManagementOpen] = useState(true);
   const { user, logout } = useAuth();
   const dispatch = useDispatch();
   const location = useLocation();
@@ -44,11 +44,11 @@ export default function MainLayout() {
     return titles[path] || path.charAt(1).toUpperCase() + path.slice(2);
   };
 
-  // Check if subscription is expired - only block non-subscription routes for admin
+  // Check if subscription is expired - only allow Dashboard, Subscriptions, and Logout
   const isExpired = subscriptionStatus?.status === 'expired';
   const isExpiringSoon = subscriptionStatus?.status === 'expiring_soon';
   const isSubRoute = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
-  const isPaymentRoute = location.pathname === '/subscriptions' || location.pathname === '/payments';
+  const isAllowedRoute = location.pathname === '/' || location.pathname === '/subscriptions' || location.pathname === '/profile';
 
   // Filter nav items based on user role
   const getFilteredNavItems = () => {
@@ -66,6 +66,7 @@ export default function MainLayout() {
     ];
 
     const managementItems = [
+      { path: '/subscriptions', label: 'Subscription', icon: 'fa-solid fa-credit-card' },
       { path: '/reports', label: 'Reports', icon: 'fa-solid fa-chart-bar' },
       { path: '/staff', label: 'Staff', icon: 'fa-solid fa-user-md' },
       { path: '/settings', label: 'Settings', icon: 'fa-solid fa-gear' },
@@ -93,6 +94,14 @@ export default function MainLayout() {
 
   const filteredItems = getFilteredNavItems();
 
+  // When expired, show only allowed sidebar items
+  const getExpiredNavItems = () => {
+    return [
+      { path: '/', label: 'Dashboard', icon: 'fa-solid fa-chart-pie' },
+      { path: '/subscriptions', label: 'Subscription', icon: 'fa-solid fa-credit-card' },
+    ];
+  };
+
   // Show subscription expiry/expired banner
   const renderSubscriptionBanner = () => {
     if (!subscriptionStatus) return null;
@@ -112,7 +121,7 @@ export default function MainLayout() {
           <span style={{ color: '#c62828' }}>
             <strong>Subscription Expired.</strong> Your subscription has ended. Please renew to access all features.
           </span>
-          {isPaymentRoute ? null : (
+          {location.pathname !== '/subscriptions' && (
             <a href="/subscriptions" style={{ color: '#1565c0', marginLeft: 'auto', fontWeight: 500, textDecoration: 'underline' }}>
               Renew Now →
             </a>
@@ -149,8 +158,8 @@ export default function MainLayout() {
     return null;
   };
 
-  // If expired and not on payment routes, block content
-  if (isExpired && !isPaymentRoute && user?.role === 'admin') {
+  // If expired and not on allowed routes, block content
+  if (isExpired && !isAllowedRoute && user?.role === 'admin') {
     return (
       <div className="app-layout">
         <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
@@ -166,7 +175,10 @@ export default function MainLayout() {
             <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
               <i className="fa-solid fa-chart-pie"></i><span>Dashboard</span>
             </NavLink>
-            <div className="nav-label">Account</div>
+            <NavLink to="/subscriptions" className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
+              <i className="fa-solid fa-credit-card"></i><span>Subscription</span>
+            </NavLink>
+            <div className="nav-label" style={{ marginTop: 'auto' }}>Account</div>
             <a className="sidebar-logout" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }} style={{ cursor: 'pointer' }}>
               <i className="fa-solid fa-right-from-bracket"></i><span>Logout</span>
             </a>
