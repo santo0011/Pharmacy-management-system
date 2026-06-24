@@ -48,6 +48,8 @@ const saleSchema = mongoose.Schema({
   discountAmount: { type: Number, default: 0 },
   taxAmount: { type: Number, default: 0 },
   grandTotal: { type: Number, required: true, default: 0 },
+  previousDueAmount: { type: Number, default: 0 },
+  previousDuePaid: { type: Number, default: 0 },
   paidAmount: { type: Number, default: 0 },
   dueAmount: { type: Number, default: 0 },
   paymentMethod: {

@@ -275,6 +275,20 @@ export default function SaleForm() {
       setDiscountType(selectedSale.discountType || 'percentage');
       setPaidAmount(selectedSale.paidAmount || 0);
       setPaymentMethod(selectedSale.paymentMethod || 'cash');
+
+      // If the sale has a customer ref, set customerRef and try to load due info
+      if (selectedSale.customer) {
+        const customerId = typeof selectedSale.customer === 'object'
+          ? selectedSale.customer._id
+          : selectedSale.customer;
+        if (customerId) {
+          // Set a basic customerRef so the form knows it's an existing customer
+          setCustomerRef({ _id: customerId, name: selectedSale.customerName, phone: selectedSale.customerPhone });
+          setCustomerVerified(true);
+          // Fetch due info for this customer (silent fail is fine)
+          fetchCustomerDue({ _id: customerId });
+        }
+      }
     }
   }, [selectedSale, isEditing]);
 

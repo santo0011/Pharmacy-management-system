@@ -59,8 +59,15 @@ const templateClassic = (sale, pharmacy) => `
     <div class="summary-row"><span>Subtotal:</span><span>₹${Number(sale.subtotal || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>GST:</span><span>₹${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Discount:</span><span>₹${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row total"><span>Grand Total:</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    ${sale.previousDueAmount > 0 ? `
+    <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+    ` : ''}
+    <div class="summary-row total"><span>Grand Total:</span><span>₹${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
     <div class="summary-row"><span>Paid:</span><span>₹${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
+    ${sale.previousDueAmount > 0 ? `
+    <div class="summary-row" style="color:#16a34a;font-size:10px;"><span>Including Previous Due Paid:</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+    ` : ''}
     <div class="summary-row"><span>Due:</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">₹${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Payment:</span><span style="text-transform:capitalize;">${sale.paymentMethod} <span class="badge badge-success">${sale.paymentStatus}</span></span></div>
   </div>
@@ -143,7 +150,11 @@ const templateModern = (sale, pharmacy) => `
       <div class="summary-row"><span>Subtotal:</span><span>₹${Number(sale.subtotal || 0).toFixed(2)}</span></div>
       <div class="summary-row"><span>GST:</span><span>₹${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
       <div class="summary-row"><span>Discount:</span><span>₹${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-      <div class="summary-row total"><span>Grand Total:</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+      <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+      ${sale.previousDueAmount > 0 ? `
+      <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+      ` : ''}
+      <div class="summary-row total"><span>Grand Total:</span><span>₹${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
       <div class="summary-row"><span>Paid:</span><span>₹${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
       <div class="summary-row"><span>Due:</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">₹${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
       <div class="summary-row"><span>Method:</span><span style="text-transform:capitalize;">${sale.paymentMethod}</span></div>
@@ -215,7 +226,11 @@ const templateMinimal = (sale, pharmacy) => `
     <div class="summary-row"><span>Subtotal</span><span>₹${Number(sale.subtotal || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>GST</span><span>₹${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Discount</span><span>₹${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row total"><span>Grand Total</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    ${sale.previousDueAmount > 0 ? `
+    <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+    ` : ''}
+    <div class="summary-row total"><span>Grand Total</span><span>₹${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
     <div class="summary-row"><span>Paid</span><span>₹${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Due</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">₹${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Payment</span><span style="text-transform:capitalize;">${sale.paymentMethod} <span class="badge-success">${sale.paymentStatus}</span></span></div>

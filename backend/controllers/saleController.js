@@ -259,6 +259,8 @@ export const createSale = async (req, res, next) => {
       discountAmount,
       taxAmount,
       grandTotal: newInvoiceGrandTotal,
+      previousDueAmount: oldInvoiceTotalPaid,
+      previousDuePaid: oldInvoiceTotalPaid,
       paidAmount: paidForNewInvoice,
       dueAmount: Math.max(0, dueForNewInvoice),
       paymentMethod: paymentMethod || 'cash',
