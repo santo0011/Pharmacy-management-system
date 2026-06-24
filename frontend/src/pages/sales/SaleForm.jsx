@@ -350,30 +350,31 @@ export default function SaleForm() {
       let finalCustomerPhone = customerPhone;
 
       if (customerRef && customerRef._id) {
-        // Admin explicitly selected a customer from dropdown — link to that customer
+        // Case 2: Admin explicitly selected from dropdown — link to that customer
         finalCustomerId = customerRef._id;
-        // If the customer has a stored phone from the dropdown, use it
         if (customerRef.phone) {
           finalCustomerPhone = customerRef.phone;
         }
       } else if (customerName) {
-        // Admin did NOT select from dropdown — create a NEW customer record.
-        // Never auto-link to an existing customer based on matching phone alone.
+        // Cases 1, 3, 4: Admin did NOT select from dropdown.
+        // Try to create a new customer record. If phone is empty, the backend
+        // will auto-generate a CUST-NP-xxx placeholder, guaranteeing a NEW record.
+        // If phone is provided and matches existing, the backend returns
+        // "Customer already exists" — we must NOT link the sale in that case.
         try {
           const { data } = await customerService.createCustomer({
             name: customerName,
             phone: customerPhone || '',
           });
-          // Only link if this was actually a NEW customer creation.
-          // If the backend returned "Customer already exists", the admin never
-          // selected this customer from dropdown, so we must NOT link the sale.
+          // Only link for genuinely NEW customers, never for existing ones.
+          // When phone is empty, the backend always creates a new record with
+          // a CUST-NP-xxx placeholder phone, so this WILL be a new customer.
           if (data.data && data.data._id && data.message !== 'Customer already exists') {
             finalCustomerId = data.data._id;
           }
-          // If customer already existed and admin never selected from dropdown,
-          // finalCustomerId stays '' — backend will store the name without linking.
+          // If customer already existed, finalCustomerId stays ''.
+          // The sale stores the name as text but is NOT linked to any customer.
         } catch (err) {
-          // Silently continue — customer creation is a bonus feature
           console.error('Could not create customer record:', err);
         }
       }
