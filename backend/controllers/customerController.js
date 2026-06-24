@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Sale from '../models/Sale.js';
 import Customer from '../models/Customer.js';
+import CustomerEditHistory from '../models/CustomerEditHistory.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import ApiResponse from '../utils/apiResponse.js';
 
@@ -621,16 +622,22 @@ export const getCustomerDues = async (req, res, next) => {
       ];
     }
 
-    // Add search filter for customerRef path
+    // Add search filter for customerRef path - only for name/phone search, not invoice search
     if (search && hasCustomerRefs) {
-      pipeline.splice(4, 0, {
-        $match: {
-          $or: [
-            { 'customerInfo.name': { $regex: search, $options: 'i' } },
-            { 'customerInfo.phone': { $regex: search, $options: 'i' } },
-          ],
-        },
-      });
+      // Check if search looks like an invoice number (contains letters/numbers in invoice format)
+      const isInvoiceSearch = /^\d+$|^INV-|^INV/i.test(search) || /invoice/i.test(search);
+      
+      if (!isInvoiceSearch) {
+        pipeline.splice(4, 0, {
+          $match: {
+            $or: [
+              { 'customerInfo.name': { $regex: search, $options: 'i' } },
+              { 'customerInfo.phone': { $regex: search, $options: 'i' } },
+            ],
+          },
+        });
+      }
+      // If it's an invoice search, the $match at the top of the pipeline already handles it via matchStage.$or
     }
 
     const countResult = await Sale.aggregate([...pipeline, { $count: 'total' }]);
@@ -911,14 +918,93 @@ export const updateCustomer = async (req, res, next) => {
       }
     }
 
-    // Build update object
+    // Build update object and track changes
     const updateData = {};
-    if (name && name.trim()) updateData.name = name.trim();
-    if (phone !== undefined) updateData.phone = cleanPhone;
+    const changes = [];
+
+    if (name && name.trim() && name.trim() !== customer.name) {
+      updateData.name = name.trim();
+      changes.push({
+        field: 'name',
+        label: 'Customer Name',
+        previousValue: customer.name,
+        newValue: name.trim(),
+      });
+    }
+    if (phone !== undefined && cleanPhone !== customer.phone) {
+      updateData.phone = cleanPhone;
+      changes.push({
+        field: 'phone',
+        label: 'Phone Number',
+        previousValue: customer.phone,
+        newValue: cleanPhone,
+      });
+    }
+
+    if (changes.length === 0) {
+      return ApiResponse.success(res, customer, 'No changes made');
+    }
+
+    const snapshotBefore = {
+      name: customer.name,
+      phone: customer.phone,
+    };
 
     const updated = await Customer.findByIdAndUpdate(id, updateData, { new: true });
 
+    // Save edit history
+    const editedByName = req.user?.name || req.user?.username || 'Unknown';
+    await CustomerEditHistory.create({
+      customer: customer._id,
+      pharmacyId: req.pharmacyId,
+      editedBy: req.user._id,
+      editedByName,
+      changes,
+      snapshotBefore,
+      snapshotAfter: {
+        name: updated.name,
+        phone: updated.phone,
+      },
+    });
+
     return ApiResponse.success(res, updated, 'Customer updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get customer edit history
+// @route   GET /api/customers/:phoneOrId/edit-history
+// @access  Private
+export const getCustomerEditHistory = async (req, res, next) => {
+  try {
+    const { phoneOrId } = req.params;
+
+    // Find customer by _id, customerId, or phone
+    let customer = null;
+    if (mongoose.Types.ObjectId.isValid(phoneOrId)) {
+      customer = await Customer.findOne({ _id: phoneOrId, pharmacyId: req.pharmacyId, isDeleted: false });
+    }
+    if (!customer) {
+      customer = await Customer.findOne({ customerId: phoneOrId, pharmacyId: req.pharmacyId, isDeleted: false });
+    }
+    if (!customer) {
+      customer = await Customer.findOne({ phone: phoneOrId, pharmacyId: req.pharmacyId, isDeleted: false });
+    }
+
+    if (!customer) {
+      return ApiResponse.error(res, 'Customer not found', 404);
+    }
+
+    const history = await CustomerEditHistory.find({
+      customer: customer._id,
+      pharmacyId: req.pharmacyId,
+    })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    return ApiResponse.success(res, history);
   } catch (error) {
     next(error);
   }

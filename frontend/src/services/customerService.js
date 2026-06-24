@@ -10,4 +10,5 @@ export const customerService = {
   getCustomerDueInvoices: (customerId, params) => API.get(`/customers/${customerId}/due-invoices`, { params }),
   payDue: (data) => API.post('/customers/pay-due', data),
   getPaymentHistory: (params) => API.get('/customers/payment-history', { params }),
+  getCustomerEditHistory: (phoneOrId) => API.get(`/customers/${phoneOrId}/edit-history`),
 };

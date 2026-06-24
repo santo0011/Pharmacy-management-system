@@ -30,6 +30,11 @@ export default function Customers() {
   const [editPhone, setEditPhone] = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
+  // --- Edit History States ---
+  const [historyCustomer, setHistoryCustomer] = useState(null);
+  const [editHistory, setEditHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   // --- Fetch All Customers ---
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -91,6 +96,28 @@ export default function Customers() {
       showError(error.response?.data?.message || 'Failed to load customer details');
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  // --- View Edit History ---
+  const handleViewHistory = async (customer) => {
+    setHistoryCustomer(customer);
+    setHistoryLoading(true);
+    try {
+      const identifier = customer._id || customer.customerRef;
+      if (!identifier) {
+        showError('Cannot load edit history - no customer ID available.');
+        setHistoryLoading(false);
+        return;
+      }
+      const { data } = await customerService.getCustomerEditHistory(identifier);
+      if (data.data) {
+        setEditHistory(data.data);
+      }
+    } catch (error) {
+      showError(error.response?.data?.message || 'Failed to load edit history');
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -161,6 +188,7 @@ export default function Customers() {
                   <th>Last Purchase</th>
                   <th></th>
                   <th></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -180,6 +208,11 @@ export default function Customers() {
                     <td>
                       <button className="btn btn-warning btn-sm" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
                         <i className="fa-solid fa-edit"></i> Edit
+                      </button>
+                    </td>
+                    <td>
+                      <button className="btn btn-secondary btn-sm" onClick={() => handleViewHistory(customer)} title="Edit History">
+                        <i className="fa-solid fa-history"></i> History
                       </button>
                     </td>
                   </tr>
@@ -550,6 +583,74 @@ export default function Customers() {
           fetchDueCustomers();
         }}
       />
+
+      {/* Edit History Drawer */}
+      {historyCustomer && (
+        <div className="modal-overlay" onClick={() => { setHistoryCustomer(null); setEditHistory([]); }}>
+          <div className="drawer open" onClick={(e) => e.stopPropagation()} style={{ width: '600px' }}>
+            <div className="drawer-header">
+              <h3>
+                <i className="fa-solid fa-history"></i> Edit History - {historyCustomer.customerName}
+              </h3>
+              <button className="btn btn-sm btn-secondary" onClick={() => { setHistoryCustomer(null); setEditHistory([]); }}>
+                <i className="fa-solid fa-times"></i>
+              </button>
+            </div>
+            <div className="drawer-body">
+              {historyLoading ? (
+                <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+              ) : editHistory.length === 0 ? (
+                <div className="empty-state">
+                  <i className="fa-solid fa-history" style={{ fontSize: '48px', color: 'var(--gray-300)' }}></i>
+                  <h4>No Edit History</h4>
+                  <p>This customer has not been edited yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {editHistory.map((record, idx) => (
+                    <div key={record._id || idx} className="card" style={{
+                      margin: 0,
+                      border: '1px solid var(--gray-200)',
+                      borderLeft: '4px solid #f59e0b',
+                    }}>
+                      <div className="card-body" style={{ padding: '14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px', color: '#888' }}>
+                          <span>
+                            <i className="fa-solid fa-user-edit"></i> Edited by <strong>{record.editedByName || 'Unknown'}</strong>
+                          </span>
+                          <span>{new Date(record.createdAt).toLocaleString()}</span>
+                        </div>
+
+                        {/* Change details */}
+                        {record.changes && record.changes.length > 0 && (
+                          <div style={{ background: '#fffbeb', borderRadius: '6px', padding: '10px', border: '1px solid #fde68a' }}>
+                            {record.changes.map((change, ci) => (
+                              <div key={ci} style={{ marginBottom: ci < record.changes.length - 1 ? '8px' : 0, fontSize: '13px' }}>
+                                <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '2px' }}>
+                                  <i className="fa-solid fa-pen"></i> {change.label || change.field}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                                  <span style={{ background: '#fef2f2', color: '#991b1b', padding: '2px 8px', borderRadius: '4px', textDecoration: 'line-through', fontSize: '12px' }}>
+                                    {change.previousValue || '(empty)'}
+                                  </span>
+                                  <i className="fa-solid fa-arrow-right" style={{ color: '#d97706', fontSize: '12px' }}></i>
+                                  <span style={{ background: '#f0fdf4', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                                    {change.newValue || '(empty)'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

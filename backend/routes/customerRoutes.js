@@ -10,6 +10,7 @@ import {
   searchCustomers,
   createCustomer,
   updateCustomer,
+  getCustomerEditHistory,
 } from '../controllers/customerController.js';
 import { protect } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
@@ -23,6 +24,7 @@ router.get('/payment-history', protect, pharmacyScope, getPaymentHistory);
 router.post('/pay-due', protect, pharmacyScope, payDue);
 router.get('/:phoneOrId/payments', protect, pharmacyScope, getCustomerPaymentHistory);
 router.get('/:phoneOrId/due-invoices', protect, pharmacyScope, getCustomerDueInvoices);
+router.get('/:phoneOrId/edit-history', protect, pharmacyScope, getCustomerEditHistory);
 router.put('/:phoneOrId', protect, pharmacyScope, updateCustomer);
 router.get('/:phoneOrId', protect, pharmacyScope, getCustomer);
 router.get('/', protect, pharmacyScope, getCustomers);

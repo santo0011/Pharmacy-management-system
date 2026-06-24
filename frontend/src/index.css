@@ -720,6 +720,14 @@ tbody tr:hover {
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.modal-overlay:has(.drawer.open) {
+  opacity: 1;
+  visibility: visible;
 }
 
 .modal {
