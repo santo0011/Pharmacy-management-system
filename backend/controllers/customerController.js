@@ -46,8 +46,8 @@ export const createCustomer = async (req, res, next) => {
 
     const cleanPhone = (phone || '').trim();
 
-    // Check if customer already exists with this phone in this pharmacy (only if phone provided)
-    if (cleanPhone && cleanPhone !== '0000000000') {
+    // If a real phone is provided, check for existing customer with this phone
+    if (cleanPhone && !cleanPhone.startsWith('CUST-NP-')) {
       const existing = await Customer.findOne({
         pharmacyId: req.pharmacyId,
         phone: cleanPhone,
@@ -59,9 +59,20 @@ export const createCustomer = async (req, res, next) => {
       }
     }
 
+    // If no phone provided, generate a unique sequential placeholder
+    let finalPhone = cleanPhone;
+    if (!finalPhone) {
+      // Count existing customers with generated placeholders to create sequential IDs
+      const count = await Customer.countDocuments({
+        pharmacyId: req.pharmacyId,
+        phone: { $regex: '^CUST-NP-' },
+      });
+      finalPhone = `CUST-NP-${count + 1}`;
+    }
+
     const customer = await Customer.create({
       name: name.trim(),
-      phone: cleanPhone,
+      phone: finalPhone,
       address: address || '',
       pharmacyId: req.pharmacyId,
     });
@@ -72,7 +83,7 @@ export const createCustomer = async (req, res, next) => {
   }
 };
 
-// @desc    Get all unique customers (from Customer collection)
+// @desc    Get all unique customers (from Customer collection) with real sales stats
 // @route   GET /api/customers
 // @access  Private
 export const getCustomers = async (req, res, next) => {
@@ -111,21 +122,115 @@ export const getCustomers = async (req, res, next) => {
     const total = await Customer.countDocuments(query);
     const customerDocs = await Customer.find(query)
       .select('-__v')
-      .sort({ totalSpent: -1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    // Map to backward-compatible format with customerName/customerPhone
-    const customers = customerDocs.map(c => ({
-      customerName: c.name,
-      customerPhone: c.phone,
-      customerId: c.customerId,
-      totalPurchases: c.totalPurchases,
-      totalSpent: c.totalSpent,
-      lastPurchaseDate: c.lastPurchaseDate,
-      firstPurchaseDate: c.createdAt,
-      _id: c._id,
-    }));
+    // Get aggregated sales stats for all customers in this page
+    const customerIds = customerDocs.map(c => c._id);
+    
+    // First try to get stats by customer ref (newer sales)
+    const salesStatsByRef = await Sale.aggregate([
+      {
+        $match: {
+          pharmacyId: req.pharmacyId,
+          isDeleted: false,
+          customer: { $in: customerIds },
+          status: { $nin: ['cancelled', 'returned'] },
+        },
+      },
+      {
+        $group: {
+          _id: '$customer',
+          totalPurchases: { $sum: 1 },
+          totalSpent: { $sum: '$grandTotal' },
+          totalPaid: { $sum: '$paidAmount' },
+          totalDue: { $sum: '$dueAmount' },
+          lastPurchaseDate: { $max: '$saleDate' },
+        },
+      },
+    ]);
+
+    // Build stats map from ref-based results
+    const statsMap = {};
+    salesStatsByRef.forEach(stat => {
+      statsMap[stat._id.toString()] = stat;
+    });
+
+    // For customers with 0 stats from ref-based queries, check by phone for older sales
+    const customersMissingStats = customerDocs.filter(c => !statsMap[c._id.toString()]);
+
+    if (customersMissingStats.length > 0) {
+      // Build legacy match conditions for each missing customer
+      const legacyConditions = [];
+      customersMissingStats.forEach(c => {
+        if (c.phone && c.phone.trim()) {
+          legacyConditions.push({ customerPhone: c.phone });
+        }
+        // For auto-generated phone customers, also match by name (they're unique)
+        if (c.phone && c.phone.startsWith('CUST-NP-') && c.name && c.name.trim()) {
+          legacyConditions.push({ customerName: c.name.trim() });
+        }
+      });
+
+      if (legacyConditions.length > 0) {
+        const legacyAggQuery = [
+          {
+            $match: {
+              pharmacyId: req.pharmacyId,
+              isDeleted: false,
+              $or: legacyConditions,
+              status: { $nin: ['cancelled', 'returned'] },
+            },
+          },
+          {
+            $group: {
+              _id: '$customerPhone',
+              totalPurchases: { $sum: 1 },
+              totalSpent: { $sum: '$grandTotal' },
+              totalPaid: { $sum: '$paidAmount' },
+              totalDue: { $sum: '$dueAmount' },
+              lastPurchaseDate: { $max: '$saleDate' },
+            },
+          },
+        ];
+
+        const legacyStats = await Sale.aggregate(legacyAggQuery);
+        
+        // Map legacy stats by phone
+        const legacyStatsByPhone = {};
+        legacyStats.forEach(stat => {
+          legacyStatsByPhone[stat._id] = stat;
+        });
+
+        // Merge legacy stats into statsMap
+        customersMissingStats.forEach(c => {
+          if (!statsMap[c._id.toString()]) {
+            const legacyStat = legacyStatsByPhone[c.phone];
+            if (legacyStat) {
+              statsMap[c._id.toString()] = legacyStat;
+            }
+          }
+        });
+      }
+    }
+
+    // Map to backward-compatible format with real aggregated data
+    const customers = customerDocs.map(c => {
+      const stats = statsMap[c._id.toString()] || {};
+      return {
+        customerName: c.name,
+        customerPhone: c.phone || '',
+        customerId: c.customerId,
+        totalPurchases: stats.totalPurchases || 0,
+        totalSpent: stats.totalSpent || 0,
+        totalPaid: stats.totalPaid || 0,
+        totalDue: stats.totalDue || 0,
+        lastPurchaseDate: stats.lastPurchaseDate || null,
+        firstPurchaseDate: c.createdAt,
+        _id: c._id,
+      };
+    });
 
     return ApiResponse.paginated(res, customers, total, page, limit);
   } catch (error) {
@@ -177,11 +282,27 @@ export const getCustomer = async (req, res, next) => {
     };
 
     if (customerFound) {
-      // Customer found in Customer collection - fetch sales by customer ref
+      // Build query to match sales for this customer
+      // Use BOTH customer._id (newer sales with ref) AND customerPhone (older sales that store phone as string)
+      // NEVER use customerName alone as it can match wrong customers
+      const orConditions = [{ customer: customer._id }];
+      
+      // Add phone-based matching for older sales (both real phones and auto-generated placeholders)
+      if (customer.phone && customer.phone.trim()) {
+        orConditions.push({ customerPhone: customer.phone });
+      }
+
+      // For legacy customers with auto-generated phones (no real phone), older sales may
+      // have stored empty customerPhone field, so also match by customerName as fallback.
+      // This is safe because CUST-NP- customers have unique names in practice.
+      if (customer.phone && customer.phone.startsWith('CUST-NP-') && customer.name && customer.name.trim()) {
+        orConditions.push({ customerName: customer.name.trim() });
+      }
+
       const query = {
         pharmacyId: req.pharmacyId,
         isDeleted: false,
-        customer: customer._id,
+        $or: orConditions,
         status: { $nin: ['cancelled', 'returned'] },
       };
 
@@ -194,7 +315,7 @@ export const getCustomer = async (req, res, next) => {
 
       const totals = await calcTotals(query);
 
-      // Get payment history for customer
+      // Get payment history for customer - ONLY for this customer's sales
       const saleIds = sales.map(s => s._id);
       const paymentHistory = await PaymentTransaction.find({
         sale: { $in: saleIds },
@@ -211,12 +332,12 @@ export const getCustomer = async (req, res, next) => {
           customerName: customer.name,
           customerPhone: customer.phone,
           customerAddress: customer.address,
-          totalPurchases: customer.totalPurchases,
+          totalPurchases: total,
           totalSpent: totals.totalSpent,
           totalPaid: totals.totalPaid,
           totalDue: totals.totalDue,
-          lastPurchaseDate: customer.lastPurchaseDate,
-          firstPurchaseDate: customer.createdAt,
+          lastPurchaseDate: sales.length > 0 ? sales[0].saleDate : null,
+          firstPurchaseDate: sales.length > 0 ? sales[sales.length - 1]?.saleDate : customer.createdAt,
         },
         sales,
         paymentHistory,
@@ -226,17 +347,17 @@ export const getCustomer = async (req, res, next) => {
       });
     }
 
-    // Legacy mode: no Customer document found - search Sale collection directly
+    // Legacy mode: no Customer document found - search Sale collection directly by phone or invoice
+    // IMPORTANT: NEVER search by customerName alone as it can match wrong customers
     const legacyQuery = {
       pharmacyId: req.pharmacyId,
       isDeleted: false,
       status: { $nin: ['cancelled', 'returned'] },
     };
 
-    // Try to find sales by exact name match (since _id/phone didn't find anything)
+    // Only match by phone or invoice number, NOT by customer name
     if (phoneOrId) {
       legacyQuery.$or = [
-        { customerName: phoneOrId },
         { customerPhone: phoneOrId },
         { invoiceNumber: phoneOrId },
       ];
@@ -306,7 +427,7 @@ export const getCustomer = async (req, res, next) => {
 // @access  Private
 export const getCustomerPaymentHistory = async (req, res, next) => {
   try {
-    const { customerId } = req.params;
+    const { phoneOrId: customerId } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -400,7 +521,11 @@ export const getCustomerDues = async (req, res, next) => {
     const hasCustomerRefs = await Sale.findOne({ ...matchStage, customer: { $ne: null } });
 
     let pipeline;
-
+    // Build legacy lookup map to resolve customer identifiers for entries without customer ref
+    // This map will allow us to include _id for Payment/View buttons
+    const allCustomerPhones = [];
+    let customerPhoneToIdMap = {};
+    
     if (hasCustomerRefs) {
       // Use customer references
       pipeline = [
@@ -449,6 +574,35 @@ export const getCustomerDues = async (req, res, next) => {
         ];
       }
 
+      // Collect unique phones from match stage to look up customer _id later
+      // We need to get all unique customerPhone values from the matched sales
+      const phoneAgg = await Sale.aggregate([
+        { $match: matchStage },
+        { $group: { _id: '$customerPhone' } },
+      ]);
+      phoneAgg.forEach(p => {
+        if (p._id && p._id.trim()) {
+          allCustomerPhones.push(p._id);
+        }
+      });
+      
+      // Look up customer documents by phone or name to get _id
+      if (allCustomerPhones.length > 0) {
+        const customerDocs = await Customer.find({
+          pharmacyId: req.pharmacyId,
+          isDeleted: false,
+          $or: [
+            { phone: { $in: allCustomerPhones } },
+            { name: { $in: allCustomerPhones } },
+          ],
+        }).select('_id phone name').lean();
+        
+        customerDocs.forEach(cd => {
+          customerPhoneToIdMap[cd.phone] = cd._id;
+          customerPhoneToIdMap[cd.name] = cd._id;
+        });
+      }
+
       pipeline = [
         { $match: matchStage },
         {
@@ -459,20 +613,6 @@ export const getCustomerDues = async (req, res, next) => {
             totalPaid: { $sum: '$paidAmount' },
             totalDue: { $sum: '$dueAmount' },
             lastPurchaseDate: { $max: '$saleDate' },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            customerId: { $literal: '' },
-            customerName: '$_id.name',
-            customerPhone: '$_id.phone',
-            customerRef: { $literal: null },
-            totalPurchases: 1,
-            totalAmount: { $round: ['$totalAmount', 2] },
-            totalPaid: { $round: ['$totalPaid', 2] },
-            totalDue: { $round: ['$totalDue', 2] },
-            lastPurchaseDate: 1,
           },
         },
         { $sort: { totalDue: -1 } },
@@ -495,7 +635,27 @@ export const getCustomerDues = async (req, res, next) => {
     const total = countResult[0]?.total || 0;
 
     pipeline.push({ $skip: skip }, { $limit: limit });
-    const customers = await Sale.aggregate(pipeline);
+    const aggResults = await Sale.aggregate(pipeline);
+
+    // Map results to include _id for legacy entries (where no customer ref exists)
+    let customers;
+    if (hasCustomerRefs) {
+      customers = aggResults;
+    } else {
+      // Legacy path: add _id from the phone-to-id map we built earlier
+      customers = aggResults.map(r => ({
+        customerId: '',
+        customerName: r._id.name,
+        customerPhone: r._id.phone,
+        customerRef: customerPhoneToIdMap[r._id.phone] || customerPhoneToIdMap[r._id.name] || null,
+        totalPurchases: r.totalPurchases,
+        totalAmount: r.totalAmount,
+        totalPaid: r.totalPaid,
+        totalDue: r.totalDue,
+        lastPurchaseDate: r.lastPurchaseDate,
+        _id: customerPhoneToIdMap[r._id.phone] || customerPhoneToIdMap[r._id.name] || null,
+      }));
+    }
 
     // Grand totals
     const totalsResult = await Sale.aggregate([
@@ -532,13 +692,12 @@ export const getCustomerDues = async (req, res, next) => {
 // @access  Private
 export const getCustomerDueInvoices = async (req, res, next) => {
   try {
-    const { customerId } = req.params;
-    const { name } = req.query;
+    const { phoneOrId: customerId } = req.params;
 
     // Try to find a Customer document
     let customer = null;
     let customerPhone = '';
-    let customerName = name || '';
+    let customerName = '';
 
     if (mongoose.Types.ObjectId.isValid(customerId)) {
       customer = await Customer.findOne({ _id: customerId, pharmacyId: req.pharmacyId, isDeleted: false });
@@ -546,16 +705,13 @@ export const getCustomerDueInvoices = async (req, res, next) => {
     if (!customer) {
       customer = await Customer.findOne({ customerId, pharmacyId: req.pharmacyId, isDeleted: false });
     }
-    if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
+    if (!customer && customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
       customer = await Customer.findOne({ phone: customerId, pharmacyId: req.pharmacyId, isDeleted: false });
     }
 
     if (customer) {
       customerPhone = customer.phone;
       customerName = customer.name;
-    } else {
-      // If no Customer document found, try to find sales by phone or name
-      customerPhone = customerId || '';
     }
 
     // Build match query for due invoices
@@ -566,27 +722,30 @@ export const getCustomerDueInvoices = async (req, res, next) => {
       status: { $nin: ['cancelled', 'returned'] },
     };
 
-    // Build $or conditions based on available identifiers
+    // Build $or conditions to match invoices for this specific customer
+    // We use BOTH customer._id (for newer sales with ref) AND customerPhone (for older sales that store phone as string)
     const orConditions = [];
 
     if (customer && customer._id) {
       orConditions.push({ customer: customer._id });
     }
 
-    // Add phone condition if phone exists
+    // Match by phone for older sales that may not have customer ref
+    // This works for both real phones and auto-generated CUST-NP-* placeholders
     if (customerPhone && customerPhone.trim()) {
       orConditions.push({ customerPhone: customerPhone });
     }
 
-    // Add customerName condition if name is provided (as fallback for no-phone customers)
-    if (customerName && customerName.trim()) {
+    // For legacy sales with auto-generated phones (CUST-NP-*) that may have empty customerPhone field in Sale,
+    // also match by customerName as a last resort. This is safe because customers with
+    // auto-generated phones (no real phone) almost never have name collisions.
+    if (customerPhone && customerPhone.startsWith('CUST-NP-') && customerName && customerName.trim()) {
       orConditions.push({ customerName: customerName.trim() });
     }
 
     if (orConditions.length > 0) {
       matchQuery.$or = orConditions;
     } else if (customerId) {
-      // Last resort - search by customerId as phone
       matchQuery.customerPhone = customerId;
     } else {
       return ApiResponse.error(res, 'Customer identifier not found', 400);

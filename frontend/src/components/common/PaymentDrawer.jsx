@@ -27,9 +27,9 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
   const fetchDueInvoices = async () => {
     setLoading(true);
     try {
-      const customerId = customer.customerRef || customer.customerPhone || customer.customerName || '';
-      const name = customer.customerName || '';
-      const { data: res } = await customerService.getCustomerDueInvoices(customerId, { name });
+      // Use the MongoDB _id (customerRef) for exact matching - never use name
+      const customerId = customer.customerRef || customer._id || customer.customerPhone || '';
+      const { data: res } = await customerService.getCustomerDueInvoices(customerId);
       if (res.data) {
         setData(res.data);
         // Initialize payment amounts and methods

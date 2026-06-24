@@ -14,7 +14,7 @@ const customerSchema = mongoose.Schema({
   },
   phone: {
     type: String,
-    required: true,
+    default: '',
     trim: true,
   },
   address: {
@@ -44,7 +44,7 @@ const customerSchema = mongoose.Schema({
   },
 }, { timestamps: true });
 
-customerSchema.index({ pharmacyId: 1, phone: 1 }, { unique: true });
+customerSchema.index({ pharmacyId: 1, phone: 1 });
 customerSchema.index({ pharmacyId: 1, name: 1 });
 customerSchema.index({ pharmacyId: 1, customerId: 1 }, { unique: true });
 

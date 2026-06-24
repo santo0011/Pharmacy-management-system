@@ -101,11 +101,34 @@ export const getSalePayments = async (req, res, next) => {
   }
 };
 
+// @desc    Update an old invoice's paid/due amounts (used when previous due is included in a new sale)
+// @access  Internal helper (not an endpoint)
+const applyPaymentToOldInvoice = async (sale, amount, paymentMethod, userId, pharmacyId, session) => {
+  sale.paidAmount += Number(amount);
+  sale.dueAmount = Math.max(0, sale.grandTotal - sale.paidAmount);
+  sale.paymentStatus = sale.dueAmount <= 0 ? 'paid' : 'partial';
+  sale.updatedBy = userId;
+  await sale.save({ session });
+
+  // Record payment transaction for the old invoice
+  await PaymentTransaction.create([{
+    sale: sale._id,
+    customer: sale.customer || null,
+    pharmacyId,
+    amount: Number(amount),
+    previousDue: sale.dueAmount + Number(amount), // what the due was before this payment
+    remainingDue: sale.dueAmount,
+    paymentMethod: paymentMethod || 'cash',
+    notes: 'Payment via new sale (previous due allocation)',
+    createdBy: userId,
+  }], { session });
+};
+
 export const createSale = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { customer, customerName, customerPhone, customerAddress, saleDate, items, discount, discountType, paidAmount, paymentMethod, notes } = req.body;
+    const { customer, customerName, customerPhone, customerAddress, saleDate, items, discount, discountType, paidAmount, paymentMethod, notes, previousDuePayments } = req.body;
 
     if (!items || items.length === 0) return ApiResponse.error(res, 'At least one item is required', 400);
     if (!customerName || customerName.trim() === '' || customerName.trim() === 'Walk-in Customer') {
@@ -162,12 +185,59 @@ export const createSale = async (req, res, next) => {
     const overallDiscount = Number(discount) || 0;
     const overallDiscountType = discountType || 'fixed';
     const discountAmount = overallDiscountType === 'percentage' ? subtotal * (overallDiscount / 100) : overallDiscount;
-    const grandTotal = subtotal + taxAmount - discountAmount;
-    const paid = Number(paidAmount) || grandTotal;
-    if (paid > grandTotal) {
-      return ApiResponse.error(res, `Paid amount (₹${paid.toFixed(2)}) exceeds Grand Total (₹${grandTotal.toFixed(2)}). Please enter a valid amount.`, 400);
+    const newInvoiceGrandTotal = subtotal + taxAmount - discountAmount;
+
+    // totalPaidFromCustomer = the actual cash/amount the customer gives (this may include payment for previous due + new invoice)
+    const totalPaidFromCustomer = Number(paidAmount) || newInvoiceGrandTotal;
+
+    // --- Previous Due Allocation (FIFO) ---
+    // previousDuePayments is an array of { saleId, amount } from the frontend
+    // These represent payments allocated to old invoices before paying the new invoice
+    let oldInvoiceTotalPaid = 0;
+    if (previousDuePayments && Array.isArray(previousDuePayments) && previousDuePayments.length > 0) {
+      // Validate that total previous due payments don't exceed the total amount paid by customer
+      const totalPreviousDuePayment = previousDuePayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      if (totalPreviousDuePayment > totalPaidFromCustomer) {
+        return ApiResponse.error(res, `Previous due allocation (₹${totalPreviousDuePayment.toFixed(2)}) exceeds total paid amount (₹${totalPaidFromCustomer.toFixed(2)})`, 400);
+      }
+
+      // Process each old invoice payment
+      for (const prevPay of previousDuePayments) {
+        const oldSale = await Sale.findOne({
+          _id: prevPay.saleId,
+          pharmacyId: req.pharmacyId,
+          isDeleted: false,
+          status: { $nin: ['cancelled', 'returned'] },
+          dueAmount: { $gt: 0 },
+        }).session(session);
+
+        if (!oldSale) {
+          return ApiResponse.error(res, `Old invoice ${prevPay.saleId} not found or already paid`, 400);
+        }
+
+        const payAmount = Number(prevPay.amount);
+        if (payAmount <= 0) continue;
+        if (payAmount > oldSale.dueAmount) {
+          return ApiResponse.error(res, `Payment of ₹${payAmount.toFixed(2)} exceeds due of ₹${oldSale.dueAmount.toFixed(2)} for invoice ${oldSale.invoiceNumber}`, 400);
+        }
+
+        // Apply this payment to the old invoice
+        await applyPaymentToOldInvoice(oldSale, payAmount, paymentMethod || 'cash', req.user._id, req.pharmacyId, session);
+        oldInvoiceTotalPaid += payAmount;
+      }
     }
-    const due = grandTotal - paid;
+
+    // Remaining paid amount goes to the new invoice
+    const paidForNewInvoice = totalPaidFromCustomer - oldInvoiceTotalPaid;
+    // Validate the amount allocated to the new invoice doesn't exceed the new invoice grand total
+    // (totalPaidFromCustomer must not exceed newInvoiceGrandTotal + oldInvoiceTotalPaid)
+    if (paidForNewInvoice > newInvoiceGrandTotal) {
+      return ApiResponse.error(res, `Paid amount for new invoice (₹${paidForNewInvoice.toFixed(2)}) exceeds Grand Total (₹${newInvoiceGrandTotal.toFixed(2)}). The total paid (₹${totalPaidFromCustomer.toFixed(2)}) minus previous due allocation (₹${oldInvoiceTotalPaid.toFixed(2)}) cannot exceed the new invoice amount.`, 400);
+    }
+    if (paidForNewInvoice < 0) {
+      return ApiResponse.error(res, `Paid amount (₹${totalPaidFromCustomer.toFixed(2)}) is less than previous due allocation (₹${oldInvoiceTotalPaid.toFixed(2)}). Increase the paid amount.`, 400);
+    }
+    const dueForNewInvoice = newInvoiceGrandTotal - paidForNewInvoice;
 
     // If customer ref is provided, look up the customer
     let customerDoc = null;
@@ -188,27 +258,29 @@ export const createSale = async (req, res, next) => {
       discountType: overallDiscountType,
       discountAmount,
       taxAmount,
-      grandTotal,
-      paidAmount: paid,
-      dueAmount: Math.max(0, due),
+      grandTotal: newInvoiceGrandTotal,
+      paidAmount: paidForNewInvoice,
+      dueAmount: Math.max(0, dueForNewInvoice),
       paymentMethod: paymentMethod || 'cash',
-      paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+      paymentStatus: dueForNewInvoice <= 0 ? 'paid' : paidForNewInvoice > 0 ? 'partial' : 'unpaid',
       isStockDeducted: true,
       pharmacyId: req.pharmacyId,
       createdBy: req.user._id,
     }], { session });
 
-    // Record initial payment transaction if paid amount > 0
-    if (paid > 0) {
+    // Record initial payment transaction for the new sale (only if amount > 0)
+    if (paidForNewInvoice > 0) {
       await PaymentTransaction.create([{
         sale: sale._id,
         customer: customerDoc?._id || null,
         pharmacyId: req.pharmacyId,
-        amount: paid,
-        previousDue: grandTotal,
-        remainingDue: grandTotal - paid,
+        amount: paidForNewInvoice,
+        previousDue: newInvoiceGrandTotal,
+        remainingDue: dueForNewInvoice,
         paymentMethod: paymentMethod || 'cash',
-        notes: 'Initial payment at sale creation',
+        notes: oldInvoiceTotalPaid > 0
+          ? `Initial payment at sale creation (₹${oldInvoiceTotalPaid.toFixed(2)} allocated to previous due)`
+          : 'Initial payment at sale creation',
         createdBy: req.user._id,
       }], { session });
     }
@@ -216,8 +288,36 @@ export const createSale = async (req, res, next) => {
     // Deduct stock
     await deductStock(saleItems, req.pharmacyId, session);
 
+    // Update customer stats if customer ref exists
+    if (customerDoc) {
+      const customerStats = await Sale.aggregate([
+        { $match: { customer: customerDoc._id, pharmacyId: req.pharmacyId, isDeleted: false, status: { $nin: ['cancelled', 'returned'] } } },
+        {
+          $group: {
+            _id: null,
+            totalPurchases: { $sum: 1 },
+            totalSpent: { $sum: '$grandTotal' },
+            lastPurchaseDate: { $max: '$saleDate' },
+          },
+        },
+      ]);
+      if (customerStats.length > 0) {
+        customerDoc.totalPurchases = customerStats[0].totalPurchases;
+        customerDoc.totalSpent = customerStats[0].totalSpent;
+        customerDoc.lastPurchaseDate = customerStats[0].lastPurchaseDate;
+        await customerDoc.save({ session });
+      }
+    }
+
     await session.commitTransaction();
-    return ApiResponse.success(res, sale, 'Sale created successfully', 201);
+
+    // Fetch the complete sale with populated data for the response
+    const populatedSale = await Sale.findById(sale._id)
+      .populate('items.medicine', 'medicineName genericName unit')
+      .populate('pharmacyId', 'pharmacyName phone')
+      .populate('createdBy', 'name');
+
+    return ApiResponse.success(res, populatedSale, 'Sale created successfully', 201);
   } catch (error) {
     await session.abortTransaction();
     next(error);

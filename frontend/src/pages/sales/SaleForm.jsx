@@ -17,6 +17,8 @@ export default function SaleForm() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerRef, setCustomerRef] = useState(null);
+  const [customerDueInfo, setCustomerDueInfo] = useState(null);
+  const [includePreviousDue, setIncludePreviousDue] = useState(false);
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage');
@@ -33,6 +35,7 @@ export default function SaleForm() {
   const [customerSearchResults, setCustomerSearchResults] = useState([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [customerVerified, setCustomerVerified] = useState(false);
 
   const searchRef = useRef(null);
   const searchContainerRef = useRef(null);
@@ -62,10 +65,14 @@ export default function SaleForm() {
   const debounceTimer = useRef(null);
 
   const handleCustomerSearch = (value) => {
+    // Only update the search query, NOT the customer name
     setCustomerSearchQuery(value);
-    setCustomerName(value);
-    // Clear customer ref if name is manually changed
+
+    // Clear customer selection when manually typing
     setCustomerRef(null);
+    setCustomerDueInfo(null);
+    setIncludePreviousDue(false);
+    setCustomerVerified(false);
 
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -81,6 +88,34 @@ export default function SaleForm() {
     setCustomerRef(customer);
     setCustomerSearchQuery(customer.name);
     setShowCustomerDropdown(false);
+    setIncludePreviousDue(false);
+    setCustomerVerified(true);
+
+    // Fetch due information for this customer
+    fetchCustomerDue(customer);
+  };
+
+  const fetchCustomerDue = async (customer) => {
+    try {
+      // Always use the MongoDB _id for identification - never fallback to name
+      // This ensures only this specific customer's due is loaded
+      const identifier = customer._id;
+      if (!identifier) return;
+      const { data } = await customerService.getCustomerDueInvoices(identifier);
+      if (data.data && data.data.invoices && data.data.invoices.length > 0) {
+        const totalDue = data.data.invoices.reduce((sum, inv) => sum + inv.dueAmount, 0);
+        setCustomerDueInfo({
+          totalDue,
+          invoiceCount: data.data.invoices.length,
+          invoices: data.data.invoices,
+        });
+      } else {
+        setCustomerDueInfo(null);
+      }
+    } catch (error) {
+      // Silently fail - due info is optional
+      setCustomerDueInfo(null);
+    }
   };
 
   useEffect(() => {
@@ -206,7 +241,17 @@ export default function SaleForm() {
     return sum + (sub - disc) * (Number(i.gst) / 100);
   }, 0);
   const calcDiscount = () => discountType === 'percentage' ? calcSubtotal() * (Number(discount) / 100) : Number(discount);
-  const calcGrandTotal = () => calcSubtotal() + calcTax() - calcDiscount();
+
+  // Current bill total (without previous due) - this is what gets sent to backend
+  const calcCurrentBillTotal = () => calcSubtotal() + calcTax() - calcDiscount();
+
+  // Previous due amount (if included)
+  const calcPreviousDue = () => (includePreviousDue && customerDueInfo ? customerDueInfo.totalDue : 0);
+
+  // Final Grand Total displayed in UI (includes previous due if toggled)
+  const calcGrandTotal = () => calcCurrentBillTotal() + calcPreviousDue();
+
+  const calcNetDue = () => Math.max(0, calcGrandTotal() - Number(paidAmount || 0));
 
   // Load sale data when editing
   useEffect(() => {
@@ -241,11 +286,16 @@ export default function SaleForm() {
       return;
     }
 
+    // Compute the current bill total (without previous due) for backend submission
+    const currentBillGrandTotal = calcCurrentBillTotal();
+    const finalGrandTotal = calcGrandTotal();
+    const paid = Number(paidAmount) || 0;
+
     // Show confirmation before completing the sale
-    const dueAmount = Number(paidAmount) > 0 ? Math.max(0, calcGrandTotal() - Number(paidAmount)) : 0;
+    const dueAfterPayment = Math.max(0, finalGrandTotal - paid);
     const confirmed = await confirmAction(
       `${isEditing ? 'Update' : 'Complete'} Sale`,
-      `Customer: ${customerName}\nItems: ${items.length}\nTotal: ₹${calcGrandTotal().toFixed(2)}\nPaid: ₹${(Number(paidAmount) || calcGrandTotal()).toFixed(2)}\nDue: ₹${dueAmount.toFixed(2)}\nMethod: ${paymentMethod}`,
+      `Customer: ${customerName}\nItems: ${items.length}\nTotal: ₹${currentBillGrandTotal.toFixed(2)}\nPrevious Due: ₹${calcPreviousDue().toFixed(2)}\nFinal Grand Total: ₹${finalGrandTotal.toFixed(2)}\nPaid: ₹${paid.toFixed(2)}\nDue: ₹${dueAfterPayment.toFixed(2)}\nMethod: ${paymentMethod}`,
       `Yes, ${isEditing ? 'Update' : 'Complete'}`
     );
     if (!confirmed) {
@@ -262,11 +312,11 @@ export default function SaleForm() {
       if (customerRef && customerRef._id) {
         finalCustomerId = customerRef._id;
       } else if (customerName) {
-        // Create customer record even if phone is not provided
+        // Create customer record - let backend generate placeholder if no phone
         try {
           const { data } = await customerService.createCustomer({
             name: customerName,
-            phone: customerPhone || '0000000000',
+            phone: customerPhone || '',
           });
           if (data.data && data.data._id) {
             finalCustomerId = data.data._id;
@@ -279,6 +329,41 @@ export default function SaleForm() {
           // Silently continue - customer creation is a bonus feature
           console.error('Could not create customer record:', err);
         }
+      }
+
+      // Compute FIFO payment allocation if previous due is included
+      // FIFO: Always pay the oldest unpaid invoice first before paying the new invoice
+      let previousDuePayments = [];
+      let paidForNewInvoice = paid;
+
+      if (includePreviousDue && customerDueInfo && customerDueInfo.invoices && customerDueInfo.invoices.length > 0) {
+        // Sort old invoices by oldest saleDate first (FIFO)
+        const sortedInvoices = [...customerDueInfo.invoices].sort(
+          (a, b) => new Date(a.saleDate) - new Date(b.saleDate)
+        );
+
+        let remainingForOld = paid;
+        for (const inv of sortedInvoices) {
+          if (remainingForOld <= 0) break;
+          const payForThisInvoice = Math.min(remainingForOld, inv.dueAmount);
+          if (payForThisInvoice > 0) {
+            previousDuePayments.push({
+              saleId: inv._id,
+              amount: payForThisInvoice,
+            });
+            remainingForOld -= payForThisInvoice;
+          }
+        }
+
+        // Whatever remains after paying old invoices goes to the new invoice
+        paidForNewInvoice = Math.max(0, remainingForOld);
+      }
+
+      // Validate paidForNewInvoice doesn't exceed the new invoice grand total
+      if (paidForNewInvoice > currentBillGrandTotal) {
+        showError(`Total paid (₹${paid.toFixed(2)}) minus previous due allocation (₹${previousDuePayments.reduce((s,p)=>s+p.amount,0).toFixed(2)}) = ₹${paidForNewInvoice.toFixed(2)} exceeds the current bill total (₹${currentBillGrandTotal.toFixed(2)})`);
+        setSubmitting(false);
+        return;
       }
 
       const formData = {
@@ -295,9 +380,16 @@ export default function SaleForm() {
         })),
         discount: Number(discount),
         discountType,
-        paidAmount: Number(paidAmount) || calcGrandTotal(),
+        // Send the total amount paid by the customer
+        paidAmount: paid,
         paymentMethod,
+        notes: includePreviousDue && customerDueInfo ? `Previous due of ₹${customerDueInfo.totalDue.toFixed(2)} included` : '',
       };
+
+      // Add previous due payments array with FIFO allocation
+      if (previousDuePayments.length > 0) {
+        formData.previousDuePayments = previousDuePayments;
+      }
 
       // Add customer ref if available
       if (finalCustomerId) {
@@ -321,6 +413,7 @@ export default function SaleForm() {
   };
 
   const gt = calcGrandTotal();
+  const currentBillTotal = calcCurrentBillTotal();
 
   return (
     <div>
@@ -432,7 +525,17 @@ export default function SaleForm() {
                       <i className="fa-solid fa-spinner fa-spin"></i> Searching...
                     </div>
                   )}
-                  {customerRef && (
+                  {customerVerified && customerRef && (
+                    <div style={{
+                      marginTop: '4px',
+                      fontSize: '11px',
+                      color: 'var(--primary)',
+                      fontWeight: 500,
+                    }}>
+                      <i className="fa-solid fa-check-circle"></i> Verified Existing Customer
+                    </div>
+                  )}
+                  {customerRef && customerName && !customerVerified && (
                     <div style={{
                       marginTop: '4px',
                       fontSize: '11px',
@@ -448,8 +551,64 @@ export default function SaleForm() {
                     className="form-select" style={{ width: '100%' }} />
                 </div>
               </div>
+              {/* Show customer name input separately only when no customer is selected from dropdown */}
+              {!customerRef && (
+                <div className="form-group" style={{ marginTop: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Enter customer name (will be created as new customer)"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="form-select"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Due Notice Card - Only shown when customer is explicitly verified */}
+          {customerVerified && customerDueInfo && (
+            <div className="card" style={{
+              marginTop: '16px',
+              borderLeft: '4px solid #f97316',
+              background: '#fff7ed',
+            }}>
+              <div className="card-body" style={{ padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#9a3412' }}>
+                      <i className="fa-solid fa-exclamation-triangle"></i> Outstanding Due
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#c2410c', marginTop: '2px' }}>
+                      {customerDueInfo.invoiceCount} invoice(s) - Total Due: <strong>₹{customerDueInfo.totalDue.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    padding: '6px 10px',
+                    background: includePreviousDue ? '#dc2626' : '#16a34a',
+                    color: '#fff',
+                    borderRadius: '6px',
+                    userSelect: 'none',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={includePreviousDue}
+                      onChange={(e) => setIncludePreviousDue(e.target.checked)}
+                      style={{ accentColor: '#fff' }}
+                    />
+                    {includePreviousDue ? 'Due Included (+₹' + customerDueInfo.totalDue.toFixed(2) + ')' : 'Add to Bill'}
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="card" style={{ marginTop: '16px' }}>
             <div className="card-body" style={{ padding: 0 }}>
@@ -479,7 +638,7 @@ export default function SaleForm() {
                             <div className="gst-label">Stock: {item.currentStock}</div>
                           </td>
                           <td>
-                    <input type="number" min="1" max={item.currentStock} value={item.quantity}
+                            <input type="number" min="1" max={item.currentStock} value={item.quantity}
                               onChange={(e) => updateItem(idx, 'quantity', Math.min(Number(e.target.value), item.currentStock))}
                               className="qty-input-sm"
                               onWheel={(e) => e.target.blur()} />
@@ -548,11 +707,32 @@ export default function SaleForm() {
                 </div>
               </div>
 
+              {/* Current Bill Total */}
+              <div className="summary-row" style={{ fontWeight: 500 }}>
+                <span className="summary-label">Current Bill:</span>
+                <span className="summary-value">₹{currentBillTotal.toFixed(2)}</span>
+              </div>
+
+              {/* Previous Due Row - only shown when included */}
+              {calcPreviousDue() > 0 && (
+                <div className="summary-row" style={{ color: '#c2410c', fontWeight: 600 }}>
+                  <span className="summary-label"><i className="fa-solid fa-exclamation-triangle"></i> Previous Due:</span>
+                  <span className="summary-value">+ ₹{calcPreviousDue().toFixed(2)}</span>
+                </div>
+              )}
+
               <hr style={{ margin: '12px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="grand-total-row" style={{ marginBottom: '16px' }}>
-                <span>Grand Total:</span><span>₹{gt.toFixed(2)}</span>
+                <span>Final Grand Total:</span><span>₹{gt.toFixed(2)}</span>
               </div>
+
+              {/* Previous Due - separate note */}
+              {calcPreviousDue() > 0 && (
+                <div style={{ fontSize: '11px', color: '#9a3412', marginBottom: '8px', padding: '4px 8px', background: '#fff7ed', borderRadius: '4px', textAlign: 'center' }}>
+                  <i className="fa-solid fa-info-circle"></i> Previous due of ₹{calcPreviousDue().toFixed(2)} added to invoice
+                </div>
+              )}
 
               <div className="form-group">
                 <label>Payment Method</label>
@@ -570,8 +750,9 @@ export default function SaleForm() {
                 <label>Paid Amount</label>
                 <input type="number" value={paidAmount} onChange={(e) => {
                   const val = Number(e.target.value);
-                  if (val > gt) {
-                    showError(`Paid amount (₹${val.toFixed(2)}) cannot exceed Grand Total (₹${gt.toFixed(2)})`);
+                  const finalTotal = calcGrandTotal();
+                  if (val > finalTotal) {
+                    showError(`Paid amount (₹${val.toFixed(2)}) cannot exceed Final Grand Total (₹${finalTotal.toFixed(2)})`);
                     return;
                   }
                   setPaidAmount(e.target.value);
@@ -581,7 +762,7 @@ export default function SaleForm() {
               </div>
 
               {Number(paidAmount) > 0 && (
-                <div className={`due-row ${Number(paidAmount) >= gt ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
+                <div className={`due-row ${Number(paidAmount) >= calcGrandTotal() ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
                   <span>Change/Due:</span><span className="due-value">₹{Math.abs(gt - Number(paidAmount)).toFixed(2)}</span>
                 </div>
               )}
