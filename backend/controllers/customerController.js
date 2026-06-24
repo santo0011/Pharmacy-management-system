@@ -567,7 +567,9 @@ export const getCustomerDues = async (req, res, next) => {
       ];
     } else {
       // Fall back to name/phone grouping (legacy)
-      if (search) {
+      // Do NOT overwrite matchStage.$or here — it was already set with invoice search above
+      // Only set it if not already set
+      if (search && !matchStage.$or) {
         matchStage.$or = [
           { customerName: { $regex: search, $options: 'i' } },
           { customerPhone: { $regex: search, $options: 'i' } },
@@ -875,6 +877,48 @@ export const payDue = async (req, res, next) => {
       amount: Number(amount),
       paymentMethod: paymentMethod || 'cash',
     }, 'Payment received successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update customer details (name, phone)
+// @route   PUT /api/customers/:id
+// @access  Private
+export const updateCustomer = async (req, res, next) => {
+  try {
+    const { phoneOrId } = req.params;
+    const id = phoneOrId;
+    const { name, phone } = req.body;
+
+    const customer = await Customer.findOne({ _id: id, pharmacyId: req.pharmacyId, isDeleted: false });
+    if (!customer) {
+      return ApiResponse.error(res, 'Customer not found', 404);
+    }
+
+    const cleanPhone = (phone || '').trim();
+
+    // If phone is changing, validate no duplicate
+    if (cleanPhone && cleanPhone !== customer.phone && !cleanPhone.startsWith('CUST-NP-')) {
+      const existing = await Customer.findOne({
+        pharmacyId: req.pharmacyId,
+        phone: cleanPhone,
+        isDeleted: false,
+        _id: { $ne: id },
+      });
+      if (existing) {
+        return ApiResponse.error(res, 'This mobile number already exists for another customer', 400);
+      }
+    }
+
+    // Build update object
+    const updateData = {};
+    if (name && name.trim()) updateData.name = name.trim();
+    if (phone !== undefined) updateData.phone = cleanPhone;
+
+    const updated = await Customer.findByIdAndUpdate(id, updateData, { new: true });
+
+    return ApiResponse.success(res, updated, 'Customer updated successfully');
   } catch (error) {
     next(error);
   }

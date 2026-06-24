@@ -6,6 +6,7 @@ export const customerService = {
   getCustomerDues: (params) => API.get('/customers/dues', { params }),
   searchCustomers: (q) => API.get('/customers/search', { params: { q } }),
   createCustomer: (data) => API.post('/customers/create', data),
+  updateCustomer: (id, data) => API.put(`/customers/${id}`, data),
   getCustomerDueInvoices: (customerId, params) => API.get(`/customers/${customerId}/due-invoices`, { params }),
   payDue: (data) => API.post('/customers/pay-due', data),
   getPaymentHistory: (params) => API.get('/customers/payment-history', { params }),

@@ -36,6 +36,7 @@ export default function SaleForm() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [customerVerified, setCustomerVerified] = useState(false);
+  const [phoneVerifiedMatch, setPhoneVerifiedMatch] = useState(null); // {name, phone} when phone matches existing customer
 
   const searchRef = useRef(null);
   const searchContainerRef = useRef(null);
@@ -54,18 +55,34 @@ export default function SaleForm() {
       if (data.data) {
         setCustomerSearchResults(data.data);
         setShowCustomerDropdown(data.data.length > 0);
+
+        // Phone-based auto-verification: if the search is exactly a phone number
+        // and there's an exact phone match, show "Verified Existing Customer"
+        const cleanQ = q.trim();
+        if (cleanQ.length >= 10 && /^[\d\s\-+()]+$/.test(cleanQ)) {
+          const exactPhoneMatch = data.data.find(c => c.phone === cleanQ);
+          if (exactPhoneMatch && !customerRef) {
+            // Show verification banner but DON'T auto-link — admin must click to confirm
+            setPhoneVerifiedMatch({ name: exactPhoneMatch.name, phone: exactPhoneMatch.phone, _id: exactPhoneMatch._id });
+          } else {
+            setPhoneVerifiedMatch(null);
+          }
+        } else {
+          setPhoneVerifiedMatch(null);
+        }
+      } else {
+        setPhoneVerifiedMatch(null);
       }
     } catch (error) {
       console.error('Customer search error:', error);
     } finally {
       setCustomerSearchLoading(false);
     }
-  }, []);
+  }, [customerRef]);
 
   const debounceTimer = useRef(null);
 
   const handleCustomerSearch = (value) => {
-    // Only update the search query, NOT the customer name
     setCustomerSearchQuery(value);
 
     // Clear customer selection when manually typing
@@ -73,6 +90,11 @@ export default function SaleForm() {
     setCustomerDueInfo(null);
     setIncludePreviousDue(false);
     setCustomerVerified(false);
+    setPhoneVerifiedMatch(null);
+
+    // Combined input: the typed value IS the customer name (unless overridden by dropdown selection)
+    // Clear phone only if entered text contains no digits (not a phone search)
+    setCustomerName(value || '');
 
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -90,6 +112,7 @@ export default function SaleForm() {
     setShowCustomerDropdown(false);
     setIncludePreviousDue(false);
     setCustomerVerified(true);
+    setPhoneVerifiedMatch(null);
 
     // Fetch due information for this customer
     fetchCustomerDue(customer);
@@ -253,7 +276,7 @@ export default function SaleForm() {
 
   const calcNetDue = () => Math.max(0, calcGrandTotal() - Number(paidAmount || 0));
 
-  // Load sale data when editing
+  // Load sale data when editing - do NOT load previous due info during edit
   useEffect(() => {
     if (isEditing && selectedSale) {
       setCustomerName(selectedSale.customerName || '');
@@ -275,20 +298,7 @@ export default function SaleForm() {
       setDiscountType(selectedSale.discountType || 'percentage');
       setPaidAmount(selectedSale.paidAmount || 0);
       setPaymentMethod(selectedSale.paymentMethod || 'cash');
-
-      // If the sale has a customer ref, set customerRef and try to load due info
-      if (selectedSale.customer) {
-        const customerId = typeof selectedSale.customer === 'object'
-          ? selectedSale.customer._id
-          : selectedSale.customer;
-        if (customerId) {
-          // Set a basic customerRef so the form knows it's an existing customer
-          setCustomerRef({ _id: customerId, name: selectedSale.customerName, phone: selectedSale.customerPhone });
-          setCustomerVerified(true);
-          // Fetch due info for this customer (silent fail is fine)
-          fetchCustomerDue({ _id: customerId });
-        }
-      }
+      // Previous due is not editable on existing sales — skip loading
     }
   }, [selectedSale, isEditing]);
 
@@ -316,6 +326,22 @@ export default function SaleForm() {
       return;
     }
 
+    // Case 1: Name + Phone both match the same existing customer but user didn't select from dropdown
+    if (!customerRef && customerName && customerPhone && customerSearchResults.length > 0) {
+      const cleanName = customerName.trim().toLowerCase();
+      const cleanPhone = customerPhone.trim();
+      const bothMatch = customerSearchResults.find(c =>
+        c.name.toLowerCase() === cleanName && c.phone === cleanPhone
+      );
+      if (bothMatch) {
+        showError(
+          `This customer already exists (${bothMatch.name}). Please select the existing customer from the search dropdown or use a different name/phone.`
+        );
+        setSubmitting(false);
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       // If customerRef exists, use the customer with customerId
@@ -324,23 +350,30 @@ export default function SaleForm() {
       let finalCustomerPhone = customerPhone;
 
       if (customerRef && customerRef._id) {
+        // Admin explicitly selected a customer from dropdown — link to that customer
         finalCustomerId = customerRef._id;
+        // If the customer has a stored phone from the dropdown, use it
+        if (customerRef.phone) {
+          finalCustomerPhone = customerRef.phone;
+        }
       } else if (customerName) {
-        // Create customer record - let backend generate placeholder if no phone
+        // Admin did NOT select from dropdown — create a NEW customer record.
+        // Never auto-link to an existing customer based on matching phone alone.
         try {
           const { data } = await customerService.createCustomer({
             name: customerName,
             phone: customerPhone || '',
           });
-          if (data.data && data.data._id) {
+          // Only link if this was actually a NEW customer creation.
+          // If the backend returned "Customer already exists", the admin never
+          // selected this customer from dropdown, so we must NOT link the sale.
+          if (data.data && data.data._id && data.message !== 'Customer already exists') {
             finalCustomerId = data.data._id;
-            // If customer already existed, use the existing data
-            if (data.message === 'Customer already exists') {
-              finalCustomerId = data.data._id;
-            }
           }
+          // If customer already existed and admin never selected from dropdown,
+          // finalCustomerId stays '' — backend will store the name without linking.
         } catch (err) {
-          // Silently continue - customer creation is a bonus feature
+          // Silently continue — customer creation is a bonus feature
           console.error('Could not create customer record:', err);
         }
       }
@@ -489,11 +522,12 @@ export default function SaleForm() {
               <h5>Customer</h5>
             </div>
             <div className="card-body" ref={customerContainerRef}>
+              {/* Single autocomplete search input — merges search + name */}
               <div className="customer-grid">
-                <div className="form-group customer-search-wrapper">
+                <div className="form-group customer-search-wrapper" style={{ flex: 1 }}>
                   <input
                     type="text"
-                    placeholder="Search customer by name or phone..."
+                    placeholder="Search customer by name or phone... (new name if not found)"
                     value={customerSearchQuery}
                     onChange={(e) => handleCustomerSearch(e.target.value)}
                     className="form-select"
@@ -531,7 +565,7 @@ export default function SaleForm() {
                   )}
                   {showCustomerDropdown && customerSearchQuery.trim() && customerSearchResults.length === 0 && !customerSearchLoading && (
                     <div className="customer-dropdown" style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
-                      No customer found. A new customer will be created on billing.
+                      No customer found. Will use typed name as new customer.
                     </div>
                   )}
                   {customerSearchLoading && (
@@ -549,33 +583,48 @@ export default function SaleForm() {
                       <i className="fa-solid fa-check-circle"></i> Verified Existing Customer
                     </div>
                   )}
-                  {customerRef && customerName && !customerVerified && (
+                  {!customerVerified && phoneVerifiedMatch && (
                     <div style={{
                       marginTop: '4px',
                       fontSize: '11px',
-                      color: 'var(--primary)',
+                      color: '#9a3412',
                       fontWeight: 500,
+                      padding: '4px 8px',
+                      background: '#fff7ed',
+                      borderRadius: '4px',
                     }}>
-                      <i className="fa-solid fa-check-circle"></i> Existing customer selected
+                      <i className="fa-solid fa-exclamation-triangle"></i> Phone {phoneVerifiedMatch.phone} belongs to <strong>{phoneVerifiedMatch.name}</strong> — 
+                      <button
+                        className="btn btn-sm btn-link"
+                        style={{ fontSize: '11px', padding: '0 4px', margin: 0, color: 'var(--primary)', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none' }}
+                        onClick={() => selectCustomer(phoneVerifiedMatch)}
+                      >Select this customer</button>
+                      to link or change the phone number.
                     </div>
                   )}
                 </div>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <input type="text" placeholder="Phone (optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="form-select" style={{ width: '100%' }} />
-                </div>
               </div>
-              {/* Show customer name input separately only when no customer is selected from dropdown */}
-              {!customerRef && (
-                <div className="form-group" style={{ marginTop: '8px' }}>
-                  <input
-                    type="text"
-                    placeholder="Enter customer name (will be created as new customer)"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="form-select"
-                    style={{ width: '100%' }}
-                  />
+              {/* Separate Phone field — always visible */}
+              <div className="form-group" style={{ marginTop: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Phone (optional)"
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    // When phone is manually typed, sync to search so auto-verification triggers
+                    if (!customerRef && customerSearchQuery) {
+                      // Phone change keeps the search but verification will re-run on next search
+                    }
+                  }}
+                  className="form-select"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              {/* Show selected customer name inline */}
+              {customerRef && (
+                <div style={{ marginTop: '4px', fontSize: '13px', color: '#666' }}>
+                  {customerName}
                 </div>
               )}
             </div>
