@@ -315,7 +315,7 @@ export default function MainLayout() {
 
       {sidebarOpen && (
         <div
-          className="modal-overlay"
+          className="sidebar-backdrop"
           onClick={() => setSidebarOpen(false)}
         />
       )}

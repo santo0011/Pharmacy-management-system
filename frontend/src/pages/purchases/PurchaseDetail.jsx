@@ -19,9 +19,9 @@ export default function PurchaseDetail() {
   }
 
   const InfoRow = ({ label, value }) => (
-    <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
-      <div style={{ width: '160px', fontWeight: 500, color: 'var(--gray-600)' }}>{label}</div>
-      <div>{value || '-'}</div>
+    <div className="sale-detail-item" style={{ padding: '10px 0' }}>
+      <span className="sale-detail-label">{label}</span>
+      <span className="sale-detail-value">{value || '-'}</span>
     </div>
   );
 
@@ -32,7 +32,7 @@ export default function PurchaseDetail() {
           <h2>Purchase: {purchase.invoiceNumber}</h2>
           <p>{purchase.supplierName || purchase.supplier?.supplierName}</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="btn-group-grid">
           <button className="btn btn-warning" onClick={() => navigate(`/purchases/${id}/edit`)} disabled={purchase.status === 'cancelled' || purchase.status === 'returned'}>
             <i className="fa-solid fa-edit"></i> Edit
           </button>
@@ -44,21 +44,23 @@ export default function PurchaseDetail() {
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header"><h5>Purchase Information</h5></div>
-        <div className="card-body">
-          <InfoRow label="Invoice Number" value={purchase.invoiceNumber} />
-          <InfoRow label="Supplier" value={purchase.supplier?.supplierName || purchase.supplierName} />
-          <InfoRow label="Purchase Date" value={new Date(purchase.purchaseDate).toLocaleDateString()} />
-          <InfoRow label="Status" value={<span className={`badge ${purchase.status === 'completed' ? 'badge-success' : 'badge-warning'}`}>{purchase.status}</span>} />
-          <InfoRow label="Payment" value={<span className={`badge ${purchase.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{purchase.paymentStatus}</span>} />
-          <InfoRow label="Payment Method" value={purchase.paymentMethod} />
-          <InfoRow label="Notes" value={purchase.notes} />
+        <div className="card-body" style={{ padding: 0 }}>
+          <div style={{ padding: '16px 20px' }}>
+            <InfoRow label="Invoice Number" value={purchase.invoiceNumber} />
+            <InfoRow label="Supplier" value={purchase.supplier?.supplierName || purchase.supplierName} />
+            <InfoRow label="Purchase Date" value={new Date(purchase.purchaseDate).toLocaleDateString()} />
+            <InfoRow label="Status" value={<span className={`badge ${purchase.status === 'completed' ? 'badge-success' : purchase.status === 'pending' ? 'badge-warning' : purchase.status === 'cancelled' ? 'badge-danger' : 'badge-info'}`}>{purchase.status}</span>} />
+            <InfoRow label="Payment" value={<span className={`badge ${purchase.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{purchase.paymentStatus}</span>} />
+            <InfoRow label="Payment Method" value={purchase.paymentMethod} />
+            {purchase.notes && <InfoRow label="Notes" value={purchase.notes} />}
+          </div>
         </div>
       </div>
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header"><h5>Items</h5></div>
         <div className="card-body" style={{ padding: 0 }}>
-          <div className="table-container">
+          <div className="payment-history-table-wrapper">
             <table>
               <thead>
                 <tr><th>Medicine</th><th>Batch</th><th>Qty</th><th>Purchase Price</th><th>Selling Price</th><th>Expiry</th><th>GST</th><th>Subtotal</th></tr>

@@ -30,6 +30,18 @@ export default function Categories() {
   const [formData, setFormData] = useState(initialFormState);
   const [imagePreview, setImagePreview] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const toggleRow = (rowIdx) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [rowIdx]: !prev[rowIdx],
+    }));
+  };
+
+  const isRowExpanded = (rowIdx) => {
+    return !!expandedRows[rowIdx];
+  };
 
   const loadCategories = useCallback(() => {
     const params = { page: currentPage, limit: 10 };
@@ -142,6 +154,53 @@ export default function Categories() {
     </>
   );
 
+  // Mobile expandable row
+  const renderMobileRow = (category, idx) => {
+    const expanded = isRowExpanded(idx);
+    return (
+      <tbody key={category._id || idx}>
+        <tr className="customer-mobile-row" onClick={() => toggleRow(idx)}>
+          <td>
+            <span style={{ fontWeight: 500, fontSize: '13px' }}>{category.name}</span>
+          </td>
+          <td>
+            <span className={`badge ${category.status ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '11px' }}>
+              {category.status ? 'Active' : 'Inactive'}
+            </span>
+          </td>
+          <td className="customer-expand-cell">
+            <button className="customer-expand-btn">
+              <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`customer-detail-row ${expanded ? 'customer-detail-row-open' : ''}`}>
+          <td colSpan={3} className="customer-detail-cell">
+            <div className="customer-detail-inner">
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Description</span>
+                <span className="customer-detail-value">{category.description || '-'}</span>
+              </div>
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Actions</span>
+                <span className="customer-detail-value">
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); openEditDrawer(category); }}>
+                      <i className="fa-solid fa-edit"></i>
+                    </button>
+                    <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(category._id); }}>
+                      <i className="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                </span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -171,50 +230,67 @@ export default function Categories() {
             <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
           ) : items?.length > 0 ? (
             <>
-              <div className="table-container">
+              {/* Desktop table */}
+              <div className="customer-desktop-table">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Image</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((category) => (
+                        <tr key={category._id}>
+                          <td>
+                            {category.image ? (
+                              <img src={category.image} alt={category.name} className="image-preview" />
+                            ) : (
+                              <div className="image-preview" style={{ background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
+                                <i className="fa-solid fa-image"></i>
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ fontWeight: 500 }}>{category.name}</td>
+                          <td style={{ color: 'var(--gray-500)' }}>{category.description || '-'}</td>
+                          <td>
+                            <label className="status-toggle">
+                              <input type="checkbox" checked={category.status} onChange={() => handleToggleStatus(category._id)} />
+                              <span className="slider"></span>
+                            </label>
+                          </td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(category)}>
+                                <i className="fa-solid fa-edit"></i>
+                              </button>
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(category._id)}>
+                                <i className="fa-solid fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile table */}
+              <div className="customer-mobile-table">
                 <table>
                   <thead>
                     <tr>
-                      <th>Image</th>
                       <th>Name</th>
-                      <th>Description</th>
                       <th>Status</th>
-                      <th>Actions</th>
+                      <th className="customer-expand-th"></th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {items.map((category) => (
-                      <tr key={category._id}>
-                        <td>
-                          {category.image ? (
-                            <img src={category.image} alt={category.name} className="image-preview" />
-                          ) : (
-                            <div className="image-preview" style={{ background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
-                              <i className="fa-solid fa-image"></i>
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ fontWeight: 500 }}>{category.name}</td>
-                        <td style={{ color: 'var(--gray-500)' }}>{category.description || '-'}</td>
-                        <td>
-                          <label className="status-toggle">
-                            <input type="checkbox" checked={category.status} onChange={() => handleToggleStatus(category._id)} />
-                            <span className="slider"></span>
-                          </label>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(category)}>
-                              <i className="fa-solid fa-edit"></i>
-                            </button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(category._id)}>
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {items.map((category, idx) => renderMobileRow(category, idx))}
                 </table>
               </div>
 

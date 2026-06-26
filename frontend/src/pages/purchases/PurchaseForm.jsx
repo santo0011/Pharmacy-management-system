@@ -245,14 +245,14 @@ export default function PurchaseForm() {
                       <td style={{ minWidth: '180px' }}>
                         <input type="text" placeholder="Medicine name" value={item.medicineName} onChange={(e) => handleItemChange(index, 'medicineName', e.target.value)} className="input-sm" style={{ width: '100%' }} />
                       </td>
-                      <td><input type="text" placeholder="Batch" value={item.batchNumber} onChange={(e) => handleItemChange(index, 'batchNumber', e.target.value)} className="input-sm" style={{ width: '100%' }} /></td>
-                      <td><input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} className="input-sm" style={{ width: '70px' }} /></td>
-                      <td><input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} className="input-sm" style={{ width: '100px' }} /></td>
-                      <td><input type="number" min="0" step="0.01" value={item.sellingPrice} onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value)} className="input-sm" style={{ width: '100px' }} /></td>
-                      <td><input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} className="input-sm" style={{ width: '90px' }} /></td>
-                      <td><input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} className="input-sm" style={{ width: '120px' }} /></td>
+                      <td><input type="text" placeholder="Batch" value={item.batchNumber} onChange={(e) => handleItemChange(index, 'batchNumber', e.target.value)} className="input-sm" style={{ width: '80px' }} /></td>
+                      <td><input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} className="input-sm" style={{ width: '60px' }} /></td>
+                      <td><input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} className="input-sm" style={{ width: '90px' }} /></td>
+                      <td><input type="number" min="0" step="0.01" value={item.sellingPrice} onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value)} className="input-sm" style={{ width: '90px' }} /></td>
+                      <td><input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} className="input-sm" style={{ width: '80px' }} /></td>
+                      <td><input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} className="input-sm" style={{ width: '110px' }} /></td>
                       <td><input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} className="input-sm" style={{ width: '60px' }} /></td>
-                      <td style={{ fontWeight: 600 }}>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</td>
+                      <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</td>
                       <td>
                         <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} disabled={items.length === 1}>
                           <i className="fa-solid fa-times"></i>
@@ -318,7 +318,7 @@ export default function PurchaseForm() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+            <div className="form-actions" style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-secondary" onClick={() => navigate('/purchases')}>Cancel</button>
               <button type="submit" className="btn btn-primary" disabled={submitting}>
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}

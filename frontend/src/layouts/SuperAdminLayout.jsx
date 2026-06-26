@@ -104,9 +104,8 @@ export default function SuperAdminLayout() {
 
       {sidebarOpen && (
         <div
-          className="modal-overlay"
+          className="sidebar-backdrop"
           onClick={() => setSidebarOpen(false)}
-          style={{ zIndex: 99 }}
         />
       )}
     </div>

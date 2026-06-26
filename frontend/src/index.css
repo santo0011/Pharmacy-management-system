@@ -31,6 +31,17 @@
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
   --radius: 8px;
   --radius-lg: 12px;
+  /* Z-index layers - single source of truth */
+  --z-header: 1100;
+  --z-sidebar: 1300;
+  --z-dropdown-backdrop: 1049;
+  --z-dropdown: 1050;
+  --z-modal-overlay: 1350;
+  --z-modal-content: 1360;
+  --z-drawer-overlay: 1350;
+  --z-drawer: 1400;
+  --z-sidebar-backdrop: 1250;
+  --z-swal-container: 9999;
 }
 
 body {
@@ -244,7 +255,7 @@ a {
   height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
-  z-index: 1300;
+  z-index: var(--z-sidebar);
   transition: transform 0.3s ease;
 }
 
@@ -372,7 +383,7 @@ a {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 1250;
+  z-index: var(--z-sidebar-backdrop);
 }
 
 .main-content {
@@ -393,7 +404,7 @@ a {
   padding: 0 24px;
   position: sticky;
   top: 0;
-  z-index: 1100;
+  z-index: var(--z-header);
 }
 
 .header-left {
@@ -803,7 +814,7 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1200;
+  z-index: var(--z-modal-overlay);
   padding: 20px;
 }
 
@@ -967,7 +978,7 @@ tbody tr:hover {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 1200;
+  z-index: var(--z-drawer-overlay);
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s ease;
@@ -986,7 +997,7 @@ tbody tr:hover {
   height: 100vh;
   background: white;
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
-  z-index: 1300;
+  z-index: var(--z-drawer);
   transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
@@ -1153,7 +1164,7 @@ input[type="number"]:focus {
   background: white;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
-  z-index: 1050;
+  z-index: var(--z-dropdown);
   max-height: 300px;
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -1339,7 +1350,7 @@ input[type="number"]:focus {
 .search-box-wrapper .search-input-wrap {
   flex: 1;
   position: relative;
-  z-index: 1051;
+  z-index: var(--z-dropdown);
 }
 
 .search-card-no-clip {
@@ -1351,7 +1362,7 @@ input[type="number"]:focus {
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 1050;
+  z-index: var(--z-dropdown);
 }
 
 .search-dropdown-backdrop {
@@ -1360,7 +1371,7 @@ input[type="number"]:focus {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1049;
+  z-index: var(--z-dropdown-backdrop);
   background: transparent;
 }
 
@@ -1390,7 +1401,7 @@ input[type="number"]:focus {
 
 .customer-search-wrapper {
   position: relative;
-  z-index: 1052;
+  z-index: calc(var(--z-dropdown) + 2);
 }
 
 .customer-search-wrapper .customer-dropdown {
@@ -1401,7 +1412,7 @@ input[type="number"]:focus {
   background: white;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
-  z-index: 1053;
+  z-index: calc(var(--z-dropdown) + 3);
   max-height: 220px;
   overflow-y: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
@@ -2977,7 +2988,7 @@ input[type="number"]:focus {
   }
 
   .search-input-wrap .search-dropdown {
-    z-index: 999999 !important;
+    z-index: var(--z-dropdown) !important;
     position: fixed !important;
     left: 12px !important;
     right: 12px !important;
@@ -2995,7 +3006,7 @@ input[type="number"]:focus {
   }
 
   .customer-search-wrapper .customer-dropdown {
-    z-index: 999999 !important;
+    z-index: var(--z-dropdown) !important;
     position: fixed !important;
     left: 12px !important;
     right: 12px !important;
@@ -3005,7 +3016,7 @@ input[type="number"]:focus {
   }
 
   .search-dropdown-backdrop {
-    z-index: 999998 !important;
+    z-index: calc(var(--z-dropdown) - 1) !important;
   }
 
   /* Cart items table - mobile responsive: NO overflow, wrap text */
@@ -3630,4 +3641,9 @@ input[type="number"]:focus {
     height: 40px;
     font-size: 19px;
   }
+}
+
+/* ===== SweetAlert2 z-index override ===== */
+.swal2-container {
+  z-index: var(--z-swal-container) !important;
 }

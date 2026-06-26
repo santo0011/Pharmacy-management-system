@@ -30,6 +30,18 @@ export default function Brands() {
   const [formData, setFormData] = useState(initialFormState);
   const [logoPreview, setLogoPreview] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const toggleRow = (rowIdx) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [rowIdx]: !prev[rowIdx],
+    }));
+  };
+
+  const isRowExpanded = (rowIdx) => {
+    return !!expandedRows[rowIdx];
+  };
 
   const loadBrands = useCallback(() => {
     const params = { page: currentPage, limit: 10 };
@@ -138,6 +150,53 @@ export default function Brands() {
     </>
   );
 
+  // Mobile expandable row
+  const renderMobileRow = (brand, idx) => {
+    const expanded = isRowExpanded(idx);
+    return (
+      <tbody key={brand._id || idx}>
+        <tr className="customer-mobile-row" onClick={() => toggleRow(idx)}>
+          <td>
+            <span style={{ fontWeight: 500, fontSize: '13px' }}>{brand.name}</span>
+          </td>
+          <td>
+            <span className={`badge ${brand.status ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '11px' }}>
+              {brand.status ? 'Active' : 'Inactive'}
+            </span>
+          </td>
+          <td className="customer-expand-cell">
+            <button className="customer-expand-btn">
+              <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`customer-detail-row ${expanded ? 'customer-detail-row-open' : ''}`}>
+          <td colSpan={3} className="customer-detail-cell">
+            <div className="customer-detail-inner">
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Description</span>
+                <span className="customer-detail-value">{brand.description || '-'}</span>
+              </div>
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Actions</span>
+                <span className="customer-detail-value">
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); openEditDrawer(brand); }}>
+                      <i className="fa-solid fa-edit"></i>
+                    </button>
+                    <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(brand._id); }}>
+                      <i className="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                </span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -167,50 +226,67 @@ export default function Brands() {
             <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
           ) : items?.length > 0 ? (
             <>
-              <div className="table-container">
+              {/* Desktop table */}
+              <div className="customer-desktop-table">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Logo</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((brand) => (
+                        <tr key={brand._id}>
+                          <td>
+                            {brand.logo ? (
+                              <img src={brand.logo} alt={brand.name} className="image-preview" />
+                            ) : (
+                              <div className="image-preview" style={{ background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
+                                <i className="fa-solid fa-building"></i>
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ fontWeight: 500 }}>{brand.name}</td>
+                          <td style={{ color: 'var(--gray-500)' }}>{brand.description || '-'}</td>
+                          <td>
+                            <label className="status-toggle">
+                              <input type="checkbox" checked={brand.status} onChange={() => handleToggleStatus(brand._id)} />
+                              <span className="slider"></span>
+                            </label>
+                          </td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(brand)}>
+                                <i className="fa-solid fa-edit"></i>
+                              </button>
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(brand._id)}>
+                                <i className="fa-solid fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile table */}
+              <div className="customer-mobile-table">
                 <table>
                   <thead>
                     <tr>
-                      <th>Logo</th>
                       <th>Name</th>
-                      <th>Description</th>
                       <th>Status</th>
-                      <th>Actions</th>
+                      <th className="customer-expand-th"></th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {items.map((brand) => (
-                      <tr key={brand._id}>
-                        <td>
-                          {brand.logo ? (
-                            <img src={brand.logo} alt={brand.name} className="image-preview" />
-                          ) : (
-                            <div className="image-preview" style={{ background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
-                              <i className="fa-solid fa-building"></i>
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ fontWeight: 500 }}>{brand.name}</td>
-                        <td style={{ color: 'var(--gray-500)' }}>{brand.description || '-'}</td>
-                        <td>
-                          <label className="status-toggle">
-                            <input type="checkbox" checked={brand.status} onChange={() => handleToggleStatus(brand._id)} />
-                            <span className="slider"></span>
-                          </label>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(brand)}>
-                              <i className="fa-solid fa-edit"></i>
-                            </button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(brand._id)}>
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {items.map((brand, idx) => renderMobileRow(brand, idx))}
                 </table>
               </div>
 
