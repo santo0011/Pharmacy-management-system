@@ -9,7 +9,7 @@ export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(true);
-  const [managementOpen, setManagementOpen] = useState(true);
+  const [managementOpen, setManagementOpen] = useState(() => window.innerWidth > 768);
   const { user, logout } = useAuth();
   const dispatch = useDispatch();
   const location = useLocation();
@@ -162,14 +162,17 @@ export default function MainLayout() {
   if (isExpired && !isAllowedRoute && user?.role === 'admin') {
     return (
       <div className="app-layout">
-        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-          <div className="sidebar-header">
-            <i className="fa-solid fa-prescription-bottle-medical"></i>
-            <div>
-              <h3>Pharmacy</h3>
-              <span>Management System</span>
-            </div>
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <i className="fa-solid fa-prescription-bottle-medical"></i>
+          <div>
+            <h3>Pharmacy</h3>
+            <span>Management System</span>
           </div>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
           <nav className="sidebar-nav">
             <div className="nav-label">Main Menu</div>
             <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
@@ -217,6 +220,9 @@ export default function MainLayout() {
             <h3>Pharmacy</h3>
             <span>Management System</span>
           </div>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
+            <i className="fa-solid fa-xmark"></i>
+          </button>
         </div>
         <nav className="sidebar-nav">
           <div className="nav-label">Main Menu</div>
@@ -283,7 +289,9 @@ export default function MainLayout() {
             <button className="toggle-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <i className="fa-solid fa-bars"></i>
             </button>
-            <h4>{getPageTitle()}</h4>
+            <h4 className="header-title">
+              {user?.pharmacy?.pharmacyName || (user?.role === 'super_admin' ? 'Super Admin' : getPageTitle())}
+            </h4>
           </div>
           <div className="header-right">
             <div className="user-info">

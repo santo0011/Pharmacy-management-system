@@ -38,6 +38,19 @@ const chartOptions = {
   interaction: { intersect: false, mode: 'index' },
 };
 
+const chartOptionsMobile = {
+  ...chartOptions,
+  maintainAspectRatio: true,
+  plugins: {
+    ...chartOptions.plugins,
+    legend: { ...chartOptions.plugins.legend, labels: { ...chartOptions.plugins.legend.labels, font: { size: 10 }, padding: 8, boxWidth: 10, boxHeight: 10 } },
+  },
+  scales: {
+    x: { ...chartOptions.scales.x, ticks: { ...chartOptions.scales.x.ticks, font: { size: 10 } } },
+    y: { ...chartOptions.scales.y, ticks: { ...chartOptions.scales.y.ticks, font: { size: 10 } } },
+  },
+};
+
 export default function Dashboard() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -48,6 +61,7 @@ export default function Dashboard() {
   const purchaseStats = useSelector((state) => state.purchases?.stats);
   const { items: medicines } = useSelector((state) => state.medicines);
   const [expiringSoon, setExpiringSoon] = useState([]);
+  const [selectedSale, setSelectedSale] = useState(null);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -151,14 +165,14 @@ export default function Dashboard() {
         </div>
 
         {/* Charts Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '24px' }}>
+        <div className="dashboard-charts-row">
           {/* Monthly Registrations */}
           <div className="card">
             <div className="card-header">
               <h5><i className="fa-solid fa-chart-bar" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Monthly Registrations</h5>
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Last 6 months</span>
             </div>
-            <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
+            <div className="card-body card-body-chart">
               {registrationChartData ? <Bar data={registrationChartData} options={chartOptions} />
               : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-line" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Registration data will appear here</p></div>}
             </div>
@@ -169,11 +183,11 @@ export default function Dashboard() {
               <h5><i className="fa-solid fa-credit-card" style={{ marginRight: '8px', color: '#22c55e' }}></i>Subscription Distribution</h5>
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{subStats.length} plan types</span>
             </div>
-            <div className="card-body" style={{ padding: '20px', minHeight: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="card-body card-body-chart card-body-center">
               {subscriptionChartData ? (
-                <div style={{ width: '220px' }}>
+                <div className="chart-doughnut-wrapper">
                   <Doughnut data={subscriptionChartData} options={{ cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 10, font: { size: 11 }, boxWidth: 12 } } } }} />
-                  <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: 'var(--gray-500)' }}>
+                  <div className="chart-total-label">
                     <strong>{total}</strong> total pharmacies
                   </div>
                 </div>
@@ -183,16 +197,16 @@ export default function Dashboard() {
         </div>
 
         {/* Charts Row 2 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+        <div className="dashboard-charts-row">
           {/* Status Distribution */}
           <div className="card">
             <div className="card-header">
               <h5><i className="fa-solid fa-circle-check" style={{ marginRight: '8px', color: '#22c55e' }}></i>Pharmacy Status</h5>
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{active} active of {total}</span>
             </div>
-            <div className="card-body" style={{ padding: '20px', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="card-body card-body-chart card-body-center">
               {statusChartData ? (
-                <div style={{ width: '200px' }}>
+                <div className="chart-doughnut-wrapper chart-doughnut-small">
                   <Doughnut data={statusChartData} options={{ cutout: '60%', plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 8, font: { size: 11 }, boxWidth: 12 } } } }} />
                 </div>
               ) : <div style={{ textAlign: 'center', padding: '30px', color: 'var(--gray-500)' }}><p>Status data will appear here</p></div>}
@@ -203,29 +217,29 @@ export default function Dashboard() {
             <div className="card-header">
               <h5><i className="fa-solid fa-chart-simple" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Quick Summary</h5>
             </div>
-            <div className="card-body" style={{ padding: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: '11px', color: '#166534', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Rate</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>
+            <div className="card-body">
+              <div className="dashboard-summary-grid">
+                <div className="summary-item summary-item-green">
+                  <div className="summary-label">Active Rate</div>
+                  <div className="summary-value summary-value-green">
                     {total > 0 ? ((active / total) * 100).toFixed(1) : 0}%
                   </div>
                 </div>
-                <div style={{ padding: '16px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fecaca' }}>
-                  <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Suspended Rate</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#dc2626', marginTop: '4px' }}>
+                <div className="summary-item summary-item-red">
+                  <div className="summary-label">Suspended Rate</div>
+                  <div className="summary-value summary-value-red">
                     {total > 0 ? ((suspended / total) * 100).toFixed(1) : 0}%
                   </div>
                 </div>
-                <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Avg Users/Pharmacy</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--gray-800)', marginTop: '4px' }}>
+                <div className="summary-item summary-item-gray">
+                  <div className="summary-label">Avg Users/Pharmacy</div>
+                  <div className="summary-value summary-value-dark">
                     {total > 0 ? (users / total).toFixed(1) : 0}
                   </div>
                 </div>
-                <div style={{ padding: '16px', background: '#f0f5ff', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
-                  <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Inactive</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>
+                <div className="summary-item summary-item-blue">
+                  <div className="summary-label">Inactive</div>
+                  <div className="summary-value summary-value-blue">
                     {inactive}
                   </div>
                 </div>
@@ -371,13 +385,13 @@ export default function Dashboard() {
       </div>
 
       {/* Sales Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '24px' }}>
+      <div className="dashboard-charts-row">
         <div className="card">
           <div className="card-header">
             <h5><i className="fa-solid fa-chart-line" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Daily Sales Trend</h5>
             <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{saleStats?.todaySales || 0} today</span>
           </div>
-          <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
+          <div className="card-body card-body-chart">
             {dailySalesChart ? <Line data={dailySalesChart} options={chartOptions} />
             : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-line" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Sales data will appear here</p></div>}
           </div>
@@ -387,7 +401,7 @@ export default function Dashboard() {
             <h5><i className="fa-solid fa-coins" style={{ marginRight: '8px', color: '#22c55e' }}></i>Monthly Revenue</h5>
             <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>₹{(saleStats?.monthlyAmount || 0).toFixed(2)} this month</span>
           </div>
-          <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
+          <div className="card-body card-body-chart">
             {monthlyRevenueChart ? <Bar data={monthlyRevenueChart} options={chartOptions} />
             : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-coins" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Revenue data will appear here</p></div>}
           </div>
@@ -395,12 +409,12 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Row 2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginTop: '20px' }}>
+      <div className="dashboard-charts-row-three">
         <div className="card">
           <div className="card-header">
             <h5><i className="fa-solid fa-cart-shopping" style={{ marginRight: '8px', color: '#ef4444' }}></i>Monthly Purchase vs Sales</h5>
           </div>
-          <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
+          <div className="card-body card-body-chart">
             {purchaseVsSaleChart ? <Bar data={purchaseVsSaleChart} options={chartOptions} />
             : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-bar" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Purchase & sale data will appear here</p></div>}
           </div>
@@ -409,7 +423,7 @@ export default function Dashboard() {
           <div className="card-header">
             <h5><i className="fa-solid fa-star" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Top Selling Medicines</h5>
           </div>
-          <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
+          <div className="card-body card-body-chart">
             {topMedicinesChart ? <Bar data={topMedicinesChart} options={{ ...chartOptions, indexAxis: 'y', plugins: { ...chartOptions.plugins, legend: { display: false } } }} />
             : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-star" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Sales data needed for top medicines</p></div>}
           </div>
@@ -418,20 +432,20 @@ export default function Dashboard() {
           <div className="card-header">
             <h5><i className="fa-solid fa-credit-card" style={{ marginRight: '8px', color: '#8b5cf6' }}></i>Sales by Payment Method</h5>
           </div>
-          <div className="card-body" style={{ padding: '20px', minHeight: '250px' }}>
+          <div className="card-body card-body-chart">
             {paymentMethodChart ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="payment-method-list">
                 {paymentMethodStats.map((p, i) => {
                   const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
                   const pct = saleStats?.totalAmount > 0 ? ((p.total / saleStats.totalAmount) * 100).toFixed(1) : 0;
                   return (
-                    <div key={i}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{p.method}</span>
-                        <span>₹{p.total.toFixed(2)} ({pct}%)</span>
+                    <div key={i} className="payment-method-item">
+                      <div className="payment-method-row">
+                        <span className="payment-method-name">{p.method}</span>
+                        <span className="payment-method-amount">₹{p.total.toFixed(2)} ({pct}%)</span>
                       </div>
-                      <div style={{ height: '6px', background: 'var(--gray-100)', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: colors[i % colors.length], borderRadius: '3px', transition: 'width 0.5s' }}></div>
+                      <div className="payment-progress-bar">
+                        <div className="payment-progress-fill" style={{ width: `${pct}%`, background: colors[i % colors.length] }}></div>
                       </div>
                     </div>
                   );
@@ -443,7 +457,7 @@ export default function Dashboard() {
       </div>
 
       {/* Low Stock & Upcoming Expiry Tables */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+      <div className="dashboard-tables-row">
         <div className="card">
           <div className="card-header">
             <h5><i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Low Stock Items</h5>
@@ -451,8 +465,8 @@ export default function Dashboard() {
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {lowStockItems.length > 0 ? (
-              <div className="table-container">
-                <table>
+              <div className="table-container dashboard-table-scroll">
+                <table className="dashboard-table">
                   <thead><tr><th>Medicine</th><th>Stock</th><th>Price</th></tr></thead>
                   <tbody>
                     {lowStockItems.slice(0, 8).map((item) => (
@@ -481,8 +495,8 @@ export default function Dashboard() {
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {expiringSoon.length > 0 ? (
-              <div className="table-container">
-                <table>
+              <div className="table-container dashboard-table-scroll">
+                <table className="dashboard-table">
                   <thead><tr><th>Medicine</th><th>Expiry</th><th>Stock</th></tr></thead>
                   <tbody>
                     {expiringSoon.map((item) => (
@@ -513,8 +527,9 @@ export default function Dashboard() {
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}><i className="fa-solid fa-arrow-right"></i> View All</button>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
-            <div className="table-container">
-              <table>
+            {/* Desktop table view */}
+            <div className="table-container dashboard-table-scroll recent-sales-table">
+              <table className="dashboard-table">
                 <thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Payment</th><th>Date</th></tr></thead>
                 <tbody>
                   {saleStats.recentSales.map((s) => (
@@ -528,6 +543,78 @@ export default function Dashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            {/* Mobile card view */}
+            <div className="recent-sales-mobile">
+              {saleStats.recentSales.slice(0, 5).map((s) => (
+                <div key={s._id} className="sale-card-item">
+                  <div className="sale-card-main">
+                    <div className="sale-card-info">
+                      <div className="sale-card-customer">{s.customerName}</div>
+                      <div className="sale-card-amount">₹{s.grandTotal?.toFixed(2)}</div>
+                    </div>
+                    <button className="btn btn-sm btn-outline view-details-btn" onClick={() => setSelectedSale(s)}>
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sale Detail Modal */}
+      {selectedSale && (
+        <div className="modal-overlay" onClick={() => setSelectedSale(null)} style={{ opacity: 1, visibility: 'visible' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><i className="fa-solid fa-receipt" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Sale Details</h3>
+              <button className="close-btn" onClick={() => setSelectedSale(null)}>
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="sale-detail-grid">
+                <div className="sale-detail-field">
+                  <span className="sale-detail-label">Invoice</span>
+                  <span className="sale-detail-value">{selectedSale.invoiceNumber}</span>
+                </div>
+                <div className="sale-detail-field">
+                  <span className="sale-detail-label">Customer</span>
+                  <span className="sale-detail-value">{selectedSale.customerName}</span>
+                </div>
+                <div className="sale-detail-field">
+                  <span className="sale-detail-label">Total</span>
+                  <span className="sale-detail-value sale-detail-amount">₹{selectedSale.grandTotal?.toFixed(2)}</span>
+                </div>
+                <div className="sale-detail-field">
+                  <span className="sale-detail-label">Payment</span>
+                  <span className="sale-detail-value"><span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{selectedSale.paymentMethod}</span></span>
+                </div>
+                <div className="sale-detail-field">
+                  <span className="sale-detail-label">Date</span>
+                  <span className="sale-detail-value">{new Date(selectedSale.saleDate).toLocaleDateString()}</span>
+                </div>
+                {selectedSale.discount > 0 && (
+                  <div className="sale-detail-field">
+                    <span className="sale-detail-label">Discount</span>
+                    <span className="sale-detail-value">₹{selectedSale.discount?.toFixed(2)}</span>
+                  </div>
+                )}
+                {selectedSale.tax > 0 && (
+                  <div className="sale-detail-field">
+                    <span className="sale-detail-label">Tax</span>
+                    <span className="sale-detail-value">₹{selectedSale.tax?.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setSelectedSale(null)}>Close</button>
+              <button className="btn btn-primary" onClick={() => { setSelectedSale(null); navigate(`/sales/${selectedSale._id}`); }}>
+                <i className="fa-solid fa-external-link-alt"></i> Full Details
+              </button>
             </div>
           </div>
         </div>

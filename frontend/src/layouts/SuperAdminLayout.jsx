@@ -38,6 +38,9 @@ export default function SuperAdminLayout() {
             <h3>Super Admin</h3>
             <span>Platform Management</span>
           </div>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
+            <i className="fa-solid fa-xmark"></i>
+          </button>
         </div>
         <nav className="sidebar-nav">
           <div className="nav-label">Main Menu</div>
@@ -75,7 +78,9 @@ export default function SuperAdminLayout() {
             <button className="toggle-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <i className="fa-solid fa-bars"></i>
             </button>
-            <h4>{getPageTitle()}</h4>
+            <h4 className="header-title">
+              {user?.pharmacy?.pharmacyName || getPageTitle()}
+            </h4>
           </div>
           <div className="header-right">
             <div className="user-info">
