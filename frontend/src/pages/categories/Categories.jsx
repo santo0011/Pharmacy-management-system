@@ -176,7 +176,17 @@ export default function Categories() {
         </tr>
         <tr className={`customer-detail-row ${expanded ? 'customer-detail-row-open' : ''}`}>
           <td colSpan={3} className="customer-detail-cell">
-            <div className="customer-detail-inner">
+          <div className="customer-detail-inner">
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Image</span>
+                <span className="customer-detail-value">
+                  {category.image ? (
+                    <img src={category.image} alt={category.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} />
+                  ) : (
+                    <i className="fa-solid fa-image" style={{ color: 'var(--gray-400)', fontSize: '24px' }}></i>
+                  )}
+                </span>
+              </div>
               <div className="customer-detail-item">
                 <span className="customer-detail-label">Description</span>
                 <span className="customer-detail-value">{category.description || '-'}</span>

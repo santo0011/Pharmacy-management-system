@@ -19,9 +19,16 @@ export default function PurchaseDetail() {
   }
 
   const InfoRow = ({ label, value }) => (
-    <div className="sale-detail-item" style={{ padding: '10px 0' }}>
-      <span className="sale-detail-label">{label}</span>
-      <span className="sale-detail-value">{value || '-'}</span>
+    <div className="detail-row">
+      <span className="detail-label">{label}</span>
+      <span className="detail-value">{value || '-'}</span>
+    </div>
+  );
+
+  const SummaryRow = ({ label, value, isTotal = false }) => (
+    <div className={`summary-row ${isTotal ? 'summary-total' : ''}`}>
+      <span className="summary-label">{label}</span>
+      <span className="summary-amount">{value}</span>
     </div>
   );
 
@@ -44,8 +51,8 @@ export default function PurchaseDetail() {
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header"><h5>Purchase Information</h5></div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <div style={{ padding: '16px 20px' }}>
+        <div className="card-body detail-card-body">
+          <div className="detail-grid">
             <InfoRow label="Invoice Number" value={purchase.invoiceNumber} />
             <InfoRow label="Supplier" value={purchase.supplier?.supplierName || purchase.supplierName} />
             <InfoRow label="Purchase Date" value={new Date(purchase.purchaseDate).toLocaleDateString()} />
@@ -60,7 +67,7 @@ export default function PurchaseDetail() {
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header"><h5>Items</h5></div>
         <div className="card-body" style={{ padding: 0 }}>
-          <div className="payment-history-table-wrapper">
+          <div className="table-container" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr><th>Medicine</th><th>Batch</th><th>Qty</th><th>Purchase Price</th><th>Selling Price</th><th>Expiry</th><th>GST</th><th>Subtotal</th></tr>
@@ -84,21 +91,18 @@ export default function PurchaseDetail() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header"><h5>Payment Summary</h5></div>
-        <div className="card-body">
-          <div style={{ maxWidth: '400px' }}>
-            <InfoRow label="Subtotal" value={`₹${purchase.subtotal?.toFixed(2)}`} />
-            <InfoRow label="Tax (GST)" value={`₹${purchase.taxAmount?.toFixed(2)}`} />
-            <InfoRow label="Discount" value={`₹${purchase.discountAmount?.toFixed(2)}`} />
-            <InfoRow label="Shipping" value={`₹${purchase.shippingCost?.toFixed(2)}`} />
-            <InfoRow label="Other" value={`₹${purchase.otherCost?.toFixed(2)}`} />
-            <div style={{ display: 'flex', padding: '12px 0', borderTop: '2px solid var(--gray-200)', fontWeight: 700, fontSize: '16px', color: 'var(--primary-color)' }}>
-              <div style={{ width: '160px' }}>Grand Total</div>
-              <div>₹{purchase.grandTotal?.toFixed(2)}</div>
-            </div>
-            <InfoRow label="Paid Amount" value={`₹${purchase.paidAmount?.toFixed(2)}`} />
-            <InfoRow label="Due Amount" value={<span style={{ color: purchase.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>₹{purchase.dueAmount?.toFixed(2)}</span>} />
+        <div className="card-body detail-card-body">
+          <div className="summary-grid">
+            <SummaryRow label="Subtotal" value={`₹${purchase.subtotal?.toFixed(2)}`} />
+            <SummaryRow label="Tax (GST)" value={`₹${purchase.taxAmount?.toFixed(2)}`} />
+            <SummaryRow label="Discount" value={`₹${purchase.discountAmount?.toFixed(2)}`} />
+            <SummaryRow label="Shipping" value={`₹${purchase.shippingCost?.toFixed(2)}`} />
+            <SummaryRow label="Other" value={`₹${purchase.otherCost?.toFixed(2)}`} />
+            <SummaryRow label="Grand Total" value={`₹${purchase.grandTotal?.toFixed(2)}`} isTotal />
+            <SummaryRow label="Paid Amount" value={`₹${purchase.paidAmount?.toFixed(2)}`} />
+            <SummaryRow label="Due Amount" value={<span style={{ color: purchase.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>₹{purchase.dueAmount?.toFixed(2)}</span>} />
           </div>
         </div>
       </div>

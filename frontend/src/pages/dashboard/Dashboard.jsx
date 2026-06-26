@@ -333,13 +333,17 @@ export default function Dashboard() {
   } : null;
 
   // Top Selling Medicines
+  const topMedChartColors = [
+    '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
+    '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
+  ];
   const topMedicinesChart = topMedicines.length > 0 ? {
     labels: topMedicines.map(m => m._id?.length > 20 ? m._id?.substring(0, 20) + '...' : m._id),
     datasets: [{
       label: 'Qty Sold',
       data: topMedicines.map(m => m.totalQty),
-      backgroundColor: 'rgba(59, 130, 246, 0.7)',
-      borderColor: '#3b82f6',
+      backgroundColor: topMedicines.map((_, i) => topMedChartColors[i % topMedChartColors.length]),
+      borderColor: topMedicines.map((_, i) => topMedChartColors[i % topMedChartColors.length]),
       borderWidth: 1,
       borderRadius: 4,
     }],
@@ -526,7 +530,7 @@ export default function Dashboard() {
             <h5><i className="fa-solid fa-receipt" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Recent Sales</h5>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}><i className="fa-solid fa-arrow-right"></i> View All</button>
           </div>
-          <div className="card-body" style={{ padding: 0 }}>
+          <div className="card-body dashboard-recent-sales-body">
             {/* Desktop table view */}
             <div className="table-container dashboard-table-scroll recent-sales-table">
               <table className="dashboard-table">

@@ -426,7 +426,7 @@ a {
 }
 
 .header-title {
-  font-size: 16px;
+  font-size: 22px;
   color: var(--gray-700);
   font-weight: 600;
   overflow: hidden;
@@ -705,11 +705,11 @@ tbody tr:hover {
   border-radius: 50%;
 }
 
-.status-toggle input:checked + .slider {
+.status-toggle input:checked+.slider {
   background-color: var(--success);
 }
 
-.status-toggle input:checked + .slider:before {
+.status-toggle input:checked+.slider:before {
   transform: translateX(14px);
 }
 
@@ -1089,6 +1089,7 @@ input[type="number"]::-webkit-outer-spin-button {
   opacity: 0.5;
   height: 16px;
 }
+
 input[type="number"]:focus {
   outline-offset: -2px;
 }
@@ -1167,7 +1168,7 @@ input[type="number"]:focus {
   z-index: var(--z-dropdown);
   max-height: 300px;
   overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   margin-top: 4px;
 }
 
@@ -1213,7 +1214,7 @@ input[type="number"]:focus {
 .search-dropdown-item .item-stock {
   font-size: 12px;
   color: var(--gray-500);
-}  
+}
 
 .search-dropdown-item .item-stock.low {
   color: var(--danger) !important;
@@ -1415,7 +1416,7 @@ input[type="number"]:focus {
   z-index: calc(var(--z-dropdown) + 3);
   max-height: 220px;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   margin-top: 4px;
 }
 
@@ -1573,10 +1574,21 @@ input[type="number"]:focus {
   color: #475569;
 }
 
-.summary-item-green .summary-label { color: #166534; }
-.summary-item-red .summary-label { color: #991b1b; }
-.summary-item-gray .summary-label { color: #475569; }
-.summary-item-blue .summary-label { color: #1e40af; }
+.summary-item-green .summary-label {
+  color: #166534;
+}
+
+.summary-item-red .summary-label {
+  color: #991b1b;
+}
+
+.summary-item-gray .summary-label {
+  color: #475569;
+}
+
+.summary-item-blue .summary-label {
+  color: #1e40af;
+}
 
 .summary-value {
   font-size: 24px;
@@ -1584,10 +1596,21 @@ input[type="number"]:focus {
   margin-top: 4px;
 }
 
-.summary-value-green { color: #16a34a; }
-.summary-value-red { color: #dc2626; }
-.summary-value-dark { color: var(--gray-800); }
-.summary-value-blue { color: #2563eb; }
+.summary-value-green {
+  color: #16a34a;
+}
+
+.summary-value-red {
+  color: #dc2626;
+}
+
+.summary-value-dark {
+  color: var(--gray-800);
+}
+
+.summary-value-blue {
+  color: #2563eb;
+}
 
 .card-body-chart {
   padding: 20px;
@@ -1683,6 +1706,164 @@ input[type="number"]:focus {
   background: transparent;
 }
 
+/* ===== Purchase Detail Page ===== */
+.detail-card-body {
+  padding: 8px 20px 16px !important;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--gray-100);
+  gap: 12px;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-500);
+  min-width: 130px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.detail-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  word-break: break-word;
+  flex: 1;
+  text-align: right;
+}
+
+.summary-grid {
+  max-width: 480px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--gray-100);
+  gap: 12px;
+}
+
+.summary-row:last-of-type {
+  border-bottom: none;
+}
+
+.summary-total {
+  border-top: 2px solid var(--gray-200);
+  border-bottom: none !important;
+  padding: 12px 0 10px;
+  margin-top: 4px;
+}
+
+.summary-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-600);
+  flex-shrink: 0;
+}
+
+.summary-total .summary-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.summary-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  text-align: right;
+  flex: 1;
+}
+
+.summary-total .summary-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+@media (max-width: 768px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 10px 0;
+  }
+
+  .detail-label {
+    min-width: auto;
+    font-size: 12px;
+  }
+
+  .detail-value {
+    text-align: left;
+    font-size: 14px;
+  }
+
+  .summary-grid {
+    max-width: 100%;
+  }
+
+  .summary-row {
+    padding: 8px 0;
+    gap: 8px;
+  }
+
+  .summary-label,
+  .summary-amount {
+    font-size: 13px;
+  }
+
+  .summary-total .summary-label,
+  .summary-total .summary-amount {
+    font-size: 15px;
+  }
+}
+
+/* ===== Dashboard Recent Sales Table ===== */
+.recent-sales-table {
+  display: block;
+  width: 100%;
+}
+
+/* Desktop: make Recent Sales table fill full card width */
+@media (min-width: 769px) {
+  .dashboard-recent-sales-body {
+    padding: 4px 20px !important;
+  }
+
+  .dashboard-recent-sales-body .table-container {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .dashboard-recent-sales-body .dashboard-table {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
 /* ===== Customer Mobile Expandable Table ===== */
 .customer-desktop-table {
   display: block;
@@ -1756,7 +1937,7 @@ input[type="number"]:focus {
   background: #fff;
   border-radius: 8px;
   margin: 0 4px 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .customer-detail-row-open .customer-detail-inner {
@@ -1868,7 +2049,7 @@ input[type="number"]:focus {
   background: #fff;
   border-radius: 8px;
   margin: 0 4px 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .sales-detail-row-open .sales-detail-inner {
@@ -2143,7 +2324,7 @@ input[type="number"]:focus {
   background: #fff;
   border-radius: 8px;
   margin: 0 4px 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .report-detail-row-open .report-detail-inner {
@@ -2376,15 +2557,15 @@ input[type="number"]:focus {
   .sale-layout {
     grid-template-columns: 1fr;
   }
-  
+
   .purchase-form-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .purchase-summary-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .customer-grid {
     flex-direction: column;
   }
@@ -2405,6 +2586,7 @@ input[type="number"]:focus {
 
 /* Mobile */
 @media (max-width: 768px) {
+
   /* === Sidebar === */
   .sidebar {
     width: 85vw;
@@ -2464,32 +2646,32 @@ input[type="number"]:focus {
 
   .header {
     padding: 0 16px;
-    height: 60px;
+    height: 68px;
   }
 
   .header-left {
-    gap: 14px;
+    gap: 16px;
   }
 
   .header-left .toggle-sidebar {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    height: 42px;
-    font-size: 20px;
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
   }
 
   .header-title {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   .header-right {
-    gap: 12px;
+    gap: 14px;
   }
 
   .header-right .user-info {
-    gap: 10px;
+    gap: 12px;
   }
 
   .header-right .user-details {
@@ -2497,9 +2679,9 @@ input[type="number"]:focus {
   }
 
   .header-right .avatar {
-    width: 36px;
-    height: 36px;
-    font-size: 14px;
+    width: 42px;
+    height: 42px;
+    font-size: 17px;
   }
 
   .form-row {
@@ -2530,27 +2712,27 @@ input[type="number"]:focus {
   /* === Stats Cards - 2x2 grid === */
   .stats-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: 14px;
+    margin-bottom: 18px;
   }
 
   .stat-card {
-    padding: 12px;
-    gap: 10px;
+    padding: 20px;
+    gap: 14px;
   }
 
   .stat-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
+    width: 54px;
+    height: 54px;
+    font-size: 26px;
   }
 
   .stat-info h3 {
-    font-size: 20px;
+    font-size: 30px;
   }
 
   .stat-info p {
-    font-size: 11px;
+    font-size: 14px;
   }
 
   /* === Cards === */
@@ -2745,7 +2927,8 @@ input[type="number"]:focus {
   .form-group input,
   .form-group select,
   .form-group textarea {
-    font-size: 16px; /* Prevents iOS zoom on focus */
+    font-size: 16px;
+    /* Prevents iOS zoom on focus */
     padding: 10px 12px;
   }
 
@@ -2933,13 +3116,13 @@ input[type="number"]:focus {
     padding: 4px 8px;
     width: 100%;
   }
-  
+
   /* Labels inside filters - match input width */
   .sales-filter-field label {
     font-size: 11px;
     margin-bottom: 2px;
   }
-  
+
   .sales-filter-search-group label {
     font-size: 11px;
     margin-bottom: 2px;
@@ -2994,7 +3177,7 @@ input[type="number"]:focus {
     right: 12px !important;
     top: auto !important;
     max-height: 250px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
   .customer-card-no-clip {
@@ -3012,7 +3195,7 @@ input[type="number"]:focus {
     right: 12px !important;
     top: auto !important;
     max-height: 250px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
   .search-dropdown-backdrop {
@@ -3162,7 +3345,7 @@ input[type="number"]:focus {
   }
 
   /* Sidebar should NOT affect page layout */
-  .sidebar.open ~ .main-content .page-content * {
+  .sidebar.open~.main-content .page-content * {
     transform: none !important;
     transition: none !important;
   }
@@ -3490,7 +3673,7 @@ input[type="number"]:focus {
     background: #fff;
     border-radius: 8px;
     margin: 0 4px 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   }
 
   .customer-payment-detail-row-open .customer-payment-detail-inner {
@@ -3556,7 +3739,7 @@ input[type="number"]:focus {
   }
 
   .stat-card {
-    padding: 10px;
+    padding: 18px 10px;
     gap: 8px;
   }
 
@@ -3567,7 +3750,7 @@ input[type="number"]:focus {
   }
 
   .stat-info h3 {
-    font-size: 18px;
+    font-size: 24px;
   }
 
   .stat-info p {
@@ -3633,7 +3816,7 @@ input[type="number"]:focus {
 
   .header {
     padding: 0 12px;
-    height: 56px;
+    height: 70px;
   }
 
   .header-left .toggle-sidebar {

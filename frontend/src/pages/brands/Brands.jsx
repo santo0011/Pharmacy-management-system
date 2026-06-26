@@ -172,7 +172,17 @@ export default function Brands() {
         </tr>
         <tr className={`customer-detail-row ${expanded ? 'customer-detail-row-open' : ''}`}>
           <td colSpan={3} className="customer-detail-cell">
-            <div className="customer-detail-inner">
+          <div className="customer-detail-inner">
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Logo</span>
+                <span className="customer-detail-value">
+                  {brand.logo ? (
+                    <img src={brand.logo} alt={brand.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} />
+                  ) : (
+                    <i className="fa-solid fa-building" style={{ color: 'var(--gray-400)', fontSize: '24px' }}></i>
+                  )}
+                </span>
+              </div>
               <div className="customer-detail-item">
                 <span className="customer-detail-label">Description</span>
                 <span className="customer-detail-value">{brand.description || '-'}</span>
