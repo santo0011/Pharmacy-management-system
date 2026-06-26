@@ -221,7 +221,7 @@ export default function Reports() {
     const { summary, trend } = purchaseData;
     return (
       <div>
-        <div className="report-summary-grid-two">
+        <div className="report-purchase-grid">
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #3b82f6' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Purchases</div>
@@ -232,6 +232,12 @@ export default function Reports() {
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Cost</div>
               <div className="report-stat-value" style={{ color: '#22c55e' }}>₹{Number(summary?.totalCost || 0).toFixed(2)}</div>
+            </div>
+          </div>
+          <div className="card report-summary-card report-purchase-due-card" style={{ borderLeft: '4px solid #ef4444' }}>
+            <div className="card-body report-card-body-sm">
+              <div className="report-card-label">Total Purchase Due</div>
+              <div className="report-stat-value" style={{ color: '#ef4444' }}>₹{Number(summary?.totalDue || 0).toFixed(2)}</div>
             </div>
           </div>
         </div>
@@ -279,7 +285,7 @@ export default function Reports() {
     const { profitLoss, totals } = profitLossData;
     return (
       <div>
-        <div className="report-summary-grid">
+        <div className="report-pl-grid">
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Revenue</div>
@@ -421,7 +427,7 @@ export default function Reports() {
               <div className="report-stat-value" style={{ color: '#22c55e' }}>₹{Number(summary?.totalStockValue || 0).toFixed(2)}</div>
             </div>
           </div>
-          <div className="card report-summary-card" style={{ borderLeft: '4px solid #ef4444' }}>
+          <div className="card report-summary-card report-stock-last-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Low Stock Items</div>
               <div className="report-stat-value" style={{ color: '#ef4444' }}>{summary?.lowStockItems || 0}</div>
@@ -475,6 +481,7 @@ export default function Reports() {
                 <thead>
                   <tr>
                     <th>Medicine</th>
+                    <th>Stock</th>
                     <th>Status</th>
                     <th className="report-expand-th"></th>
                   </tr>
@@ -483,6 +490,7 @@ export default function Reports() {
                   const expanded = isRowExpanded('stock', idx);
                   const mainCols = [
                     { render: (m) => <span style={{ fontWeight: 500 }}>{m.medicineName}</span> },
+                    { render: (m) => <span style={{ fontWeight: 600 }}>{m.currentStock}</span> },
                     { render: (m) => (
                       <span className={`badge ${m.currentStock <= m.minStockAlert ? 'badge-warning' : 'badge-success'}`}>
                         {m.currentStock <= m.minStockAlert ? 'Low Stock' : 'In Stock'}
@@ -538,8 +546,7 @@ export default function Reports() {
               <select
                 value={filters.period}
                 onChange={(e) => setFilters({ ...filters, period: e.target.value })}
-                className="form-select"
-                style={{ width: '120px', padding: '4px 8px' }}
+                className="form-select report-filter-input report-filter-period"
               >
                 <option value="daily">Daily</option>
                 <option value="monthly">Monthly</option>
@@ -549,17 +556,15 @@ export default function Reports() {
                 type="date"
                 value={filters.startDate}
                 onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                className="form-select"
-                style={{ width: '150px', padding: '4px 8px' }}
-                placeholder="Start Date"
+                className="form-select report-filter-input report-filter-date"
+                placeholder="MM/DD/YYYY"
               />
               <input
                 type="date"
                 value={filters.endDate}
                 onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                className="form-select"
-                style={{ width: '150px', padding: '4px 8px' }}
-                placeholder="End Date"
+                className="form-select report-filter-input report-filter-date"
+                placeholder="MM/DD/YYYY"
               />
             </div>
           )}

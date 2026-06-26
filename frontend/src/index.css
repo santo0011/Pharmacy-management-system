@@ -1666,6 +1666,118 @@ input[type="number"]:focus {
   background: transparent;
 }
 
+/* ===== Customer Mobile Expandable Table ===== */
+.customer-desktop-table {
+  display: block;
+}
+
+.customer-mobile-table {
+  display: none;
+}
+
+.customer-mobile-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.customer-mobile-row:hover {
+  background: var(--gray-50);
+}
+
+.customer-mobile-row td {
+  border-bottom: none !important;
+  vertical-align: middle;
+}
+
+.customer-expand-th {
+  width: 40px;
+  text-align: center;
+}
+
+.customer-expand-cell {
+  width: 40px;
+  text-align: center;
+  border-bottom: none !important;
+  vertical-align: middle;
+}
+
+.customer-expand-btn {
+  background: var(--gray-100);
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--gray-500);
+  font-size: 10px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.customer-expand-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.customer-detail-row {
+  display: table-row;
+}
+
+.customer-detail-cell {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.customer-detail-inner {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, padding 0.35s ease;
+  padding: 0 16px;
+  background: #fff;
+  border-radius: 8px;
+  margin: 0 4px 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.customer-detail-row-open .customer-detail-inner {
+  max-height: 500px;
+  padding: 12px 14px;
+}
+
+.customer-detail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+  gap: 12px;
+}
+
+.customer-detail-item:last-child {
+  border-bottom: none;
+}
+
+.customer-detail-label {
+  font-size: 12px;
+  color: var(--gray-500);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.customer-detail-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+  text-align: right;
+  flex: 1;
+  word-break: break-word;
+}
+
 /* ===== Recent Sales Mobile Styles ===== */
 .recent-sales-table {
   display: table;
@@ -1887,6 +1999,35 @@ input[type="number"]:focus {
 }
 
 /* ===== Report Page Styles ===== */
+.report-pl-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.report-filter-input {
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+}
+
+.report-filter-period {
+  width: 100px !important;
+  min-width: 100px !important;
+}
+
+.report-filter-date {
+  width: 140px !important;
+  min-width: 140px !important;
+}
+
+.report-purchase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
 .report-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -2467,6 +2608,10 @@ input[type="number"]:focus {
     gap: 10px;
   }
 
+  .report-stock-last-card {
+    grid-column: 1 / -1 !important;
+  }
+
   .report-two-col-grid {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -2537,6 +2682,50 @@ input[type="number"]:focus {
 
   .report-checkbox-label {
     font-size: 13px;
+  }
+
+  /* === Profit & Loss Grid Mobile === */
+  .report-pl-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+
+  .report-filter-period {
+    width: 100% !important;
+    min-width: 100px !important;
+    max-width: 100% !important;
+  }
+
+  .report-filter-date {
+    width: 100% !important;
+    min-width: 120px !important;
+    max-width: 100% !important;
+    font-size: 13px !important;
+  }
+
+  .report-filter-input {
+    padding: 6px 8px !important;
+    font-size: 13px !important;
+    min-height: 34px !important;
+  }
+
+  /* === Reports Purchase Grid Mobile === */
+  .report-purchase-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+
+  .report-purchase-due-card {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* === Customer Mobile Tables === */
+  .customer-desktop-table {
+    display: none;
+  }
+
+  .customer-mobile-table {
+    display: block;
   }
 
   /* === Expandable Mobile Tables === */

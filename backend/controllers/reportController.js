@@ -112,6 +112,8 @@ export const getPurchaseReport = async (req, res, next) => {
           totalPurchases: { $sum: 1 },
           totalCost: { $sum: '$grandTotal' },
           totalDiscount: { $sum: '$discountAmount' },
+          totalPaid: { $sum: '$paidAmount' },
+          totalDue: { $sum: '$dueAmount' },
         },
       },
     ]);
@@ -133,7 +135,7 @@ export const getPurchaseReport = async (req, res, next) => {
     ]);
 
     return ApiResponse.success(res, {
-      summary: summary[0] || { totalPurchases: 0, totalCost: 0, totalDiscount: 0 },
+      summary: summary[0] || { totalPurchases: 0, totalCost: 0, totalDiscount: 0, totalPaid: 0, totalDue: 0 },
       trend,
     });
   } catch (error) {

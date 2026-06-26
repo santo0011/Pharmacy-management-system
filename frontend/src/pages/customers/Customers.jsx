@@ -23,6 +23,7 @@ export default function Customers() {
   const [paymentCustomer, setPaymentCustomer] = useState(null);
   const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
   const [detailTab, setDetailTab] = useState('purchases');
+  const [expandedRows, setExpandedRows] = useState({});
 
   // --- Edit Customer States ---
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -34,6 +35,18 @@ export default function Customers() {
   const [historyCustomer, setHistoryCustomer] = useState(null);
   const [editHistory, setEditHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  const toggleRow = (tableKey, rowIdx) => {
+    const key = `${tableKey}-${rowIdx}`;
+    setExpandedRows(prev => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const isRowExpanded = (tableKey, rowIdx) => {
+    return !!expandedRows[`${tableKey}-${rowIdx}`];
+  };
 
   // --- Fetch All Customers ---
   const fetchCustomers = useCallback(async () => {
@@ -149,6 +162,40 @@ export default function Customers() {
   const totalPages = Math.ceil(total / limit);
   const dueTotalPages = Math.ceil(dueTotal / limit);
 
+  // --- Render Mobile Expandable Row ---
+  const renderExpandableRow = (item, idx, tableKey, isExpanded, onToggle, mainCols, detailRows) => {
+    return (
+      <tbody key={idx}>
+        <tr className="customer-mobile-row" onClick={onToggle}>
+          {mainCols.map((col, ci) => (
+            <td key={ci} className={col.className || ''} style={col.style || {}}>
+              {col.render(item)}
+            </td>
+          ))}
+          <td className="customer-expand-cell">
+            <button className="customer-expand-btn">
+              <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`customer-detail-row ${isExpanded ? 'customer-detail-row-open' : ''}`}>
+          <td colSpan={mainCols.length + 1} className="customer-detail-cell">
+            <div className="customer-detail-inner">
+              {detailRows.map((detail, di) => (
+                <div key={di} className="customer-detail-item">
+                  <span className="customer-detail-label">{detail.label}</span>
+                  <span className="customer-detail-value" style={detail.style || {}}>
+                    {detail.render(item)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
+
   // --- Render All Customers Tab ---
   const renderAllCustomers = () => (
     <div className="card">
@@ -176,50 +223,94 @@ export default function Customers() {
             <p>Customers will appear here after they make purchases.</p>
           </div>
         ) : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Customer Name</th>
-                  <th>Phone</th>
-                  <th>Total Purchases</th>
-                  <th>Total Spent</th>
-                  <th>Last Purchase</th>
-                  <th></th>
-                  <th></th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((customer, idx) => (
-                  <tr key={customer._id || idx}>
-                    <td>{(page - 1) * limit + idx + 1}</td>
-                    <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
-                    <td>{customer.customerPhone || '-'}</td>
-                    <td>{customer.totalPurchases}</td>
-                    <td style={{ fontWeight: 600 }}>₹{Number(customer.totalSpent).toFixed(2)}</td>
-                    <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
-                    <td>
-                      <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)} title="View Details">
-                        <i className="fa-solid fa-eye"></i> View
-                      </button>
-                    </td>
-                    <td>
-                      <button className="btn btn-warning btn-sm" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
-                        <i className="fa-solid fa-edit"></i> Edit
-                      </button>
-                    </td>
-                    <td>
-                      <button className="btn btn-secondary btn-sm" onClick={() => handleViewHistory(customer)} title="Edit History">
-                        <i className="fa-solid fa-history"></i> History
-                      </button>
-                    </td>
+          <>
+            {/* Desktop table */}
+            <div className="customer-desktop-table">
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Customer Name</th>
+                      <th>Phone</th>
+                      <th>Total Purchases</th>
+                      <th>Total Spent</th>
+                      <th>Last Purchase</th>
+                      <th></th>
+                      <th></th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customers.map((customer, idx) => (
+                      <tr key={customer._id || idx}>
+                        <td>{(page - 1) * limit + idx + 1}</td>
+                        <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
+                        <td>{customer.customerPhone || '-'}</td>
+                        <td>{customer.totalPurchases}</td>
+                        <td style={{ fontWeight: 600 }}>₹{Number(customer.totalSpent).toFixed(2)}</td>
+                        <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
+                        <td>
+                          <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)} title="View Details">
+                            <i className="fa-solid fa-eye"></i> View
+                          </button>
+                        </td>
+                        <td>
+                          <button className="btn btn-warning btn-sm" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
+                            <i className="fa-solid fa-edit"></i> Edit
+                          </button>
+                        </td>
+                        <td>
+                          <button className="btn btn-secondary btn-sm" onClick={() => handleViewHistory(customer)} title="Edit History">
+                            <i className="fa-solid fa-history"></i> History
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile table */}
+            <div className="customer-mobile-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Total Spent</th>
+                    <th className="customer-expand-th"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                {customers.map((customer, idx) => {
+                  const expanded = isRowExpanded('all', idx);
+                  const mainCols = [
+                    { render: (c) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{c.customerName}</span> },
+                    { render: (c) => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>₹{Number(c.totalSpent).toFixed(2)}</span> },
+                  ];
+                  const detailRows = [
+                    { label: 'Phone', render: (c) => c.customerPhone || '-' },
+                    { label: 'Total Purchases', render: (c) => c.totalPurchases },
+                    { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
+                    { label: 'Actions', render: (c) => (
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                          <i className="fa-solid fa-eye"></i>
+                        </button>
+                        <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }} title="Edit Customer" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                          <i className="fa-solid fa-edit"></i>
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleViewHistory(c); }} title="Edit History" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                          <i className="fa-solid fa-history"></i>
+                        </button>
+                      </div>
+                    )},
+                  ];
+                  return renderExpandableRow(customer, idx, 'all', expanded, () => toggleRow('all', idx), mainCols, detailRows);
+                })}
+              </table>
+            </div>
+          </>
         )}
 
         {totalPages > 1 && (
@@ -279,60 +370,112 @@ export default function Customers() {
             <p>All customers have cleared their payments.</p>
           </div>
         ) : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Customer Name</th>
-                  <th>Phone</th>
-                  <th>Total Sales</th>
-                  <th>Total Paid</th>
-                  <th>Total Due</th>
-                  <th>Last Purchase</th>
-                  <th></th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {dueCustomers.map((customer, idx) => (
-                  <tr key={idx}>
-                    <td>{(duePage - 1) * limit + idx + 1}</td>
-                    <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
-                    <td>{customer.customerPhone || '-'}</td>
-                    <td>{customer.totalPurchases}</td>
-                    <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(customer.totalPaid).toFixed(2)}</td>
-                    <td style={{ fontWeight: 700, color: customer.totalDue > 0 ? '#dc2626' : '#16a34a' }}>
-                      ₹{Number(customer.totalDue).toFixed(2)}
-                    </td>
-                    <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
-                    <td>
-                      <button
-                        className="btn btn-info btn-sm"
-                        onClick={() => handleViewCustomer(customer)}
-                        title="View Details"
-                      >
-                        <i className="fa-solid fa-eye"></i>
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-success btn-sm"
-                        onClick={() => {
-                          setPaymentCustomer(customer);
-                          setPaymentDrawerOpen(true);
-                        }}
-                        disabled={customer.totalDue <= 0}
-                        title="Collect Payment"
-                      >
-                        <i className="fa-solid fa-indian-rupee-sign"></i> Payment
-                      </button>
-                    </td>
+          <>
+            {/* Desktop table */}
+            <div className="customer-desktop-table">
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Customer Name</th>
+                      <th>Phone</th>
+                      <th>Total Sales</th>
+                      <th>Total Paid</th>
+                      <th>Total Due</th>
+                      <th>Last Purchase</th>
+                      <th></th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dueCustomers.map((customer, idx) => (
+                      <tr key={idx}>
+                        <td>{(duePage - 1) * limit + idx + 1}</td>
+                        <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
+                        <td>{customer.customerPhone || '-'}</td>
+                        <td>{customer.totalPurchases}</td>
+                        <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(customer.totalPaid).toFixed(2)}</td>
+                        <td style={{ fontWeight: 700, color: customer.totalDue > 0 ? '#dc2626' : '#16a34a' }}>
+                          ₹{Number(customer.totalDue).toFixed(2)}
+                        </td>
+                        <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
+                        <td>
+                          <button
+                            className="btn btn-info btn-sm"
+                            onClick={() => handleViewCustomer(customer)}
+                            title="View Details"
+                          >
+                            <i className="fa-solid fa-eye"></i>
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={() => {
+                              setPaymentCustomer(customer);
+                              setPaymentDrawerOpen(true);
+                            }}
+                            disabled={customer.totalDue <= 0}
+                            title="Collect Payment"
+                          >
+                            <i className="fa-solid fa-indian-rupee-sign"></i> Payment
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile table */}
+            <div className="customer-mobile-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Total Due</th>
+                    <th className="customer-expand-th"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                {dueCustomers.map((customer, idx) => {
+                  const expanded = isRowExpanded('due', idx);
+                  const mainCols = [
+                    { render: (c) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{c.customerName}</span> },
+                    { render: (c) => (
+                      <span style={{ fontWeight: 700, color: c.totalDue > 0 ? '#dc2626' : '#16a34a' }}>
+                        ₹{Number(c.totalDue).toFixed(2)}
+                      </span>
+                    )},
+                  ];
+                  const detailRows = [
+                    { label: 'Phone', render: (c) => c.customerPhone || '-' },
+                    { label: 'Total Sales', render: (c) => c.totalPurchases },
+                    { label: 'Total Paid', render: (c) => <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(c.totalPaid).toFixed(2)}</span> },
+                    { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
+                    { label: 'Actions', render: (c) => (
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                          <i className="fa-solid fa-eye"></i>
+                        </button>
+                        <button
+                          className="btn btn-success btn-sm"
+                          onClick={(e) => { e.stopPropagation(); setPaymentCustomer(c); setPaymentDrawerOpen(true); }}
+                          disabled={c.totalDue <= 0}
+                          title="Collect Payment"
+                          style={{ padding: '3px 8px', fontSize: '11px' }}
+                        >
+                          <i className="fa-solid fa-indian-rupee-sign"></i>
+                        </button>
+                      </div>
+                    )},
+                  ];
+                  return renderExpandableRow(customer, idx, 'due', expanded, () => toggleRow('due', idx), mainCols, detailRows);
+                })}
+              </table>
+            </div>
+          </>
         )}
 
         {dueTotalPages > 1 && (
