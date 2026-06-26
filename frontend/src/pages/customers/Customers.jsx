@@ -196,6 +196,40 @@ export default function Customers() {
     );
   };
 
+  // --- Render Payment Mobile Expandable Row (same pattern but different CSS classes) ---
+  const renderPaymentExpandableRow = (item, idx, isExpanded, onToggle, mainCols, detailRows) => {
+    return (
+      <tbody key={idx}>
+        <tr className="customer-payment-mobile-row" onClick={onToggle}>
+          {mainCols.map((col, ci) => (
+            <td key={ci} className={col.className || ''} style={col.style || {}}>
+              {col.render(item)}
+            </td>
+          ))}
+          <td className="customer-payment-expand-cell">
+            <button className="customer-payment-expand-btn">
+              <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`customer-payment-detail-row ${isExpanded ? 'customer-payment-detail-row-open' : ''}`}>
+          <td colSpan={mainCols.length + 1} className="customer-payment-detail-cell">
+            <div className="customer-payment-detail-inner">
+              {detailRows.map((detail, di) => (
+                <div key={di} className="customer-payment-detail-item">
+                  <span className="customer-payment-detail-label">{detail.label}</span>
+                  <span className="customer-payment-detail-value" style={detail.style || {}}>
+                    {detail.render(item)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
+
   // --- Render All Customers Tab ---
   const renderAllCustomers = () => (
     <div className="card">
@@ -236,9 +270,9 @@ export default function Customers() {
                       <th>Total Purchases</th>
                       <th>Total Spent</th>
                       <th>Last Purchase</th>
-                      <th></th>
-                      <th></th>
-                      <th></th>
+                      <th>View</th>
+                      <th>Edit</th>
+                      <th>History</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -293,14 +327,14 @@ export default function Customers() {
                     { label: 'Total Purchases', render: (c) => c.totalPurchases },
                     { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
                     { label: 'Actions', render: (c) => (
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
                           <i className="fa-solid fa-eye"></i>
                         </button>
-                        <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }} title="Edit Customer" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                        <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }} title="Edit Customer">
                           <i className="fa-solid fa-edit"></i>
                         </button>
-                        <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleViewHistory(c); }} title="Edit History" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                        <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleViewHistory(c); }} title="Edit History">
                           <i className="fa-solid fa-history"></i>
                         </button>
                       </div>
@@ -384,8 +418,8 @@ export default function Customers() {
                       <th>Total Paid</th>
                       <th>Total Due</th>
                       <th>Last Purchase</th>
-                      <th></th>
-                      <th></th>
+                      <th>View</th>
+                      <th>Payment</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -455,8 +489,8 @@ export default function Customers() {
                     { label: 'Total Paid', render: (c) => <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(c.totalPaid).toFixed(2)}</span> },
                     { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
                     { label: 'Actions', render: (c) => (
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
                           <i className="fa-solid fa-eye"></i>
                         </button>
                         <button
@@ -464,7 +498,6 @@ export default function Customers() {
                           onClick={(e) => { e.stopPropagation(); setPaymentCustomer(c); setPaymentDrawerOpen(true); }}
                           disabled={c.totalDue <= 0}
                           title="Collect Payment"
-                          style={{ padding: '3px 8px', fontSize: '11px' }}
                         >
                           <i className="fa-solid fa-indian-rupee-sign"></i>
                         </button>
@@ -500,7 +533,7 @@ export default function Customers() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '2px solid var(--gray-200)', paddingBottom: '8px' }}>
+      <div className="customer-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '2px solid var(--gray-200)', paddingBottom: '8px' }}>
         <button
           className={`btn ${activeTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ border: 'none', borderRadius: '8px 8px 0 0', fontSize: '13px' }}
@@ -522,7 +555,7 @@ export default function Customers() {
       {/* Enhanced Customer Detail Drawer */}
       {selectedCustomer && (
         <div className="modal-overlay" onClick={() => { setSelectedCustomer(null); setCustomerDetail(null); }}>
-          <div className="drawer open" onClick={(e) => e.stopPropagation()} style={{ width: '750px' }}>
+          <div className="drawer open customer-detail-drawer" onClick={(e) => e.stopPropagation()} style={{ width: '750px' }}>
             <div className="drawer-header">
               <h3>
                 <i className="fa-solid fa-user"></i> {selectedCustomer.customerName}
@@ -538,7 +571,7 @@ export default function Customers() {
                 <>
                   <div className="card" style={{ marginBottom: '16px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' }}>
                     <div className="card-body">
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                      <div className="customer-detail-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                         <div>
                           <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</label>
                           <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '2px', color: '#0f172a' }}>{customerDetail.customer?.customerName}</div>
@@ -552,7 +585,7 @@ export default function Customers() {
                           <div style={{ fontWeight: 500, marginTop: '2px', fontSize: '13px' }}>{customerDetail.customer?.customerAddress || '-'}</div>
                         </div>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                      <div className="customer-detail-stats-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                         <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '12px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
                           <div style={{ fontSize: '11px', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Purchases</div>
                           <div style={{ fontSize: '20px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>{customerDetail.customer?.totalPurchases || 0}</div>
@@ -572,7 +605,7 @@ export default function Customers() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', borderBottom: '2px solid var(--gray-200)', paddingBottom: '8px' }}>
+                  <div className="customer-detail-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '12px', borderBottom: '2px solid var(--gray-200)', paddingBottom: '8px' }}>
                     <button className={`btn btn-sm ${detailTab === 'purchases' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDetailTab('purchases')} style={{ borderRadius: '6px' }}>
                       <i className="fa-solid fa-receipt"></i> Purchase History {customerDetail.total > 0 && <span style={{ marginLeft: '4px', fontSize: '11px' }}>({customerDetail.total})</span>}
                     </button>
@@ -592,7 +625,7 @@ export default function Customers() {
                             }}>
                               <div className="card-body" style={{ padding: '14px' }}>
                                 {/* Bill Header */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <div className="customer-detail-invoice-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                   <div>
                                     <span style={{ fontWeight: 600, fontSize: '14px' }}>{sale.invoiceNumber}</span>
                                     <span style={{ fontSize: '12px', color: '#888', marginLeft: '8px' }}>
@@ -606,7 +639,7 @@ export default function Customers() {
 
                                 {/* Medicine Items */}
                                 {sale.items && sale.items.length > 0 && (
-                                  <div style={{ marginBottom: '8px', padding: '6px 10px', background: '#f9fafb', borderRadius: '6px' }}>
+                                  <div className="customer-detail-invoice-items" style={{ marginBottom: '8px', padding: '6px 10px', background: '#f9fafb', borderRadius: '6px' }}>
                                     <div style={{ fontSize: '11px', color: '#888', fontWeight: 600, marginBottom: '4px' }}>MEDICINES</div>
                                     <div style={{ fontSize: '13px', lineHeight: '1.8' }}>
                                       {sale.items.map((item, i) => (
@@ -621,7 +654,7 @@ export default function Customers() {
                                 )}
 
                                 {/* Payment Summary */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '12px', padding: '6px 10px', background: sale.dueAmount > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '6px' }}>
+                                <div className="customer-detail-invoice-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '12px', padding: '6px 10px', background: sale.dueAmount > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '6px' }}>
                                   <div>
                                     <span style={{ color: '#888' }}>Amount: </span>
                                     <span style={{ fontWeight: 600 }}>₹{Number(sale.grandTotal).toFixed(2)}</span>
@@ -652,24 +685,64 @@ export default function Customers() {
                   {detailTab === 'payments' && (
                     <>
                       {customerDetail.paymentHistory && customerDetail.paymentHistory.length > 0 ? (
-                        <div className="table-container">
-                          <table>
-                            <thead><tr><th>#</th><th>Date & Time</th><th>Invoice</th><th>Amount</th><th>Method</th><th>Remaining Due</th><th>Collected By</th></tr></thead>
-                            <tbody>
-                              {customerDetail.paymentHistory.map((payment, idx) => (
-                                <tr key={payment._id}>
-                                  <td>{idx + 1}</td>
-                                  <td>{new Date(payment.paymentDate || payment.createdAt).toLocaleString()}</td>
-                                  <td style={{ fontWeight: 500 }}>{payment.sale?.invoiceNumber || '-'}</td>
-                                  <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(payment.amount).toFixed(2)}</td>
-                                  <td><span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>{payment.paymentMethod ? payment.paymentMethod.replace('_', ' ') : 'Cash'}</span></td>
-                                  <td style={{ fontWeight: 600, color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>₹{Number(payment.remainingDue).toFixed(2)}</td>
-                                  <td>{payment.createdBy?.name || 'Unknown'}</td>
+                        <>
+                          {/* Desktop table */}
+                          <div className="customer-payment-desktop-table">
+                            <div className="table-container">
+                              <table>
+                                <thead><tr><th>#</th><th>Date & Time</th><th>Invoice</th><th>Amount</th><th>Method</th><th>Remaining Due</th><th>Collected By</th></tr></thead>
+                                <tbody>
+                                  {customerDetail.paymentHistory.map((payment, idx) => (
+                                    <tr key={payment._id}>
+                                      <td>{idx + 1}</td>
+                                      <td>{new Date(payment.paymentDate || payment.createdAt).toLocaleString()}</td>
+                                      <td style={{ fontWeight: 500 }}>{payment.sale?.invoiceNumber || '-'}</td>
+                                      <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(payment.amount).toFixed(2)}</td>
+                                      <td><span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>{payment.paymentMethod ? payment.paymentMethod.replace('_', ' ') : 'Cash'}</span></td>
+                                      <td style={{ fontWeight: 600, color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>₹{Number(payment.remainingDue).toFixed(2)}</td>
+                                      <td>{payment.createdBy?.name || 'Unknown'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Mobile expandable rows */}
+                          <div className="customer-payment-mobile-table">
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Date & Time</th>
+                                  <th>Amount</th>
+                                  <th className="customer-payment-expand-th"></th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                              </thead>
+                              {customerDetail.paymentHistory.map((payment, idx) => {
+                                const expanded = isRowExpanded('pay', idx);
+                                const mainCols = [
+                                  { render: (p) => <span style={{ fontSize: '12px' }}>{new Date(p.paymentDate || p.createdAt).toLocaleString()}</span> },
+                                  { render: (p) => <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(p.amount).toFixed(2)}</span> },
+                                ];
+                                const detailRows = [
+                                  { label: 'Invoice', render: (p) => p.sale?.invoiceNumber || '-' },
+                                  { label: 'Method', render: (p) => (
+                                    <span className={`badge ${p.paymentMethod === 'cash' ? 'badge-success' : p.paymentMethod === 'card' ? 'badge-info' : p.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`} style={{ fontSize: '11px' }}>
+                                      {p.paymentMethod ? p.paymentMethod.replace('_', ' ') : 'Cash'}
+                                    </span>
+                                  )},
+                                  { label: 'Remaining Due', render: (p) => (
+                                    <span style={{ fontWeight: 600, color: Number(p.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>
+                                      ₹{Number(p.remainingDue).toFixed(2)}
+                                    </span>
+                                  )},
+                                  { label: 'Collected By', render: (p) => p.createdBy?.name || 'Unknown' },
+                                ];
+                                return renderPaymentExpandableRow(payment, `pay-${idx}`, expanded, () => toggleRow('pay', idx), mainCols, detailRows);
+                              })}
+                            </table>
+                          </div>
+                        </>
                       ) : (
                         <div className="empty-state" style={{ padding: '20px' }}><i className="fa-solid fa-credit-card" style={{ fontSize: '36px', color: 'var(--gray-300)' }}></i><p>No payment history available.</p></div>
                       )}
@@ -687,7 +760,7 @@ export default function Customers() {
       {/* Edit Customer Modal */}
       {editingCustomer && (
         <div className="modal-overlay" onClick={() => setEditingCustomer(null)}>
-          <div className="drawer open" onClick={(e) => e.stopPropagation()} style={{ width: '450px' }}>
+          <div className="drawer open edit-customer-drawer" onClick={(e) => e.stopPropagation()} style={{ width: '450px' }}>
             <div className="drawer-header">
               <h3><i className="fa-solid fa-edit"></i> Edit Customer</h3>
               <button className="btn btn-sm btn-secondary" onClick={() => setEditingCustomer(null)}>
@@ -715,22 +788,24 @@ export default function Customers() {
       )}
 
       {/* Payment Drawer */}
-      <PaymentDrawer
-        isOpen={paymentDrawerOpen}
-        onClose={() => {
-          setPaymentDrawerOpen(false);
-          setPaymentCustomer(null);
-        }}
-        customer={paymentCustomer}
-        onPaymentComplete={() => {
-          fetchDueCustomers();
-        }}
-      />
+      <div className="payment-drawer-wrapper">
+        <PaymentDrawer
+          isOpen={paymentDrawerOpen}
+          onClose={() => {
+            setPaymentDrawerOpen(false);
+            setPaymentCustomer(null);
+          }}
+          customer={paymentCustomer}
+          onPaymentComplete={() => {
+            fetchDueCustomers();
+          }}
+        />
+      </div>
 
       {/* Edit History Drawer */}
       {historyCustomer && (
         <div className="modal-overlay" onClick={() => { setHistoryCustomer(null); setEditHistory([]); }}>
-          <div className="drawer open" onClick={(e) => e.stopPropagation()} style={{ width: '600px' }}>
+          <div className="drawer open edit-history-drawer" onClick={(e) => e.stopPropagation()} style={{ width: '600px' }}>
             <div className="drawer-header">
               <h3>
                 <i className="fa-solid fa-history"></i> Edit History - {historyCustomer.customerName}
@@ -751,13 +826,13 @@ export default function Customers() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {editHistory.map((record, idx) => (
-                    <div key={record._id || idx} className="card" style={{
+                    <div key={record._id || idx} className="card edit-history-card" style={{
                       margin: 0,
                       border: '1px solid var(--gray-200)',
                       borderLeft: '4px solid #f59e0b',
                     }}>
                       <div className="card-body" style={{ padding: '14px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px', color: '#888' }}>
+                        <div className="edit-history-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px', color: '#888' }}>
                           <span>
                             <i className="fa-solid fa-user-edit"></i> Edited by <strong>{record.editedByName || 'Unknown'}</strong>
                           </span>
@@ -766,9 +841,9 @@ export default function Customers() {
 
                         {/* Change details */}
                         {record.changes && record.changes.length > 0 && (
-                          <div style={{ background: '#fffbeb', borderRadius: '6px', padding: '10px', border: '1px solid #fde68a' }}>
+                          <div className="edit-history-changes" style={{ background: '#fffbeb', borderRadius: '6px', padding: '10px', border: '1px solid #fde68a' }}>
                             {record.changes.map((change, ci) => (
-                              <div key={ci} style={{ marginBottom: ci < record.changes.length - 1 ? '8px' : 0, fontSize: '13px' }}>
+                              <div key={ci} className="change-row" style={{ marginBottom: ci < record.changes.length - 1 ? '8px' : 0, fontSize: '13px' }}>
                                 <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '2px' }}>
                                   <i className="fa-solid fa-pen"></i> {change.label || change.field}
                                 </div>

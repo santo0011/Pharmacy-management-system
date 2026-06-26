@@ -2728,6 +2728,339 @@ input[type="number"]:focus {
     display: block;
   }
 
+  /* === Customer Mobile Action Icons - bigger touch targets === */
+  .customer-mobile-table .btn-sm {
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .customer-mobile-table .btn-sm i {
+    font-size: 14px;
+  }
+
+  /* === Customer Detail Drawer - View === */
+  .customer-detail-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .customer-detail-drawer .drawer-body {
+    padding: 12px !important;
+  }
+
+  .customer-detail-grid-3col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .customer-detail-stats-3col {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .customer-detail-info-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .customer-detail-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+    gap: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .customer-detail-tabs .btn {
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
+
+  /* === Invoice Cards inside Detail Drawer - Mobile === */
+  .customer-detail-invoice-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+
+  .customer-detail-invoice-items {
+    font-size: 12px !important;
+  }
+
+  .customer-detail-invoice-summary {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    font-size: 12px !important;
+  }
+
+  /* === Edit Customer Drawer - Mobile === */
+  .edit-customer-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* === Edit History Drawer - Mobile === */
+  .edit-history-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .edit-history-card {
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  .edit-history-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+
+  .edit-history-changes {
+    font-size: 12px !important;
+  }
+
+  .edit-history-changes .change-row {
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+
+  /* === Payment Drawer - Mobile === */
+  .payment-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .payment-drawer .drawer-body {
+    padding: 12px !important;
+  }
+
+  .payment-drawer-customer-card {
+    padding: 12px !important;
+  }
+
+  .payment-drawer-customer-card .card-body {
+    padding: 12px !important;
+  }
+
+  .payment-drawer-customer-info {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .payment-drawer-customer-info .text-right {
+    text-align: left !important;
+  }
+
+  .payment-method-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 4px !important;
+  }
+
+  .payment-method-grid .btn {
+    font-size: 10px !important;
+    padding: 8px 4px !important;
+    min-height: 44px;
+  }
+
+  .payment-method-grid .btn i {
+    font-size: 16px !important;
+  }
+
+  .payment-invoice-amount-input {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .payment-invoice-amount-input .amount-field {
+    width: 100% !important;
+  }
+
+  .payment-invoice-amount-input .amount-field input {
+    width: 100% !important;
+    font-size: 16px !important;
+    padding: 10px 8px 10px 28px !important;
+  }
+
+  .payment-invoice-amount-input .action-btns {
+    width: 100% !important;
+    display: flex;
+    gap: 8px;
+  }
+
+  .payment-invoice-amount-input .action-btns .btn {
+    flex: 1;
+    min-height: 44px;
+    font-size: 14px !important;
+  }
+
+  .payment-invoice-details-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    font-size: 12px !important;
+  }
+
+  .payment-invoice-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+
+  /* Due Customer Summary Cards - Mobile */
+  .customer-due-summary-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  .customer-due-summary-card {
+    padding: 12px !important;
+  }
+
+  .customer-due-summary-card .summary-amount {
+    font-size: 18px !important;
+  }
+
+  /* Search inputs in customer page - mobile */
+  .customer-search-wrapper {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+
+  .customer-search-wrapper input {
+    width: 100% !important;
+  }
+
+  .customer-search-wrapper .total-count {
+    text-align: right;
+  }
+
+  /* Tabs - mobile */
+  .customer-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 0 !important;
+  }
+
+  .customer-tabs .btn {
+    white-space: nowrap;
+    font-size: 12px !important;
+    padding: 8px 14px !important;
+  }
+
+  /* === Payment History Mobile Table === */
+  .customer-payment-desktop-table {
+    display: none;
+  }
+
+  .customer-payment-mobile-table {
+    display: block;
+  }
+
+  .customer-payment-mobile-row {
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .customer-payment-mobile-row:hover {
+    background: var(--gray-50);
+  }
+
+  .customer-payment-mobile-row td {
+    border-bottom: none !important;
+    vertical-align: middle;
+  }
+
+  .customer-payment-expand-th {
+    width: 40px;
+    text-align: center;
+  }
+
+  .customer-payment-expand-cell {
+    width: 40px;
+    text-align: center;
+    border-bottom: none !important;
+    vertical-align: middle;
+  }
+
+  .customer-payment-expand-btn {
+    background: var(--gray-100);
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--gray-500);
+    font-size: 10px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .customer-payment-expand-btn:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+
+  .customer-payment-detail-row {
+    display: table-row;
+  }
+
+  .customer-payment-detail-cell {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .customer-payment-detail-inner {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+    padding: 0 16px;
+    background: #fff;
+    border-radius: 8px;
+    margin: 0 4px 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .customer-payment-detail-row-open .customer-payment-detail-inner {
+    max-height: 500px;
+    padding: 12px 14px;
+  }
+
+  .customer-payment-detail-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--gray-100);
+    gap: 12px;
+  }
+
+  .customer-payment-detail-item:last-child {
+    border-bottom: none;
+  }
+
+  .customer-payment-detail-label {
+    font-size: 12px;
+    color: var(--gray-500);
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .customer-payment-detail-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-800);
+    text-align: right;
+    flex: 1;
+    word-break: break-word;
+  }
+
   /* === Expandable Mobile Tables === */
   .report-desktop-table {
     display: none;
