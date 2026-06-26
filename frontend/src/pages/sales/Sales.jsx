@@ -11,6 +11,18 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({ status: '', startDate: '', endDate: '' });
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const toggleRow = (rowIdx) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [rowIdx]: !prev[rowIdx],
+    }));
+  };
+
+  const isRowExpanded = (rowIdx) => {
+    return !!expandedRows[rowIdx];
+  };
 
   const loadData = useCallback(() => {
     const params = { page: currentPage, limit: 10, ...filters };
@@ -23,6 +35,81 @@ export default function Sales() {
   useEffect(() => { setCurrentPage(1); }, [search, filters]);
 
   const totalPages = Math.ceil(total / 10);
+
+  // --- Render Mobile Expandable Row ---
+  const renderSalesMobileRow = (sale, idx) => {
+    const expanded = isRowExpanded(idx);
+    const paymentBadgeClass = sale.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning';
+    const statusBadgeClass = sale.status === 'completed' ? 'badge-success' : sale.status === 'returned' ? 'badge-info' : 'badge-danger';
+    return (
+      <tbody key={sale._id || idx}>
+        <tr className="sales-mobile-row" onClick={() => toggleRow(idx)}>
+          <td>
+            <span style={{ fontWeight: 500, fontSize: '13px' }}>{sale.invoiceNumber}</span>
+          </td>
+          <td>
+            <span style={{ fontWeight: 600, fontSize: '13px' }}>₹{sale.grandTotal?.toFixed(2)}</span>
+          </td>
+          <td className="sales-expand-cell">
+            <button className="sales-expand-btn">
+              <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`sales-detail-row ${expanded ? 'sales-detail-row-open' : ''}`}>
+          <td colSpan={3} className="sales-detail-cell">
+            <div className="sales-detail-inner">
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Customer</span>
+                <span className="sales-detail-value">{sale.customerName}</span>
+              </div>
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Date</span>
+                <span className="sales-detail-value">{new Date(sale.saleDate).toLocaleDateString()}</span>
+              </div>
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Items</span>
+                <span className="sales-detail-value">{sale.items?.length || 0}</span>
+              </div>
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Payment</span>
+                <span className="sales-detail-value">
+                  <span className={`badge ${paymentBadgeClass}`} style={{ fontSize: '11px' }}>{sale.paymentStatus}</span>
+                </span>
+              </div>
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Status</span>
+                <span className="sales-detail-value">
+                  <span className={`badge ${statusBadgeClass}`} style={{ fontSize: '11px' }}>{sale.status}</span>
+                </span>
+              </div>
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Actions</span>
+                <span className="sales-detail-value">
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn btn-info btn-sm"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/sales/${sale._id}`); }}
+                      title="View Details"
+                    >
+                      <i className="fa-solid fa-eye"></i>
+                    </button>
+                    <button
+                      className="btn btn-success btn-sm"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/sales/${sale._id}/invoice`); }}
+                      title="Invoice / Print"
+                    >
+                      <i className="fa-solid fa-print"></i>
+                    </button>
+                  </div>
+                </span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
 
   return (
     <div>
@@ -40,29 +127,29 @@ export default function Sales() {
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-body">
-          <div className="search-bar" style={{ marginBottom: '12px' }}>
-            <div className="search-input" style={{ maxWidth: '400px' }}>
-              <i className="fa-solid fa-search"></i>
-              <input type="text" placeholder="Search by invoice or customer..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="sales-filter-row">
+            <div className="sales-filter-search-group">
+              <label style={{ fontSize: '12px', marginBottom: '4px', display: 'block' }}>Search</label>
+              <div className="search-input" style={{ maxWidth: '100%' }}>
+                <i className="fa-solid fa-search"></i>
+                <input type="text" placeholder="Invoice or customer..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'end' }}>
-            <div className="form-group" style={{ minWidth: '150px', marginBottom: 0 }}>
+            <div className="form-group sales-filter-field" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '12px', marginBottom: '4px' }}>Status</label>
-              <select value={filters.status} onChange={(e) => setFilters(p => ({ ...p, status: e.target.value }))} style={{ padding: '6px 10px' }}>
+              <select className="sales-filter-select" value={filters.status} onChange={(e) => setFilters(p => ({ ...p, status: e.target.value }))}>
                 <option value="">All</option>
                 <option value="completed">Completed</option>
                 <option value="returned">Returned</option>
-                {/* <option value="cancelled">Cancelled</option> */}
               </select>
             </div>
-            <div className="form-group" style={{ minWidth: '150px', marginBottom: 0 }}>
+            <div className="form-group sales-filter-field" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '12px', marginBottom: '4px' }}>From</label>
-              <input type="date" value={filters.startDate} onChange={(e) => setFilters(p => ({ ...p, startDate: e.target.value }))} style={{ padding: '6px 10px' }} />
+              <input type="date" className="sales-filter-select" value={filters.startDate} onChange={(e) => setFilters(p => ({ ...p, startDate: e.target.value }))} />
             </div>
-            <div className="form-group" style={{ minWidth: '150px', marginBottom: 0 }}>
+            <div className="form-group sales-filter-field" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '12px', marginBottom: '4px' }}>To</label>
-              <input type="date" value={filters.endDate} onChange={(e) => setFilters(p => ({ ...p, endDate: e.target.value }))} style={{ padding: '6px 10px' }} />
+              <input type="date" className="sales-filter-select" value={filters.endDate} onChange={(e) => setFilters(p => ({ ...p, endDate: e.target.value }))} />
             </div>
           </div>
         </div>
@@ -77,54 +164,68 @@ export default function Sales() {
           {loading ? (
             <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
           ) : items?.length > 0 ? (
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Invoice</th>
-                    <th>Customer</th>
-                    <th>Date</th>
-                    <th>Items</th>
-                    <th>Total</th>
-                    <th>Payment</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((s) => (
-                    <tr key={s._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/sales/${s._id}`)}>
-                      <td style={{ fontWeight: 500 }}>{s.invoiceNumber}</td>
-                      <td>{s.customerName}</td>
-                      <td style={{ fontSize: '13px' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
-                      <td>{s.items?.length || 0}</td>
-                      <td style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</td>
-                      <td><span className={`badge ${s.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{s.paymentStatus}</span></td>
-                      <td>
-                        <span className={`badge ${s.status === 'completed' ? 'badge-success' : s.status === 'returned' ? 'badge-info' : 'badge-danger'}`}>
-                          {s.status}
-                        </span>
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <div className="action-buttons">
-                          <button className="btn btn-info btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="View Details">
-                            <i className="fa-solid fa-eye"></i>
-                          </button>
-                          <button className="btn btn-success btn-sm" onClick={() => navigate(`/sales/${s._id}/invoice`)} title="Invoice / Print">
-                            <i className="fa-solid fa-print"></i>
-                          </button>
-                          {/* {s.status === 'completed' && (
-                            <button className="btn btn-danger btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="Cancel / Return">
-                              <i className="fa-solid fa-ban"></i>
-                            </button>
-                          )} */}
-                        </div>
-                      </td>
+            <>
+              {/* Desktop table */}
+              <div className="sales-desktop-table">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Invoice</th>
+                        <th>Customer</th>
+                        <th>Date</th>
+                        <th>Items</th>
+                        <th>Total</th>
+                        <th>Payment</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((s) => (
+                        <tr key={s._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/sales/${s._id}`)}>
+                          <td style={{ fontWeight: 500 }}>{s.invoiceNumber}</td>
+                          <td>{s.customerName}</td>
+                          <td style={{ fontSize: '13px' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
+                          <td>{s.items?.length || 0}</td>
+                          <td style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</td>
+                          <td><span className={`badge ${s.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{s.paymentStatus}</span></td>
+                          <td>
+                            <span className={`badge ${s.status === 'completed' ? 'badge-success' : s.status === 'returned' ? 'badge-info' : 'badge-danger'}`}>
+                              {s.status}
+                            </span>
+                          </td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <div className="action-buttons">
+                              <button className="btn btn-info btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="View Details">
+                                <i className="fa-solid fa-eye"></i>
+                              </button>
+                              <button className="btn btn-success btn-sm" onClick={() => navigate(`/sales/${s._id}/invoice`)} title="Invoice / Print">
+                                <i className="fa-solid fa-print"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile expandable rows */}
+              <div className="sales-mobile-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Invoice</th>
+                      <th>Total</th>
+                      <th className="sales-expand-th"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  {items.map((sale, idx) => renderSalesMobileRow(sale, idx))}
+                </table>
+              </div>
+            </>
           ) : (
             <div className="empty-state">
               <i className="fa-solid fa-receipt"></i>

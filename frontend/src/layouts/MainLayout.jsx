@@ -317,7 +317,6 @@ export default function MainLayout() {
         <div
           className="modal-overlay"
           onClick={() => setSidebarOpen(false)}
-          style={{ zIndex: 99 }}
         />
       )}
     </div>

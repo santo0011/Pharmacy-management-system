@@ -98,7 +98,7 @@ export default function SaleDetail() {
           <h2>Sale: {sale.invoiceNumber}</h2>
           <p>{sale.customerName}</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="btn-group-grid">
           <button className="btn btn-success" onClick={() => navigate(`/sales/${id}/invoice`)}>
             <i className="fa-solid fa-print"></i> Invoice
           </button>

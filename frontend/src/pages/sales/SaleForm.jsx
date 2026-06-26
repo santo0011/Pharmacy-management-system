@@ -5,6 +5,7 @@ import { createSale, updateSale, fetchSale, clearSelectedSale } from '../../redu
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { customerService } from '../../services/customerService';
+import PortalDropdown from '../../components/common/PortalDropdown';
 
 export default function SaleForm() {
   const dispatch = useDispatch();
@@ -167,14 +168,26 @@ export default function SaleForm() {
     }
   }, [searchQuery, medicines]);
 
-  // Close dropdown on click outside
+  // Close dropdown on click outside (but NOT when clicking inside portal dropdown items)
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
-      if (customerContainerRef.current && !customerContainerRef.current.contains(event.target)) {
-        setShowCustomerDropdown(false);
+      // Check if click target is inside any portal dropdown - if so, don't close
+      // Portal dropdowns are rendered at document.body level and handle their own outside clicks
+      let inPortalDropdown = false;
+      const portalDropdowns = document.querySelectorAll('.portal-dropdown');
+      portalDropdowns.forEach(dd => {
+        if (dd.contains(event.target)) {
+          inPortalDropdown = true;
+        }
+      });
+
+      if (!inPortalDropdown) {
+        if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+          setShowDropdown(false);
+        }
+        if (customerContainerRef.current && !customerContainerRef.current.contains(event.target)) {
+          setShowCustomerDropdown(false);
+        }
       }
     };
 
@@ -487,9 +500,13 @@ export default function SaleForm() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     autoFocus
                   />
-                  {showDropdown && searchResults.length > 0 && (
-                    <div className="search-dropdown">
-                      {searchResults.map(med => (
+                  <PortalDropdown
+                    triggerRef={searchRef}
+                    show={showDropdown}
+                    onClose={() => setShowDropdown(false)}
+                  >
+                    {searchResults.length > 0 ? (
+                      searchResults.map(med => (
                         <div key={med._id} onClick={() => addItem(med)}
                           className="search-dropdown-item">
                           <div>
@@ -501,14 +518,11 @@ export default function SaleForm() {
                             <div className={`item-stock ${med.currentStock <= 10 ? 'low' : ''}`}>Stock: {med.currentStock}</div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {showDropdown && searchQuery.trim() && searchResults.length === 0 && (
-                    <div className="search-dropdown">
-                      <div className="search-dropdown-empty">No medicines found</div>
-                    </div>
-                  )}
+                      ))
+                    ) : (
+                      <div className="search-dropdown-empty" style={{ padding: '12px 14px', color: '#888', fontSize: '13px' }}>No medicines found</div>
+                    )}
+                  </PortalDropdown>
                 </div>
                 <button type="button" className="btn btn-info" onClick={handleScanBarcode} disabled={scanning} style={{ height: '46px', whiteSpace: 'nowrap' }}>
                   {scanning ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-camera"></i>} Scan
@@ -536,9 +550,17 @@ export default function SaleForm() {
                     ref={customerSearchRef}
                     autoComplete="off"
                   />
-                  {showCustomerDropdown && customerSearchResults.length > 0 && (
-                    <div className="customer-dropdown">
-                      {customerSearchResults.map(c => (
+                  <PortalDropdown
+                    triggerRef={customerSearchRef}
+                    show={showCustomerDropdown}
+                    onClose={() => setShowCustomerDropdown(false)}
+                  >
+                    {customerSearchLoading ? (
+                      <div style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
+                        <i className="fa-solid fa-spinner fa-spin"></i> Searching...
+                      </div>
+                    ) : customerSearchResults.length > 0 ? (
+                      customerSearchResults.map(c => (
                         <div
                           key={c._id}
                           onClick={() => selectCustomer(c)}
@@ -561,19 +583,13 @@ export default function SaleForm() {
                             {c.totalPurchases > 0 ? `${c.totalPurchases} purchase(s)` : 'New'}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {showCustomerDropdown && customerSearchQuery.trim() && customerSearchResults.length === 0 && !customerSearchLoading && (
-                    <div className="customer-dropdown" style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
-                      No customer found. Will use typed name as new customer.
-                    </div>
-                  )}
-                  {customerSearchLoading && (
-                    <div className="customer-dropdown" style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
-                      <i className="fa-solid fa-spinner fa-spin"></i> Searching...
-                    </div>
-                  )}
+                      ))
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
+                        No customer found. Will use typed name as new customer.
+                      </div>
+                    )}
+                  </PortalDropdown>
                   {customerVerified && customerRef && (
                     <div style={{
                       marginTop: '4px',

@@ -135,7 +135,7 @@ export default function Invoice() {
       </div>
 
       {/* Template & Format Selector Bar */}
-      <div className="card" style={{ marginBottom: '16px' }}>
+      <div className="card invoice-template-format-bar" style={{ marginBottom: '16px' }}>
         <div className="card-body" style={{ padding: '12px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
