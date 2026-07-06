@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, clearError } from '../../redux/slices/authSlice';
-import { showError } from '../../utils/sweetAlert';
+import { showError, showSuccess } from '../../utils/sweetAlert';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -12,17 +12,29 @@ export default function Login() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { loading, error, user } = useSelector((state) => state.auth);
+  const hasShownSuccess = useRef(false);
+  const errorTimerRef = useRef(null);
 
   useEffect(() => {
     if (error) {
       showError(error);
-      dispatch(clearError());
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = setTimeout(() => {
+        dispatch(clearError());
+      }, 3000);
     }
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
   }, [error, dispatch]);
 
   useEffect(() => {
-    if (user) {
-      navigate('/');
+    if (user && !hasShownSuccess.current) {
+      hasShownSuccess.current = true;
+      showSuccess('Login successful!');
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
     }
   }, [user, navigate]);
 

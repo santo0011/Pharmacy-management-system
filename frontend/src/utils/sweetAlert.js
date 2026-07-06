@@ -16,9 +16,6 @@ export const showSuccess = (message) => {
   return Toast.fire({
     icon: 'success',
     title: message,
-    background: '#1f2937',
-    color: '#fff',
-    iconColor: '#22c55e',
   });
 };
 
@@ -26,9 +23,6 @@ export const showError = (message) => {
   return Toast.fire({
     icon: 'error',
     title: message,
-    background: '#1f2937',
-    color: '#fff',
-    iconColor: '#ef4444',
   });
 };
 

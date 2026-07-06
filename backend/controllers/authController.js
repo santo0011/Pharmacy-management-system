@@ -49,12 +49,12 @@ export const login = async (req, res, next) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return ApiResponse.error(res, 'Invalid credentials', 401);
+      return ApiResponse.error(res, 'Invalid email or password.', 401);
     }
 
     const isPasswordMatch = await user.matchPassword(password);
     if (!isPasswordMatch) {
-      return ApiResponse.error(res, 'Invalid credentials', 401);
+      return ApiResponse.error(res, 'Invalid email or password.', 401);
     }
 
     if (!user.isActive) {
