@@ -45,7 +45,7 @@ export default function Profile() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '24px' }}>
+      <div className="profile-grid">
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '30px' }}>
             <div className="avatar" style={{ width: '80px', height: '80px', fontSize: '32px', margin: '0 auto 16px', background: 'var(--primary-color)', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -77,7 +77,7 @@ export default function Profile() {
                   <input type="email" value={user?.email || ''} disabled style={{ opacity: 0.6 }} />
                   <small style={{ color: 'var(--gray-500)' }}>Email cannot be changed</small>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                <div className="profile-form-actions">
                   <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
                   <button type="submit" className="btn btn-primary" disabled={saving}>
                     {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>} Save Changes
@@ -86,20 +86,20 @@ export default function Profile() {
               </form>
             ) : (
               <>
-                <div style={{ display: 'flex', padding: '12px 0', borderBottom: '1px solid var(--gray-100)' }}>
-                  <div style={{ width: '150px', fontWeight: 500, color: 'var(--gray-600)' }}>Full Name</div>
+                <div className="profile-info-row">
+                  <div className="profile-info-label">Full Name</div>
                   <div>{user?.name}</div>
                 </div>
-                <div style={{ display: 'flex', padding: '12px 0', borderBottom: '1px solid var(--gray-100)' }}>
-                  <div style={{ width: '150px', fontWeight: 500, color: 'var(--gray-600)' }}>Email</div>
+                <div className="profile-info-row">
+                  <div className="profile-info-label">Email</div>
                   <div>{user?.email}</div>
                 </div>
-                <div style={{ display: 'flex', padding: '12px 0', borderBottom: '1px solid var(--gray-100)' }}>
-                  <div style={{ width: '150px', fontWeight: 500, color: 'var(--gray-600)' }}>Phone</div>
+                <div className="profile-info-row">
+                  <div className="profile-info-label">Phone</div>
                   <div>{user?.phone || '-'}</div>
                 </div>
-                <div style={{ display: 'flex', padding: '12px 0', borderBottom: '1px solid var(--gray-100)' }}>
-                  <div style={{ width: '150px', fontWeight: 500, color: 'var(--gray-600)' }}>Role</div>
+                <div className="profile-info-row">
+                  <div className="profile-info-label">Role</div>
                   <div style={{ textTransform: 'capitalize' }}>{isSuperAdmin ? 'Super Admin' : user?.role?.replace('_', ' ')}</div>
                 </div>
               </>

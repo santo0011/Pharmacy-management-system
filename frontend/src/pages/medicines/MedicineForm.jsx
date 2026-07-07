@@ -509,20 +509,26 @@ export default function MedicineForm() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header page-header-inline-mobile">
         <div>
           <h2>{isEditing ? 'Edit Medicine' : 'Add Medicine'}</h2>
           <p>{isEditing ? 'Update medicine information' : 'Add a new medicine to inventory'}</p>
+        </div>
+        <div className="btn-group-grid">
+          <button className="btn btn-secondary" onClick={() => navigate('/medicines')}>
+            <i className="fa-solid fa-arrow-left"></i> Back
+          </button>
         </div>
       </div>
 
       <div className="card">
         <div className="card-body">
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              {/* Left Column */}
-              <div>
-                <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+            {/* Responsive form grid */}
+            <div className="medicine-form-grid">
+              {/* Left Column - Basic Information */}
+              <div className="medicine-form-column">
+                <h4 className="medicine-form-section-title">
                   <i className="fa-solid fa-info-circle"></i> Basic Information
                 </h4>
                 <div className="form-group">
@@ -577,19 +583,19 @@ export default function MedicineForm() {
                 </div>
               </div>
 
-              {/* Right Column */}
-              <div>
-                <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+              {/* Right Column - Batch & Pricing */}
+              <div className="medicine-form-column">
+                <h4 className="medicine-form-section-title">
                   <i className="fa-solid fa-barcode"></i> Batch & Pricing
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-row-2">
                   <div className="form-group">
                     <label>Batch Number *</label>
                     <input type="text" name="batchNumber" value={formData.batchNumber} onChange={handleChange} placeholder="Batch number" required />
                   </div>
                   <div className="form-group">
                     <label>Barcode</label>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div className="barcode-input-group">
                       <input
                         type="text"
                         name="barcode"
@@ -597,14 +603,13 @@ export default function MedicineForm() {
                         onChange={handleChange}
                         onBlur={handleBarcodeBlur}
                         placeholder="Barcode"
-                        style={{ flex: 1 }}
+                        className="barcode-input-flex"
                       />
                       <button
                         type="button"
-                        className="btn btn-info btn-sm"
+                        className="btn btn-info btn-scan"
                         onClick={startScanner}
                         title="Scan Barcode/QR"
-                        style={{ whiteSpace: 'nowrap' }}
                         disabled={scannerLoading}
                       >
                         {scannerLoading ? (
@@ -626,7 +631,7 @@ export default function MedicineForm() {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-row-2">
                   <div className="form-group">
                     <label>Manufacturing Date</label>
                     <input type="date" name="manufacturingDate" value={formData.manufacturingDate} onChange={handleChange} />
@@ -636,7 +641,7 @@ export default function MedicineForm() {
                     <input type="date" name="expiryDate" value={formData.expiryDate} onChange={handleChange} required />
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-row-2">
                   <div className="form-group">
                     <label>Purchase Price * (₹)</label>
                     <input type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} placeholder="0.00" min="0.01" step="0.01" required />
@@ -651,11 +656,11 @@ export default function MedicineForm() {
                   <input type="number" name="gst" value={formData.gst} onChange={handleChange} placeholder="0" min="0" max="100" step="0.01" />
                 </div>
 
-                <hr style={{ margin: '16px 0', borderColor: 'var(--gray-200)' }} />
-                <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+                <hr className="medicine-form-divider" />
+                <h4 className="medicine-form-section-title">
                   <i className="fa-solid fa-boxes-stacked"></i> Stock & Storage
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-row-2">
                   <div className="form-group">
                     <label>Current Stock</label>
                     <input type="number" name="currentStock" value={formData.currentStock} onChange={handleChange} placeholder="0" min="0" />
@@ -670,25 +675,26 @@ export default function MedicineForm() {
                   <input type="text" name="rackNumber" value={formData.rackNumber} onChange={handleChange} placeholder="Enter rack number" />
                 </div>
                 <div className="form-group">
-                  <label>
-                    <input type="checkbox" name="status" checked={formData.status} onChange={handleChange} style={{ marginRight: '6px' }} />
+                  <label className="checkbox-label">
+                    <input type="checkbox" name="status" checked={formData.status} onChange={handleChange} />
                     Active
                   </label>
                 </div>
 
                 <div className="form-group">
                   <label>Medicine Image</label>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} style={{ padding: '8px' }} />
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="file-input" />
                   {imagePreview && (
-                    <div style={{ marginTop: '8px' }}>
-                      <img src={imagePreview} alt="Preview" style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px' }} />
+                    <div className="image-preview-container">
+                      <img src={imagePreview} alt="Preview" className="image-preview-img" />
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+            {/* Form Actions */}
+            <div className="medicine-form-actions">
               <button type="button" className="btn btn-secondary" onClick={() => navigate('/medicines')}>Cancel</button>
               <button type="submit" className="btn btn-primary" disabled={submitting || barcodeChecking}>
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
@@ -701,30 +707,19 @@ export default function MedicineForm() {
 
       {/* Barcode Scanner Overlay */}
       {showScanner && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.85)',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
+        <div className="scanner-overlay">
           {scannerLoading ? (
-            <div style={{ color: '#fff', textAlign: 'center', padding: '40px' }}>
-              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '48px', marginBottom: '16px' }}></i>
-              <div style={{ fontSize: '16px', fontWeight: 500 }}>Accessing camera...</div>
-              <div style={{ fontSize: '13px', marginTop: '8px', color: '#aaa' }}>Please allow camera permission when prompted</div>
+            <div className="scanner-loading">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+              <div>Accessing camera...</div>
+              <p>Please allow camera permission when prompted</p>
             </div>
           ) : scannerError ? (
-            <div style={{ color: '#fff', textAlign: 'center', padding: '40px', maxWidth: '400px' }}>
-              <i className="fa-solid fa-exclamation-triangle" style={{ fontSize: '48px', marginBottom: '16px', color: '#f59e0b' }}></i>
-              <div style={{ fontSize: '16px', fontWeight: 500, marginBottom: '8px' }}>Camera Error</div>
-              <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '16px' }}>{scannerError}</p>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <div className="scanner-error">
+              <i className="fa-solid fa-exclamation-triangle"></i>
+              <div>Camera Error</div>
+              <p>{scannerError}</p>
+              <div className="scanner-error-actions">
                 <button type="button" className="btn btn-info" onClick={startScanner}>
                   <i className="fa-solid fa-redo"></i> Try Again
                 </button>
@@ -735,20 +730,18 @@ export default function MedicineForm() {
             </div>
           ) : (
             <>
-              <div style={{ color: '#fff', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
+              <div className="scanner-header">
                 <i className="fa-solid fa-camera"></i> Point camera at barcode
               </div>
 
-              {/* Camera switch buttons */}
               {availableCameras.length > 1 && (
-                <div style={{ marginBottom: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <div className="scanner-cameras">
                   {availableCameras.map((cam) => (
                     <button
                       key={cam.deviceId}
                       type="button"
                       className={`btn btn-sm ${cam.deviceId === selectedCameraId ? 'btn-primary' : 'btn-outline-light'}`}
                       onClick={() => switchCamera(cam.deviceId)}
-                      style={{ fontSize: '12px', color: cam.deviceId === selectedCameraId ? '#fff' : '#ccc' }}
                     >
                       <i className="fa-solid fa-camera"></i>{' '}
                       {cam.label || `Camera ${availableCameras.indexOf(cam) + 1}`}
@@ -760,20 +753,9 @@ export default function MedicineForm() {
               <div
                 id="barcode-scanner-reader"
                 ref={scannerContainerRef}
-                style={{
-                  width: '100%',
-                  maxWidth: '500px',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  minHeight: '300px',
-                }}
+                className="scanner-reader"
               />
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={stopScanner}
-                style={{ marginTop: '16px' }}
-              >
+              <button type="button" className="btn btn-danger scanner-cancel" onClick={stopScanner}>
                 <i className="fa-solid fa-times"></i> Cancel
               </button>
             </>

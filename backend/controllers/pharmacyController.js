@@ -1,6 +1,7 @@
 import Pharmacy from '../models/Pharmacy.js';
 import User from '../models/User.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
+import SubscriptionHistory from '../models/SubscriptionHistory.js';
 import Medicine from '../models/Medicine.js';
 import Category from '../models/Category.js';
 import Brand from '../models/Brand.js';
@@ -330,7 +331,7 @@ export const updateMyInvoiceSettings = async (req, res, next) => {
   }
 };
 
-// @desc    Update pharmacy subscription
+// @desc    Update pharmacy subscription (with overlapping logic + history)
 // @route   PUT /api/pharmacies/:id/subscription
 // @access  Private/SuperAdmin
 export const updateSubscription = async (req, res, next) => {
@@ -340,26 +341,92 @@ export const updateSubscription = async (req, res, next) => {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
 
-    const { subscriptionPlan, subscriptionPlanId, subscriptionStartDate, subscriptionEndDate } = req.body;
+    const { subscriptionPlan, subscriptionPlanId, subscriptionStartDate, subscriptionEndDate, notes } = req.body;
 
-    if (subscriptionPlanId) {
-      const plan = await SubscriptionPlan.findOne({ _id: subscriptionPlanId, isDeleted: false, isActive: true });
-      if (!plan) {
-        return ApiResponse.error(res, 'Invalid or inactive subscription plan', 400);
-      }
-      pharmacy.subscriptionPlan = plan.planName;
-      pharmacy.subscriptionPlanId = plan._id;
-    } else if (subscriptionPlan) {
-      // Allow free/basic/premium/enterprise as fallback for existing records
-      pharmacy.subscriptionPlan = subscriptionPlan;
-      pharmacy.subscriptionPlanId = null;
+    if (!subscriptionPlanId) {
+      return ApiResponse.error(res, 'A valid subscription plan ID is required', 400);
     }
 
-    pharmacy.subscriptionStartDate = subscriptionStartDate || pharmacy.subscriptionStartDate;
-    pharmacy.subscriptionEndDate = subscriptionEndDate || pharmacy.subscriptionEndDate;
+    const plan = await SubscriptionPlan.findOne({ _id: subscriptionPlanId, isDeleted: false, isActive: true });
+    if (!plan) {
+      return ApiResponse.error(res, 'Invalid or inactive subscription plan', 400);
+    }
+
+    // Determine the actual start date for the new subscription
+    const now = new Date();
+    const currentEndDate = pharmacy.subscriptionEndDate ? new Date(pharmacy.subscriptionEndDate) : null;
+    let newStartDate;
+
+    if (subscriptionStartDate) {
+      // Use the provided start date if given
+      newStartDate = new Date(subscriptionStartDate);
+    } else if (currentEndDate && currentEndDate > now) {
+      // Current subscription is still active — new one starts after it ends
+      newStartDate = new Date(currentEndDate);
+      newStartDate.setDate(newStartDate.getDate() + 1);
+    } else {
+      // Current subscription is expired or doesn't exist — start today
+      newStartDate = new Date();
+    }
+
+    // Calculate end date based on plan duration
+    let newEndDate;
+    if (subscriptionEndDate) {
+      newEndDate = new Date(subscriptionEndDate);
+    } else {
+      newEndDate = new Date(newStartDate);
+      if (plan.durationUnit === 'days') {
+        newEndDate.setDate(newEndDate.getDate() + plan.duration);
+      } else if (plan.durationUnit === 'months') {
+        newEndDate.setMonth(newEndDate.getMonth() + plan.duration);
+      } else if (plan.durationUnit === 'years') {
+        newEndDate.setFullYear(newEndDate.getFullYear() + plan.duration);
+      }
+    }
+
+    // Determine status for the new history record
+    const isUpcoming = currentEndDate && currentEndDate > now && newStartDate > now;
+    const historyStatus = isUpcoming ? 'upcoming' : 'active';
+
+    // Create subscription history record
+    const historyRecord = await SubscriptionHistory.create({
+      pharmacy: pharmacy._id,
+      pharmacyName: pharmacy.pharmacyName,
+      planId: plan._id,
+      planName: plan.planName,
+      startDate: newStartDate,
+      endDate: newEndDate,
+      duration: plan.duration,
+      durationUnit: plan.durationUnit,
+      amount: plan.price,
+      paymentMethod: 'manual',
+      renewalDate: new Date(),
+      status: historyStatus,
+      notes: notes || '',
+      createdBy: req.user._id,
+      createdByName: req.user.name || '',
+    });
+
+    // ALWAYS update the pharmacy record with the latest subscription info.
+    // This ensures the pharmacy's end date reflects the furthest expiry date,
+    // preventing premature access lockout even when the new sub is "upcoming".
+    pharmacy.subscriptionPlan = plan.planName;
+    pharmacy.subscriptionPlanId = plan._id;
+    pharmacy.subscriptionStartDate = newStartDate;
+    pharmacy.subscriptionEndDate = newEndDate;
 
     await pharmacy.save();
-    return ApiResponse.success(res, pharmacy, 'Subscription updated successfully');
+
+    return ApiResponse.success(
+      res,
+      {
+        pharmacy,
+        history: historyRecord,
+      },
+      isUpcoming
+        ? `Subscription renewed successfully! New plan starts on ${newStartDate.toLocaleDateString()} after current subscription ends.`
+        : 'Subscription renewed successfully!'
+    );
   } catch (error) {
     next(error);
   }

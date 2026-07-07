@@ -1,39 +1,20 @@
-# Implementation Plan - COMPLETED
+# Task Progress ✓ ALL COMPLETE
 
-## Phase 1: Backend - Customer Model & API
-- [x] 1. Review existing codebase structure and data flow
-- [x] 2. Create Customer model with `customerId`, `phone`, `name`, `pharmacyId`
-- [x] 3. Update Sale model to add `customer` reference (optional, backward-compatible)
-- [x] 4. Create PaymentTransaction model for payment history
-- [x] 5. Update customerController - add search, create, getCustomer, getCustomerDues, getCustomerDueInvoices, payDue, getPaymentHistory
-- [x] 6. Update customerRoutes with new endpoints (search before param route)
-- [x] 7. Update saleController to link customer reference on sale creation
+## All Changes Made
 
-## Phase 2: Frontend - Customer Autocomplete in Sales
-- [x] 8. Add customer search API service (searchCustomers, createCustomer)
-- [x] 9. Update SaleForm.jsx with customer autocomplete dropdown with debounce
-- [x] 10. Auto-create or link customer on billing with unique customerId
+### 1. Backend - Subscription Delete Route
+- **`subscriptionHistoryController.js`**: Added `deleteSubscriptionHistory` - only allows deleting "upcoming" records
+- **`subscriptionHistoryRoutes.js`**: Added `DELETE /:id` route (Super Admin only)
 
-## Phase 3: Frontend - Payment in Customer Due
-- [x] 11. Update Customers.jsx - Add Payment button in due tab
-- [x] 12. Create PaymentDrawer component with invoice list
-- [x] 13. Implement per-invoice payment (partial/full) with Pay and Full Pay buttons
-- [x] 14. Auto-refresh due customers after payment
+### 2. Frontend Service
+- **`subscriptionHistoryService.js`**: Added `deleteRecord(id)` method
 
-## Phase 4: Integration & Testing
-- [x] 15. Frontend builds successfully without errors
-- [x] 16. Backend server running (EADDRINUSE confirms it was already running)
-- [x] 17. All new files follow existing project patterns and naming conventions
+### 3. Subscription History Mobile Responsive
+- **`index.css`**: Added `.sub-history-desktop-table` / `.sub-history-mobile-table` responsive classes with expandable rows
+- **`Subscriptions.jsx`**: Admin's history table now has desktop/mobile views with expandable rows like Customers table
 
-## Key Features Implemented
-- **customerId**: Unique auto-generated ID (`CUST-XXXXXXXX`) for every customer
-- **Mobile number**: Primary searchable field, stored as `phone` in Customer model
-- **customerId hidden**: Only used internally for data relationships, not shown to users
-- **Autocomplete**: Search by name or phone in SaleForm with debounced API calls
-- **New customer creation**: Automatically creates Customer record on billing
-- **Payment button**: Added to Due Customers table
-- **Payment drawer**: Right-side drawer with customer info, total due, invoice list
-- **Per-invoice payment**: Show Invoice No, Date, Amount, Paid, Due; allow partial or full payment
-- **Payment history**: Tracked in PaymentTransaction collection
-- **Auto-update**: Customer stats updated after payment, due list auto-refreshes
-- **Backward compatible**: Existing customerName/customerPhone fields preserved
+### 4. Super Admin Subscriptions Tab - Renew & History Buttons
+- **`Subscriptions.jsx`**: Added Renew (🔄) and History (⏱) buttons with full drawer UIs in the Subscriptions tab
+
+### 5. Payments Page - Remove Renew Button
+- **`Payments.jsx`**: Removed the Renew button from the pharmacy view drawer (only History remains)

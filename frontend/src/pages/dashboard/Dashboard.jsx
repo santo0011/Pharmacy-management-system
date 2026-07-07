@@ -91,9 +91,9 @@ export default function Dashboard() {
   if (isSuperAdmin) {
     const total = saData?.totalPharmacies || 0;
     const active = saData?.activePharmacies || 0;
-    const suspended = saData?.suspendedPharmacies || 0;
+    const deactivated = saData?.deactivatedPharmacies || 0;
     const users = saData?.totalUsers || 0;
-    const inactive = total - active - suspended;
+    const inactive = total - active - deactivated;
 
     const planColors = { free: '#94a3b8', basic: '#3b82f6', premium: '#22c55e', enterprise: '#f59e0b' };
     const subStats = saData?.subscriptionStats || [];
@@ -156,7 +156,7 @@ export default function Dashboard() {
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="stat-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><i className="fa-solid fa-ban"></i></div>
-            <div className="stat-info"><h3>{suspended}</h3><p>Suspended</p></div>
+            <div className="stat-info"><h3>{deactivated}</h3><p>Deactivated</p></div>
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
             <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-users"></i></div>
@@ -226,9 +226,9 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="summary-item summary-item-red">
-                  <div className="summary-label">Suspended Rate</div>
+                  <div className="summary-label">Deactivated Rate</div>
                   <div className="summary-value summary-value-red">
-                    {total > 0 ? ((suspended / total) * 100).toFixed(1) : 0}%
+                    {total > 0 ? ((deactivated / total) * 100).toFixed(1) : 0}%
                   </div>
                 </div>
                 <div className="summary-item summary-item-gray">

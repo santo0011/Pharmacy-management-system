@@ -13,6 +13,7 @@ import {
 import { fetchSubscriptionStatus, clearSubscriptionStatus } from '../../redux/slices/dashboardSlice';
 import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/sweetAlert';
 import { pharmacyService } from '../../services/pharmacyService';
+import { subscriptionHistoryService } from '../../services/subscriptionHistoryService';
 import Drawer from '../../components/common/Drawer';
 
 const initialPlanFormState = {
@@ -39,6 +40,37 @@ export default function Subscriptions() {
   const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'plans' : 'my-subscription');
 
   // ------ My Subscription (Admin view) ------
+  const [myHistory, setMyHistory] = useState([]);
+  const [myHistoryLoading, setMyHistoryLoading] = useState(false);
+
+  const fetchMyHistory = useCallback(async () => {
+    if (isSuperAdmin) return;
+    setMyHistoryLoading(true);
+    try {
+      const { data } = await subscriptionHistoryService.getMyHistory({ limit: 50 });
+      setMyHistory(data.data || []);
+    } catch (err) {
+      setMyHistory([]);
+    } finally {
+      setMyHistoryLoading(false);
+    }
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (activeTab === 'my-subscription' && !isSuperAdmin) {
+      fetchMyHistory();
+    }
+  }, [activeTab, isSuperAdmin, fetchMyHistory]);
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'active': return 'badge-success';
+      case 'upcoming': return 'badge-info';
+      case 'expired': return 'badge-danger';
+      default: return 'badge-secondary';
+    }
+  };
+
   // ------ Plans State ------
   const [planSearch, setPlanSearch] = useState('');
   const [planPage, setPlanPage] = useState(1);
@@ -54,6 +86,91 @@ export default function Subscriptions() {
   const [formData, setFormData] = useState({ subscriptionPlanId: '', subscriptionPlan: '', subscriptionEndDate: '' });
   const [calculatedEndDate, setCalculatedEndDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Renew drawer state for subscriptions tab
+  const [renewDrawerOpen, setRenewDrawerOpen] = useState(false);
+  const [renewPharmacy, setRenewPharmacy] = useState(null);
+  const [renewForm, setRenewForm] = useState({ planId: '', startDate: '', endDate: '', notes: '' });
+  const [renewSubmitting, setRenewSubmitting] = useState(false);
+
+  // History drawer for subscriptions tab
+  const [subHistoryDrawerOpen, setSubHistoryDrawerOpen] = useState(false);
+  const [subHistoryPharmacy, setSubHistoryPharmacy] = useState(null);
+  const [subHistoryRecords, setSubHistoryRecords] = useState([]);
+  const [subHistoryLoading, setSubHistoryLoading] = useState(false);
+
+  // Expandable rows for mobile tables
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const toggleRow = (tableKey, rowIdx) => {
+    const key = `${tableKey}-${rowIdx}`;
+    setExpandedRows(prev => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  // ------ Expandable Row Renderers ------
+  const renderExpandableRow = (item, idx, tableKey, isExpanded, onToggle, mainCols, detailRows) => {
+    return (
+      <tbody key={idx}>
+        <tr className="customer-mobile-row" onClick={onToggle}>
+          {mainCols.map((col, ci) => (
+            <td key={ci} className={col.className || ''} style={col.style || {}}>
+              {col.render(item)}
+            </td>
+          ))}
+          <td className="customer-expand-cell">
+            <button className="customer-expand-btn">
+              <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`customer-detail-row ${isExpanded ? 'customer-detail-row-open' : ''}`}>
+          <td colSpan={mainCols.length + 1} className="customer-detail-cell">
+            <div className="customer-detail-inner">
+              {detailRows.map((detail, di) => (
+                <div key={di} className="customer-detail-item">
+                  <span className="customer-detail-label">{detail.label}</span>
+                  <span className="customer-detail-value" style={detail.style || {}}>
+                    {detail.render(item)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
+
+  // ------ Cancel Renewal (Super Admin only) ------
+  const handleCancelUpcoming = async (recordId) => {
+    const now = new Date();
+    const timeStr = now.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const confirmed = await showConfirm(
+      'Cancel Upcoming Subscription',
+      `Are you sure you want to cancel this upcoming subscription?\n\nThis action will be recorded at ${timeStr} and cannot be undone.`,
+      'warning'
+    );
+    if (!confirmed) return;
+    try {
+      await subscriptionHistoryService.deleteRecord(recordId);
+      showSuccess(`Upcoming subscription cancelled successfully at ${timeStr}`);
+      // Remove from the drawer list and refresh parent pharmacy data
+      if (subHistoryDrawerOpen) {
+        setSubHistoryRecords(prev => prev.filter(r => r._id !== recordId));
+      }
+      // Reload the pharmacy list to reflect updated subscription end date
+      loadPharmacies();
+      // Also refresh the admin's subscription status if they are viewing their own subscription
+      if (!isSuperAdmin) {
+        dispatch(fetchSubscriptionStatus());
+      }
+    } catch (error) {
+      showError(error?.response?.data?.message || 'Failed to cancel subscription');
+    }
+  };
 
   // Load active plans for dropdown
   useEffect(() => {
@@ -262,6 +379,92 @@ export default function Subscriptions() {
     }
   };
 
+  // Renew handlers for subscriptions tab
+  const openSubRenewDrawer = (pharmacy) => {
+    const defaultPlanId = pharmacy.subscriptionPlanId || (activePlans.length > 0 ? activePlans[0]._id : '');
+    const currentEnd = pharmacy.subscriptionEndDate ? new Date(pharmacy.subscriptionEndDate) : null;
+    const now = new Date();
+    let effectiveStart;
+    if (currentEnd && currentEnd > now) {
+      effectiveStart = new Date(currentEnd);
+      effectiveStart.setDate(effectiveStart.getDate() + 1);
+    } else {
+      effectiveStart = new Date();
+    }
+    const endDate = calculateEndDate(defaultPlanId, effectiveStart.toISOString().split('T')[0]);
+    setRenewPharmacy(pharmacy);
+    setRenewForm({
+      planId: defaultPlanId,
+      startDate: effectiveStart.toISOString().split('T')[0],
+      endDate: endDate,
+      notes: '',
+    });
+    setRenewDrawerOpen(true);
+  };
+
+  const closeSubRenewDrawer = () => {
+    setRenewDrawerOpen(false);
+    setRenewPharmacy(null);
+    setRenewForm({ planId: '', startDate: '', endDate: '', notes: '' });
+  };
+
+  const handleSubRenewFormChange = (field, value) => {
+    setRenewForm((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === 'planId' || field === 'startDate') {
+        const planId = field === 'planId' ? value : prev.planId;
+        const startDate = field === 'startDate' ? value : prev.startDate;
+        const plan = (activePlans || []).find((p) => p._id === planId);
+        if (plan && startDate) {
+          const start = new Date(startDate);
+          let end = new Date(start);
+          if (plan.durationUnit === 'days') end.setDate(end.getDate() + plan.duration);
+          else if (plan.durationUnit === 'months') end.setMonth(end.getMonth() + plan.duration);
+          else if (plan.durationUnit === 'years') end.setFullYear(end.getFullYear() + plan.duration);
+          updated.endDate = end.toISOString().split('T')[0];
+        }
+      }
+      return updated;
+    });
+  };
+
+  const handleSubRenew = async () => {
+    if (!renewForm.planId) { showError('Please select a subscription plan'); return; }
+    setRenewSubmitting(true);
+    try {
+      const { data } = await pharmacyService.updateSubscription(renewPharmacy._id, {
+        subscriptionPlanId: renewForm.planId,
+        subscriptionStartDate: renewForm.startDate,
+        subscriptionEndDate: renewForm.endDate,
+        notes: renewForm.notes,
+      });
+      showSuccess(data.message || 'Subscription renewed successfully!');
+      closeSubRenewDrawer();
+      loadPharmacies();
+    } catch (error) {
+      showError(error?.response?.data?.message || 'Failed to renew subscription');
+    } finally {
+      setRenewSubmitting(false);
+    }
+  };
+
+  // History handlers for subscriptions tab
+  const openSubHistoryDrawer = (pharmacy) => {
+    setSubHistoryPharmacy(pharmacy);
+    setSubHistoryDrawerOpen(true);
+    setSubHistoryLoading(true);
+    subscriptionHistoryService.getByPharmacy(pharmacy._id, { limit: 50 })
+      .then(({ data }) => setSubHistoryRecords(data.data || []))
+      .catch(() => setSubHistoryRecords([]))
+      .finally(() => setSubHistoryLoading(false));
+  };
+
+  const closeSubHistoryDrawer = () => {
+    setSubHistoryDrawerOpen(false);
+    setSubHistoryPharmacy(null);
+    setSubHistoryRecords([]);
+  };
+
   const getPlanBadge = (plan) => {
     const colors = { free: 'badge-secondary', basic: 'badge-info', premium: 'badge-success', enterprise: 'badge-warning' };
     return colors[plan] || 'badge-secondary';
@@ -301,7 +504,11 @@ export default function Subscriptions() {
     const endDate = subscriptionStatus.endDate ? new Date(subscriptionStatus.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A';
     const daysRemaining = subscriptionStatus.daysRemaining !== undefined ? subscriptionStatus.daysRemaining : 'N/A';
 
+    // Desktop column definitions for history
+    const desktopCols = ['Plan Name', 'Start Date', 'Expiry Date', 'Duration', 'Amount', 'Status', 'Renewal Date', 'Payment Method'];
+
     return (
+      <>
       <div className="card" style={{ maxWidth: '600px', margin: '0 auto' }}>
         <div className="card-header">
           <h5><i className="fa-solid fa-credit-card"></i> My Subscription</h5>
@@ -378,7 +585,99 @@ export default function Subscriptions() {
           )}
         </div>
       </div>
+
+      {/* Subscription History Section */}
+      <div className="card" style={{ maxWidth: '800px', margin: '24px auto 0' }}>
+        <div className="card-header">
+          <h5><i className="fa-solid fa-clock-rotate-left"></i> Subscription History</h5>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {myHistoryLoading ? (
+            <div className="loading-spinner" style={{ padding: '30px' }}><i className="fa-solid fa-spinner fa-spin"></i></div>
+          ) : myHistory.length > 0 ? (
+            <>
+              {/* Desktop table */}
+              <div className="customer-desktop-table">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Plan Name</th>
+                        <th>Start Date</th>
+                        <th>Expiry Date</th>
+                        <th>Duration</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Renewal Date</th>
+                        <th>Payment Method</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myHistory.map((record) => (
+                        <tr key={record._id}>
+                          <td style={{ fontWeight: 500, textTransform: 'capitalize' }}>{record.planName}</td>
+                          <td>{new Date(record.startDate).toLocaleDateString()}</td>
+                          <td>{new Date(record.endDate).toLocaleDateString()}</td>
+                          <td>{record.duration} {record.durationUnit}</td>
+                          <td style={{ fontWeight: 600 }}>₹{record.amount.toLocaleString()}</td>
+                          <td>
+                            <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
+                              {record.status}
+                            </span>
+                          </td>
+                          <td>{new Date(record.renewalDate).toLocaleDateString()}</td>
+                          <td style={{ textTransform: 'capitalize' }}>{record.paymentMethod || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {/* Mobile table */}
+              <div className="customer-mobile-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Plan</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th className="customer-expand-th"></th>
+                    </tr>
+                  </thead>
+                  {myHistory.map((record, idx) => {
+                    const expanded = isRowExpanded('admin', idx);
+                    const mainCols = [
+                      { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
+                      { render: (r) => <span style={{ fontWeight: 600 }}>₹{r.amount.toLocaleString()}</span> },
+                      { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{r.status}</span> },
+                    ];
+                    const detailRows = [
+                      { label: 'Start', render: (r) => new Date(r.startDate).toLocaleDateString() },
+                      { label: 'Expiry', render: (r) => new Date(r.endDate).toLocaleDateString() },
+                      { label: 'Duration', render: (r) => `${r.duration} ${r.durationUnit}` },
+                      { label: 'Renewed', render: (r) => new Date(r.renewalDate).toLocaleDateString() },
+                      { label: 'Payment', render: (r) => <span style={{ textTransform: 'capitalize' }}>{r.paymentMethod || '-'}</span> },
+                    ];
+                    return renderExpandableRow(record, idx, 'admin', expanded, () => toggleRow('admin', idx), mainCols, detailRows);
+                  })}
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state" style={{ padding: '30px' }}>
+              <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: '36px', color: 'var(--gray-400)', marginBottom: '12px' }}></i>
+              <h4>No Subscription History</h4>
+              <p>Your subscription history will appear here once you have renewed.</p>
+            </div>
+          )}
+        </div>
+      </div>
+      </>
     );
+  };
+
+  const isRowExpanded = (tableKey, rowIdx) => {
+    return !!expandedRows[`${tableKey}-${rowIdx}`];
   };
 
   return (
@@ -465,42 +764,82 @@ export default function Subscriptions() {
               {planLoading ? (
                 <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
               ) : plans?.length > 0 ? (
-                <div className="table-container">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Plan Name</th>
-                        <th>Price</th>
-                        <th>Duration</th>
-                        <th>Max Staff</th>
-                        <th>Max Branches</th>
-                        <th>Features</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {plans.map((plan) => (
-                        <tr key={plan._id}>
-                          <td style={{ fontWeight: 500 }}>{plan.planName}</td>
-                          <td>₹{plan.price?.toFixed(2)}</td>
-                          <td>{plan.duration} {plan.durationUnit}</td>
-                          <td>{plan.maxStaff ?? 'Unlimited'}</td>
-                          <td>{plan.maxBranches ?? 'Unlimited'}</td>
-                          <td>{plan.features?.length > 0 ? (<span style={{ cursor: 'pointer', color: 'var(--primary)' }} title={plan.features.join(', ')}>{plan.features.length} feature{plan.features.length > 1 ? 's' : ''}</span>) : '-'}</td>
-                          <td><span className={`badge ${plan.isActive ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize' }}>{plan.isActive ? 'Active' : 'Inactive'}</span></td>
-                          <td>
-                            <div className="action-buttons">
-                              <button className="btn btn-warning btn-sm" onClick={() => openEditPlanDrawer(plan)} title="Edit"><i className="fa-solid fa-edit"></i></button>
-                              <button className={`btn btn-sm ${plan.isActive ? 'btn-secondary' : 'btn-success'}`} onClick={() => handleTogglePlanStatus(plan._id, plan.planName, plan.isActive)} title={plan.isActive ? 'Deactivate' : 'Activate'}><i className={`fa-solid ${plan.isActive ? 'fa-pause' : 'fa-play'}`}></i></button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleDeletePlan(plan._id)} title="Delete"><i className="fa-solid fa-trash"></i></button>
-                            </div>
-                          </td>
+                <>
+                  {/* Desktop table */}
+                  <div className="customer-desktop-table">
+                    <div className="table-container">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Plan Name</th>
+                            <th>Price</th>
+                            <th>Duration</th>
+                            <th>Max Staff</th>
+                            <th>Max Branches</th>
+                            <th>Features</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {plans.map((plan) => (
+                            <tr key={plan._id}>
+                              <td style={{ fontWeight: 500 }}>{plan.planName}</td>
+                              <td>₹{plan.price?.toFixed(2)}</td>
+                              <td>{plan.duration} {plan.durationUnit}</td>
+                              <td>{plan.maxStaff ?? 'Unlimited'}</td>
+                              <td>{plan.maxBranches ?? 'Unlimited'}</td>
+                              <td>{plan.features?.length > 0 ? (<span style={{ cursor: 'pointer', color: 'var(--primary)' }} title={plan.features.join(', ')}>{plan.features.length} feature{plan.features.length > 1 ? 's' : ''}</span>) : '-'}</td>
+                              <td><span className={`badge ${plan.isActive ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize' }}>{plan.isActive ? 'Active' : 'Inactive'}</span></td>
+                              <td>
+                                <div className="action-buttons">
+                                  <button className="btn btn-warning btn-sm" onClick={() => openEditPlanDrawer(plan)} title="Edit"><i className="fa-solid fa-edit"></i></button>
+                                  <button className={`btn btn-sm ${plan.isActive ? 'btn-secondary' : 'btn-success'}`} onClick={() => handleTogglePlanStatus(plan._id, plan.planName, plan.isActive)} title={plan.isActive ? 'Deactivate' : 'Activate'}><i className={`fa-solid ${plan.isActive ? 'fa-pause' : 'fa-play'}`}></i></button>
+                                  <button className="btn btn-danger btn-sm" onClick={() => handleDeletePlan(plan._id)} title="Delete"><i className="fa-solid fa-trash"></i></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  {/* Mobile table */}
+                  <div className="customer-mobile-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Plan Name</th>
+                          <th>Price</th>
+                          <th>Status</th>
+                          <th className="customer-expand-th"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      {plans.map((plan, idx) => {
+                        const expanded = isRowExpanded('plan', idx);
+                        const mainCols = [
+                          { render: (p) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{p.planName}</span> },
+                          { render: (p) => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>₹{p.price?.toFixed(2)}</span> },
+                          { render: (p) => <span className={`badge ${p.isActive ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{p.isActive ? 'Active' : 'Inactive'}</span> },
+                        ];
+                        const detailRows = [
+                          { label: 'Duration', render: (p) => `${p.duration} ${p.durationUnit}` },
+                          { label: 'Max Staff', render: (p) => p.maxStaff ?? 'Unlimited' },
+                          { label: 'Max Branches', render: (p) => p.maxBranches ?? 'Unlimited' },
+                          { label: 'Features', render: (p) => p.features?.length > 0 ? p.features.join(', ') : '-' },
+                          { label: 'Actions', render: (p) => (
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); openEditPlanDrawer(p); }} title="Edit"><i className="fa-solid fa-edit"></i></button>
+                              <button className={`btn btn-sm ${p.isActive ? 'btn-secondary' : 'btn-success'}`} onClick={(e) => { e.stopPropagation(); handleTogglePlanStatus(p._id, p.planName, p.isActive); }} title={p.isActive ? 'Deactivate' : 'Activate'}><i className={`fa-solid ${p.isActive ? 'fa-pause' : 'fa-play'}`}></i></button>
+                              <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDeletePlan(p._id); }} title="Delete"><i className="fa-solid fa-trash"></i></button>
+                            </div>
+                          )},
+                        ];
+                        return renderExpandableRow(plan, idx, 'plan', expanded, () => toggleRow('plan', idx), mainCols, detailRows);
+                      })}
+                    </table>
+                  </div>
+                </>
               ) : (
                 <div className="empty-state">
                   <i className="fa-solid fa-layer-group"></i>
@@ -578,25 +917,69 @@ export default function Subscriptions() {
               {pharmacyLoading ? (
                 <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
               ) : pharmacies?.length > 0 ? (
-                <div className="table-container">
-                  <table>
-                    <thead>
-                      <tr><th>Pharmacy</th><th>Plan</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Actions</th></tr>
-                    </thead>
-                    <tbody>
-                      {pharmacies.map((p) => (
-                        <tr key={p._id}>
-                          <td style={{ fontWeight: 500 }}>{p.pharmacyName}</td>
-                          <td><span className={`badge ${getPlanBadge(p.subscriptionPlan)}`} style={{ textTransform: 'capitalize' }}>{getPlanDisplayName(p.subscriptionPlan)}</span></td>
-                          <td>{p.subscriptionStartDate ? new Date(p.subscriptionStartDate).toLocaleDateString() : '-'}</td>
-                          <td>{p.subscriptionEndDate ? new Date(p.subscriptionEndDate).toLocaleDateString() : 'No end date'}</td>
-                          <td><span className={`badge ${p.status === 'active' ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize' }}>{p.status}</span></td>
-                          <td><button className="btn btn-warning btn-sm" onClick={() => openEdit(p)}><i className="fa-solid fa-edit"></i></button></td>
+                <>
+                  {/* Desktop table */}
+                  <div className="customer-desktop-table">
+                    <div className="table-container">
+                      <table>
+                        <thead>
+                          <tr><th>Pharmacy</th><th>Plan</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody>
+                          {pharmacies.map((p) => (
+                            <tr key={p._id}>
+                              <td style={{ fontWeight: 500 }}>{p.pharmacyName}</td>
+                              <td><span className={`badge ${getPlanBadge(p.subscriptionPlan)}`} style={{ textTransform: 'capitalize' }}>{getPlanDisplayName(p.subscriptionPlan)}</span></td>
+                              <td>{p.subscriptionStartDate ? new Date(p.subscriptionStartDate).toLocaleDateString() : '-'}</td>
+                              <td>{p.subscriptionEndDate ? new Date(p.subscriptionEndDate).toLocaleDateString() : 'No end date'}</td>
+                              <td><span className={`badge ${p.status === 'active' ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize' }}>{p.status}</span></td>
+                              <td>
+                                <div className="action-buttons">
+                                  <button className="btn btn-warning btn-sm" onClick={() => openEdit(p)} title="Edit"><i className="fa-solid fa-edit"></i></button>
+                                  <button className="btn btn-primary btn-sm" onClick={() => openSubRenewDrawer(p)} title="Renew"><i className="fa-solid fa-rotate"></i></button>
+                                  <button className="btn btn-info btn-sm" onClick={() => openSubHistoryDrawer(p)} title="History"><i className="fa-solid fa-clock-rotate-left"></i></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  {/* Mobile table */}
+                  <div className="customer-mobile-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Pharmacy</th>
+                          <th>Plan</th>
+                          <th>Status</th>
+                          <th className="customer-expand-th"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      {pharmacies.map((p, idx) => {
+                        const expanded = isRowExpanded('sub', idx);
+                        const mainCols = [
+                          { render: () => <span style={{ fontWeight: 500, fontSize: '13px' }}>{p.pharmacyName}</span> },
+                          { render: () => <span className={`badge ${getPlanBadge(p.subscriptionPlan)}`} style={{ textTransform: 'capitalize' }}>{getPlanDisplayName(p.subscriptionPlan)}</span> },
+                          { render: () => <span className={`badge ${p.status === 'active' ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize' }}>{p.status}</span> },
+                        ];
+                        const detailRows = [
+                          { label: 'Start Date', render: () => p.subscriptionStartDate ? new Date(p.subscriptionStartDate).toLocaleDateString() : '-' },
+                          { label: 'End Date', render: () => p.subscriptionEndDate ? new Date(p.subscriptionEndDate).toLocaleDateString() : 'No end date' },
+                          { label: 'Actions', render: () => (
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit"><i className="fa-solid fa-edit"></i></button>
+                              <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); openSubRenewDrawer(p); }} title="Renew"><i className="fa-solid fa-rotate"></i></button>
+                              <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); openSubHistoryDrawer(p); }} title="History"><i className="fa-solid fa-clock-rotate-left"></i></button>
+                            </div>
+                          )},
+                        ];
+                        return renderExpandableRow(p, idx, 'sub', expanded, () => toggleRow('sub', idx), mainCols, detailRows);
+                      })}
+                    </table>
+                  </div>
+                </>
               ) : <div className="empty-state" style={{ padding: '30px' }}><p>No pharmacies found</p></div>}
             </div>
           </div>
@@ -630,6 +1013,166 @@ export default function Subscriptions() {
                   <small style={{ color: '#888', fontSize: '12px' }}>End date is calculated automatically based on the selected plan's duration.</small>
                 </div>
               </form>
+            )}
+          </Drawer>
+
+          {/* Renew Drawer */}
+          <Drawer
+            isOpen={renewDrawerOpen}
+            onClose={closeSubRenewDrawer}
+            title={renewPharmacy ? `Renew Subscription - ${renewPharmacy.pharmacyName}` : 'Renew Subscription'}
+            footer={
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={closeSubRenewDrawer}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={handleSubRenew} disabled={renewSubmitting}>
+                  {renewSubmitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
+                  {renewSubmitting ? 'Processing...' : 'Confirm & Renew'}
+                </button>
+              </div>
+            }
+          >
+            {renewPharmacy && (
+              <div className="renew-drawer-content">
+                <div className="form-group">
+                  <label>Select Plan *</label>
+                  <select value={renewForm.planId} onChange={(e) => handleSubRenewFormChange('planId', e.target.value)} required>
+                    <option value="">-- Select Plan --</option>
+                    {activePlans.map((plan) => (
+                      <option key={plan._id} value={plan._id}>
+                        {plan.planName} - ₹{plan.price?.toLocaleString()} ({plan.duration} {plan.durationUnit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Start Date</label>
+                  <input type="date" value={renewForm.startDate} onChange={(e) => handleSubRenewFormChange('startDate', e.target.value)} />
+                  <small style={{ color: 'var(--gray-500)', fontSize: '12px', display: 'block', marginTop: '4px' }}>
+                    {renewPharmacy.subscriptionEndDate && new Date(renewPharmacy.subscriptionEndDate) > new Date()
+                      ? `Current subscription is active until ${new Date(renewPharmacy.subscriptionEndDate).toLocaleDateString()}. New subscription will start after that.`
+                      : 'Current subscription has expired. New subscription starts from the selected date.'}
+                  </small>
+                </div>
+                <div className="form-group">
+                  <label>End Date (calculated)</label>
+                  <input type="date" value={renewForm.endDate} readOnly style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }} />
+                </div>
+                <div className="form-group">
+                  <label>Notes (optional)</label>
+                  <textarea value={renewForm.notes} onChange={(e) => handleSubRenewFormChange('notes', e.target.value)} placeholder="Add any notes..." rows={2} />
+                </div>
+                {renewForm.planId && activePlans.find(p => p._id === renewForm.planId) && (
+                  <div className="renew-preview-card" style={{ padding: '14px', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Total Amount</span>
+                      <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary)' }}>
+                        ₹{activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </Drawer>
+
+          {/* History Drawer */}
+          <Drawer
+            isOpen={subHistoryDrawerOpen}
+            onClose={closeSubHistoryDrawer}
+            title={subHistoryPharmacy ? `Subscription History - ${subHistoryPharmacy.pharmacyName}` : 'Subscription History'}
+            footer={<button type="button" className="btn btn-secondary" onClick={closeSubHistoryDrawer}>Close</button>}
+            style={{ width: '750px' }}
+          >
+            {subHistoryLoading ? (
+              <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+            ) : subHistoryRecords.length > 0 ? (
+              <>
+                {/* Desktop table */}
+                <div className="customer-desktop-table">
+                  <div className="table-container">
+                    <table className="history-table">
+                      <thead>
+                        <tr>
+                          <th>Plan</th>
+                          <th>Start</th>
+                          <th>End</th>
+                          <th>Duration</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Renewed</th>
+                          <th>Payment</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {subHistoryRecords.map((record) => (
+                          <tr key={record._id}>
+                            <td style={{ fontWeight: 500, textTransform: 'capitalize' }}>{record.planName}</td>
+                            <td>{new Date(record.startDate).toLocaleDateString()}</td>
+                            <td>{new Date(record.endDate).toLocaleDateString()}</td>
+                            <td>{record.duration} {record.durationUnit}</td>
+                            <td style={{ fontWeight: 600 }}>₹{record.amount?.toLocaleString()}</td>
+                            <td>
+                              <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
+                                {record.status}
+                              </span>
+                            </td>
+                            <td>{new Date(record.renewalDate).toLocaleDateString()}</td>
+                            <td style={{ textTransform: 'capitalize' }}>{record.paymentMethod || '-'}</td>
+                            <td>
+                              {record.status === 'upcoming' && (
+                                <button className="btn btn-danger btn-sm" onClick={() => handleCancelUpcoming(record._id)} title="Cancel Subscription">
+                                  <i className="fa-solid fa-ban"></i> Cancel
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                {/* Mobile table */}
+                <div className="customer-mobile-table">
+                  <table className="history-table">
+                    <thead>
+                      <tr>
+                        <th>Plan</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th className="customer-expand-th"></th>
+                      </tr>
+                    </thead>
+                    {subHistoryRecords.map((record, idx) => {
+                      const expanded = isRowExpanded('hist', idx);
+                      const mainCols = [
+                        { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
+                        { render: (r) => <span style={{ fontWeight: 600 }}>₹{r.amount?.toLocaleString()}</span> },
+                        { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{r.status}</span> },
+                      ];
+                      const detailRows = [
+                        { label: 'Start', render: (r) => new Date(r.startDate).toLocaleDateString() },
+                        { label: 'End', render: (r) => new Date(r.endDate).toLocaleDateString() },
+                        { label: 'Duration', render: (r) => `${r.duration} ${r.durationUnit}` },
+                        { label: 'Renewed', render: (r) => new Date(r.renewalDate).toLocaleDateString() },
+                        { label: 'Payment', render: (r) => <span style={{ textTransform: 'capitalize' }}>{r.paymentMethod || '-'}</span> },
+                        { label: '', render: (r) => record.status === 'upcoming' ? (
+                          <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleCancelUpcoming(r._id); }} title="Cancel Subscription">
+                            <i className="fa-solid fa-ban"></i> Cancel
+                          </button>
+                        ) : null },
+                      ];
+                      return renderExpandableRow(record, idx, 'hist', expanded, () => toggleRow('hist', idx), mainCols, detailRows);
+                    })}
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="empty-state" style={{ padding: '30px' }}>
+                <i className="fa-solid fa-clock-rotate-left"></i>
+                <h4>No History Found</h4>
+                <p>No subscription history records available for this pharmacy.</p>
+              </div>
             )}
           </Drawer>
         </div>

@@ -1,4 +1,5 @@
 import Pharmacy from '../models/Pharmacy.js';
+import SubscriptionHistory from '../models/SubscriptionHistory.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 // @desc    Middleware to check if pharmacy subscription is expired
@@ -21,14 +22,40 @@ export const checkSubscription = async (req, res, next) => {
       return next();
     }
 
+    // Auto-transition: Update subscription statuses based on dates
+    try {
+      const activeRecords = await SubscriptionHistory.find({
+        pharmacy: pharmacy._id,
+        status: { $in: ['active', 'upcoming'] },
+      }).sort({ startDate: 1 });
+
+      const now = new Date();
+      for (const record of activeRecords) {
+        const recordStart = new Date(record.startDate);
+        const recordEnd = new Date(record.endDate);
+
+        if (record.status === 'upcoming' && recordStart <= now) {
+          record.status = 'active';
+          await record.save();
+        }
+
+        if (record.status === 'active' && recordEnd < now) {
+          record.status = 'expired';
+          await record.save();
+        }
+      }
+    } catch (e) {
+      console.error('Auto-transition error in middleware:', e.message);
+    }
+
     // Check if subscription has an end date and is expired
     if (pharmacy.subscriptionEndDate) {
       const now = new Date();
       const endDate = new Date(pharmacy.subscriptionEndDate);
 
       if (endDate < now) {
-        // Subscription is expired - allow only dashboard and subscription-related routes
-        const allowedPaths = ['/api/dashboard', '/api/pharmacies/my', '/api/auth'];
+        // Subscription is expired - allow only dashboard, subscription-related routes, and profile
+        const allowedPaths = ['/api/dashboard', '/api/pharmacies/my', '/api/auth', '/api/subscription'];
         const isAllowed = allowedPaths.some((path) => req.originalUrl.startsWith(path));
 
         if (!isAllowed) {

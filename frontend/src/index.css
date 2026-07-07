@@ -1,3 +1,4 @@
+/* Add these styles at the end of the file, right before the closing of the CSS */
 * {
   margin: 0;
   padding: 0;
@@ -42,6 +43,19 @@
   --z-drawer: 1400;
   --z-sidebar-backdrop: 1250;
   --z-swal-container: 9999;
+}
+
+/* SweetAlert2 Toast z-index override — always visible above drawers, modals, and sidebar */
+.swal2-container.swal2-top-end,
+.swal2-container.swal2-top-right,
+.swal2-container.swal2-top-left,
+.swal2-container.swal2-top,
+.swal2-container {
+  z-index: 10000 !important;
+}
+
+.swal2-popup.swal2-toast {
+  z-index: 10001 !important;
 }
 
 body {
@@ -3720,6 +3734,51 @@ input[type="number"]:focus {
   .report-mobile-table {
     display: block;
   }
+
+  /* === Subscription History Mobile === */
+  .sub-history-desktop-table {
+    display: none;
+  }
+
+  .sub-history-mobile-table {
+    display: block;
+  }
+
+  .sub-history-mobile-table .btn-sm {
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .sub-history-mobile-table .btn-sm i {
+    font-size: 14px;
+  }
+
+  /* ===== Profile Page Responsive ===== */
+  .profile-grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 24px;
+  }
+
+  .profile-info-row {
+    display: flex;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .profile-info-label {
+    width: 150px;
+    font-weight: 500;
+    color: var(--gray-600);
+  }
+
+  .profile-form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
 }
 
 /* Small mobile */
@@ -3824,9 +3883,797 @@ input[type="number"]:focus {
     height: 40px;
     font-size: 19px;
   }
+
+  /* ===== Profile Mobile: stack columns ===== */
+  .profile-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .profile-info-row {
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 0;
+  }
+
+  .profile-info-label {
+    width: auto;
+    font-size: 12px;
+  }
+
+  .profile-form-actions {
+    flex-direction: column;
+  }
+
+  .profile-form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
-/* ===== SweetAlert2 z-index override ===== */
-.swal2-container {
-  z-index: var(--z-swal-container) !important;
+/* ===== Scan Button ===== */
+.btn-scan {
+  height: 40px;
+  padding: 8px 18px;
+  font-size: 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius);
+  background: #06b6d4;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 80px;
+}
+
+.btn-scan:hover:not(:disabled) {
+  background: #0891b2;
+}
+
+.btn-scan:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-scan i {
+  font-size: 15px;
+}
+
+@media (max-width: 768px) {
+  .btn-scan {
+    height: 44px;
+    width: 100%;
+    font-size: 15px;
+    padding: 10px 18px;
+  }
+}
+
+/* ===== Medicine Form - Responsive Grid ===== */
+.medicine-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.medicine-form-column {
+  min-width: 0;
+}
+
+.medicine-form-section-title {
+  color: var(--primary);
+  margin-bottom: 16px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.medicine-form-section-title i {
+  margin-right: 6px;
+}
+
+.medicine-form-divider {
+  margin: 16px 0;
+  border: none;
+  border-top: 1px solid var(--gray-200);
+}
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.barcode-input-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.barcode-input-flex {
+  flex: 1;
+  min-width: 0;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.file-input {
+  padding: 8px !important;
+  width: 100%;
+}
+
+.image-preview-container {
+  margin-top: 8px;
+}
+
+.image-preview-img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.medicine-form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: flex-end;
+}
+
+/* Scanner Overlay */
+.scanner-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.scanner-loading {
+  color: #fff;
+  text-align: center;
+  padding: 40px;
+}
+
+.scanner-loading i {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.scanner-loading div {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.scanner-loading p {
+  font-size: 13px;
+  margin-top: 8px;
+  color: #aaa;
+}
+
+.scanner-error {
+  color: #fff;
+  text-align: center;
+  padding: 40px;
+  max-width: 400px;
+}
+
+.scanner-error i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #f59e0b;
+}
+
+.scanner-error div {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.scanner-error p {
+  font-size: 14px;
+  color: #ccc;
+  margin-bottom: 16px;
+}
+
+.scanner-error-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.scanner-header {
+  color: #fff;
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.scanner-cameras {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.scanner-reader {
+  width: 100%;
+  max-width: 500px;
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 300px;
+}
+
+.scanner-cancel {
+  margin-top: 16px;
+}
+
+/* ===== Page Header - Keep inline on mobile ===== */
+.page-header-inline-mobile {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px;
+}
+
+.page-header-inline-mobile > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .page-header-inline-mobile {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .page-header-inline-mobile > div:first-child {
+    width: auto;
+  }
+
+  .page-header-inline-mobile .btn-group-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    width: auto !important;
+    margin-left: auto;
+  }
+
+  .page-header-inline-mobile .btn-group-grid .btn {
+    width: auto !important;
+    white-space: nowrap;
+    padding: 8px 14px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* ===== Medicine Form - Mobile Responsive ===== */
+@media (max-width: 768px) {
+  .medicine-form-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .barcode-input-group {
+    flex-wrap: wrap;
+  }
+
+  .barcode-input-group .btn {
+    width: 100%;
+  }
+
+  .medicine-form-actions {
+    flex-direction: column;
+  }
+
+  .medicine-form-actions .btn {
+    width: 100%;
+  }
+
+  .image-preview-img {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .scanner-reader {
+    min-height: 200px;
+  }
+}
+
+/* ===== Medicine Detail Page ===== */
+.medicine-detail {
+  width: 100%;
+}
+
+.medicine-detail-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.medicine-detail-image-card {
+  overflow: hidden;
+}
+
+.medicine-detail-image-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.medicine-detail-image {
+  width: 100%;
+  max-height: 250px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.medicine-detail-image-placeholder {
+  width: 100%;
+  height: 200px;
+  background: var(--gray-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--gray-400);
+}
+
+.medicine-detail-image-placeholder i {
+  font-size: 60px;
+}
+
+.medicine-detail-badges {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.medicine-detail-badges .badge {
+  font-size: 13px;
+  padding: 5px 14px;
+}
+
+.medicine-detail-card {
+  margin-bottom: 20px;
+}
+
+.medicine-detail-card-body {
+  padding: 4px 20px 12px !important;
+}
+
+.med-detail-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--gray-100);
+  gap: 12px;
+}
+
+.med-detail-row:last-child {
+  border-bottom: none;
+}
+
+.med-detail-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-500);
+  min-width: 130px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.med-detail-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  word-break: break-word;
+  flex: 1;
+  text-align: right;
+}
+
+/* ===== Medicine Detail - Mobile Responsive ===== */
+@media (max-width: 992px) {
+  .medicine-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .medicine-detail-image {
+    max-height: 200px;
+  }
+
+  .medicine-detail-image-placeholder {
+    height: 160px;
+  }
+
+  .medicine-detail-image-placeholder i {
+    font-size: 40px;
+  }
+}
+
+@media (max-width: 768px) {
+  .medicine-detail-image-body {
+    padding: 14px;
+  }
+
+  .medicine-detail-image {
+    max-height: 180px;
+  }
+
+  .medicine-detail-image-placeholder {
+    height: 140px;
+  }
+
+  .medicine-detail-image-placeholder i {
+    font-size: 36px;
+  }
+
+  .medicine-detail-card-body {
+    padding: 4px 14px 10px !important;
+  }
+
+  .med-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 10px 0;
+  }
+
+  .med-detail-label {
+    min-width: auto;
+    font-size: 11px;
+  }
+
+  .med-detail-value {
+    text-align: left;
+    font-size: 14px;
+  }
+
+  .medicine-detail-badges .badge {
+    font-size: 12px;
+    padding: 4px 12px;
+  }
+}
+
+/* ===== Renew Subscription Drawer ===== */
+.renew-drawer-content {
+  width: 100%;
+}
+
+.renew-current-plan-card {
+  border: 1px solid var(--gray-200);
+  margin: 0;
+  border-left: 3px solid var(--primary);
+}
+
+.renew-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.renew-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.renew-info-label {
+  font-size: 11px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 500;
+}
+
+.renew-info-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.renew-total-card {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-top: 16px;
+}
+
+.renew-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--gray-700);
+}
+
+.renew-total-divider {
+  border-top: 1px solid var(--gray-200);
+  margin: 6px 0;
+}
+
+.renew-total-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.renew-preview-card {
+  background: #f8fafc;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-top: 16px;
+}
+
+.renew-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.renew-preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.renew-preview-label {
+  font-size: 11px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 500;
+}
+
+.renew-preview-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.renew-preview-divider {
+  border-top: 1px solid var(--gray-200);
+  margin: 10px 0;
+}
+
+.renew-preview-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+@media (max-width: 768px) {
+  .renew-preview-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.renew-notice {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: #e65100;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.renew-notice i {
+  font-size: 16px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* ===== Subscription History Table ===== */
+.history-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.history-table thead th {
+  background: var(--gray-50);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid var(--gray-200);
+  white-space: nowrap;
+}
+
+.history-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+.history-table tbody tr:hover {
+  background: var(--gray-50);
+}
+
+@media (max-width: 768px) {
+  .renew-info-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .renew-drawer-content .form-row-2 {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+
+  .history-table thead th,
+  .history-table tbody td {
+    padding: 8px 8px;
+    font-size: 11px;
+  }
+}
+
+/* ===== Subscription History Responsive Tables ===== */
+.sub-history-desktop-table {
+  display: block;
+}
+
+.sub-history-mobile-table {
+  display: none;
+}
+
+.sub-history-mobile-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.sub-history-mobile-row:hover {
+  background: var(--gray-50);
+}
+
+.sub-history-mobile-row td {
+  border-bottom: none !important;
+  vertical-align: middle;
+}
+
+.sub-history-expand-th {
+  width: 40px;
+  text-align: center;
+}
+
+.sub-history-expand-cell {
+  width: 40px;
+  text-align: center;
+  border-bottom: none !important;
+  vertical-align: middle;
+}
+
+.sub-history-expand-btn {
+  background: var(--gray-100);
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--gray-500);
+  font-size: 10px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sub-history-expand-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.sub-history-detail-row {
+  display: table-row;
+}
+
+.sub-history-detail-cell {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.sub-history-detail-inner {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, padding 0.35s ease;
+  padding: 0 16px;
+  background: #fff;
+  border-radius: 8px;
+  margin: 0 4px 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.sub-history-detail-row-open .sub-history-detail-inner {
+  max-height: 500px;
+  padding: 12px 14px;
+}
+
+.sub-history-detail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+  gap: 12px;
+}
+
+.sub-history-detail-item:last-child {
+  border-bottom: none;
+}
+
+.sub-history-detail-label {
+  font-size: 12px;
+  color: var(--gray-500);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.sub-history-detail-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+  text-align: right;
+  flex: 1;
+  word-break: break-word;
 }

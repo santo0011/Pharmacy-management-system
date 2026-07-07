@@ -24,6 +24,7 @@ import saleRoutes from './routes/saleRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import subscriptionHistoryRoutes from './routes/subscriptionHistoryRoutes.js';
 
 dotenv.config();
 
@@ -63,6 +64,7 @@ app.use('/api/sales', saleRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/subscription-history', subscriptionHistoryRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

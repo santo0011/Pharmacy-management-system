@@ -41,6 +41,52 @@ export default function Pharmacies() {
   const [submitting, setSubmitting] = useState(false);
   const [localActivePlans, setLocalActivePlans] = useState([]);
   const [plansLoading, setPlansLoading] = useState(true);
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const toggleRow = (tableKey, rowIdx) => {
+    const key = `${tableKey}-${rowIdx}`;
+    setExpandedRows(prev => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const isRowExpanded = (tableKey, rowIdx) => {
+    return !!expandedRows[`${tableKey}-${rowIdx}`];
+  };
+
+  const renderExpandableRow = (item, idx, tableKey, isExpanded, onToggle, mainCols, detailRows) => {
+    return (
+      <tbody key={idx}>
+        <tr className="customer-mobile-row" onClick={onToggle}>
+          {mainCols.map((col, ci) => (
+            <td key={ci} className={col.className || ''} style={col.style || {}}>
+              {col.render(item)}
+            </td>
+          ))}
+          <td className="customer-expand-cell">
+            <button className="customer-expand-btn">
+              <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`customer-detail-row ${isExpanded ? 'customer-detail-row-open' : ''}`}>
+          <td colSpan={mainCols.length + 1} className="customer-detail-cell">
+            <div className="customer-detail-inner">
+              {detailRows.map((detail, di) => (
+                <div key={di} className="customer-detail-item">
+                  <span className="customer-detail-label">{detail.label}</span>
+                  <span className="customer-detail-value" style={detail.style || {}}>
+                    {detail.render(item)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
 
   const loadPharmacies = useCallback(() => {
     const params = { page: currentPage, limit: 10 };
@@ -162,7 +208,7 @@ export default function Pharmacies() {
   const handleToggleStatus = async (pharmacy) => {
     const newStatus = pharmacy.status === 'active' ? 'inactive' : 'active';
     const action = newStatus === 'active' ? 'activate' : 'deactivate';
-    
+
     const confirmed = await showConfirm(
       `${action === 'deactivate' ? 'Deactivate' : 'Activate'} Pharmacy`,
       action === 'deactivate'
@@ -253,59 +299,113 @@ export default function Pharmacies() {
           {loading ? (
             <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
           ) : items?.length > 0 ? (
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Pharmacy Name</th>
-                    <th>Owner</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>License</th>
-                    <th>Plan</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((pharmacy) => (
-                    <tr key={pharmacy._id}>
-                      <td style={{ fontWeight: 500 }}>{pharmacy.pharmacyName}</td>
-                      <td>{pharmacy.ownerName}</td>
-                      <td>{pharmacy.email}</td>
-                      <td>{pharmacy.phone}</td>
-                      <td>{pharmacy.licenseNumber || '-'}</td>
-                      <td><span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{pharmacy.subscriptionPlan}</span></td>
-                      <td>
-                        <span className={`badge ${getStatusBadge(pharmacy.status)}`} style={{ textTransform: 'capitalize' }}>
-                          {pharmacy.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button className="btn btn-info btn-sm" onClick={() => openViewDrawer(pharmacy)} title="View Details">
-                            <i className="fa-solid fa-eye"></i>
-                          </button>
-                          <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(pharmacy)} title="Edit">
-                            <i className="fa-solid fa-edit"></i>
-                          </button>
-                          <button
-                            className={`btn btn-sm ${pharmacy.status === 'active' ? 'btn-secondary' : 'btn-success'}`}
-                            onClick={() => handleToggleStatus(pharmacy)}
-                            title={pharmacy.status === 'active' ? 'Deactivate' : 'Activate'}
-                          >
-                            <i className={`fa-solid ${pharmacy.status === 'active' ? 'fa-pause' : 'fa-play'}`}></i>
-                          </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(pharmacy._id, pharmacy.pharmacyName)} title="Delete">
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </div>
-                      </td>
+            <>
+              {/* Desktop table */}
+              <div className="customer-desktop-table">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pharmacy Name</th>
+                        <th>Owner</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>License</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((pharmacy) => (
+                        <tr key={pharmacy._id}>
+                          <td style={{ fontWeight: 500 }}>{pharmacy.pharmacyName}</td>
+                          <td>{pharmacy.ownerName}</td>
+                          <td>{pharmacy.email}</td>
+                          <td>{pharmacy.phone}</td>
+                          <td>{pharmacy.licenseNumber || '-'}</td>
+                          <td><span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{pharmacy.subscriptionPlan}</span></td>
+                          <td>
+                            <span className={`badge ${getStatusBadge(pharmacy.status)}`} style={{ textTransform: 'capitalize' }}>
+                              {pharmacy.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="btn btn-info btn-sm" onClick={() => openViewDrawer(pharmacy)} title="View Details">
+                                <i className="fa-solid fa-eye"></i>
+                              </button>
+                              <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(pharmacy)} title="Edit">
+                                <i className="fa-solid fa-edit"></i>
+                              </button>
+                              <button
+                                className={`btn btn-sm ${pharmacy.status === 'active' ? 'btn-secondary' : 'btn-success'}`}
+                                onClick={() => handleToggleStatus(pharmacy)}
+                                title={pharmacy.status === 'active' ? 'Deactivate' : 'Activate'}
+                              >
+                                <i className={`fa-solid ${pharmacy.status === 'active' ? 'fa-pause' : 'fa-play'}`}></i>
+                              </button>
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(pharmacy._id, pharmacy.pharmacyName)} title="Delete">
+                                <i className="fa-solid fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {/* Mobile table */}
+              <div className="customer-mobile-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Pharmacy</th>
+                      <th>Status</th>
+                      <th className="customer-expand-th"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  {items.map((pharmacy, idx) => {
+                    const expanded = isRowExpanded('pharmacy', idx);
+                    const mainCols = [
+                      { render: (p) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{p.pharmacyName}</span> },
+                      { render: (p) => <span className={`badge ${getStatusBadge(p.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{p.status}</span> },
+                    ];
+                    const detailRows = [
+                      { label: 'Owner', render: (p) => p.ownerName },
+                      { label: 'Email', render: (p) => p.email },
+                      { label: 'Phone', render: (p) => p.phone },
+                      { label: 'License', render: (p) => p.licenseNumber || '-' },
+                      { label: 'Plan', render: (p) => <span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{p.subscriptionPlan}</span> },
+                      {
+                        label: 'Actions', render: (p) => (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); openViewDrawer(p); }} title="View Details">
+                              <i className="fa-solid fa-eye"></i>
+                            </button>
+                            <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); openEditDrawer(p); }} title="Edit">
+                              <i className="fa-solid fa-edit"></i>
+                            </button>
+                            <button
+                              className={`btn btn-sm ${p.status === 'active' ? 'btn-secondary' : 'btn-success'}`}
+                              onClick={(e) => { e.stopPropagation(); handleToggleStatus(p); }}
+                              title={p.status === 'active' ? 'Deactivate' : 'Activate'}
+                            >
+                              <i className={`fa-solid ${p.status === 'active' ? 'fa-pause' : 'fa-play'}`}></i>
+                            </button>
+                            <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(p._id, p.pharmacyName); }} title="Delete">
+                              <i className="fa-solid fa-trash"></i>
+                            </button>
+                          </div>
+                        )
+                      },
+                    ];
+                    return renderExpandableRow(pharmacy, idx, 'pharmacy', expanded, () => toggleRow('pharmacy', idx), mainCols, detailRows);
+                  })}
+                </table>
+              </div>
+            </>
           ) : (
             <div className="empty-state">
               <i className="fa-solid fa-hospital"></i>

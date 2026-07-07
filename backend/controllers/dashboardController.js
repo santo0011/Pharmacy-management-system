@@ -28,6 +28,35 @@ export const getSubscriptionStatus = async (req, res, next) => {
       }
     }
 
+    // Auto-transition: if there's an "upcoming" subscription whose startDate has arrived,
+    // mark it as "active" and mark any currently active (but past endDate) as "expired"
+    try {
+      const activeRecords = await SubscriptionHistory.find({
+        pharmacy: pharmacy._id,
+        status: { $in: ['active', 'upcoming'] },
+      }).sort({ startDate: 1 });
+
+      for (const record of activeRecords) {
+        const recordStart = new Date(record.startDate);
+        const recordEnd = new Date(record.endDate);
+
+        if (record.status === 'upcoming' && recordStart <= now) {
+          // This upcoming subscription should now be active
+          record.status = 'active';
+          await record.save();
+        }
+
+        if (record.status === 'active' && recordEnd < now) {
+          // This active subscription has expired
+          record.status = 'expired';
+          await record.save();
+        }
+      }
+    } catch (e) {
+      // Non-critical: just log and continue
+      console.error('Auto-transition error:', e.message);
+    }
+
     return ApiResponse.success(res, {
       status,
       daysRemaining,
@@ -125,7 +154,7 @@ export const getSuperAdminDashboard = async (req, res, next) => {
   try {
     const totalPharmacies = await Pharmacy.countDocuments();
     const activePharmacies = await Pharmacy.countDocuments({ status: 'active' });
-    const suspendedPharmacies = await Pharmacy.countDocuments({ status: 'suspended' });
+    const deactivatedPharmacies = await Pharmacy.countDocuments({ status: 'inactive' });
     const totalUsers = await User.countDocuments({ role: { $ne: 'super_admin' } });
 
     // Subscription breakdown
@@ -179,7 +208,7 @@ export const getSuperAdminDashboard = async (req, res, next) => {
     return ApiResponse.success(res, {
       totalPharmacies,
       activePharmacies,
-      suspendedPharmacies,
+      deactivatedPharmacies,
       totalUsers,
       subscriptionStats: subscriptionStats.map((s) => ({
         plan: s._id,
