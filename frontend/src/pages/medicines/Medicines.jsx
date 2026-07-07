@@ -224,9 +224,14 @@ export default function Medicines() {
           <p>Manage your pharmacy medicine inventory</p>
         </div>
         {!isCashier && !isSuperAdmin && (
-          <button className="btn btn-primary" onClick={() => navigate('/medicines/new')}>
-            <i className="fa-solid fa-plus"></i> Add Medicine
-          </button>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button className="btn btn-success" onClick={() => navigate('/medicines/bulk-import')}>
+              <i className="fa-solid fa-cloud-arrow-up"></i> Bulk Import
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/medicines/new')}>
+              <i className="fa-solid fa-plus"></i> Add Medicine
+            </button>
+          </div>
         )}
       </div>
 

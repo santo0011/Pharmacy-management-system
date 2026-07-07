@@ -10,6 +10,7 @@ import {
   checkBarcode,
   lookupBarcode,
 } from '../controllers/medicineController.js';
+import { bulkImportMedicines } from '../controllers/bulkImportController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
 import { uploadMedicineImage, handleUploadError } from '../middleware/upload.js';
@@ -27,6 +28,9 @@ router.get('/stats', getMedicineStats);
 // Barcode routes must come before /:id to prevent route collision
 router.post('/check-barcode', checkBarcode);
 router.post('/lookup-barcode', lookupBarcode);
+
+// Bulk import (must come before /:id)
+router.post('/bulk-import', authorize('admin', 'pharmacist'), bulkImportMedicines);
 
 router.route('/')
   .get(getMedicines)

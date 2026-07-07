@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSubscriptionStatus } from '../redux/slices/dashboardSlice';
 import { confirmAction } from '../utils/sweetAlert';
+import { notificationService } from '../services/notificationService';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(true);
   const [managementOpen, setManagementOpen] = useState(() => window.innerWidth > 768);
+  const [notifCount, setNotifCount] = useState(0);
   const { user, logout } = useAuth();
   const dispatch = useDispatch();
   const location = useLocation();
@@ -25,6 +27,21 @@ export default function MainLayout() {
       return () => clearInterval(interval);
     }
   }, [dispatch, user]);
+
+  // Fetch unread notification count
+  useEffect(() => {
+    const fetchNotifCount = async () => {
+      try {
+        const res = await notificationService.getUnreadCount();
+        setNotifCount(res.data?.data?.count || 0);
+      } catch (err) {
+        // Silently fail
+      }
+    };
+    fetchNotifCount();
+    const interval = setInterval(fetchNotifCount, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -294,6 +311,18 @@ export default function MainLayout() {
             </h4>
           </div>
           <div className="header-right">
+            <NavLink to="/notifications" className="notification-bell" style={{ position: 'relative', marginRight: '8px', color: 'var(--gray-500)', fontSize: '18px' }}>
+              <i className="fa-solid fa-bell"></i>
+              {notifCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: '-6px', right: '-8px',
+                  background: '#ef4444', color: 'white', borderRadius: '50%',
+                  width: '18px', height: '18px', fontSize: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 600, lineHeight: 1,
+                }}>{notifCount > 99 ? '99+' : notifCount}</span>
+              )}
+            </NavLink>
             <div className="user-info">
               <div className="avatar">
                 {user?.name?.charAt(0)?.toUpperCase() || 'U'}

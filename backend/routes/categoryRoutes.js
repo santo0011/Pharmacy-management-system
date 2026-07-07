@@ -7,6 +7,7 @@ import {
   deleteCategory,
   toggleCategoryStatus,
 } from '../controllers/categoryController.js';
+import { bulkImportCategories } from '../controllers/bulkCategoryController.js';
 import { protect } from '../middleware/auth.js';
 import { pharmacyScope, pharmacyOnly } from '../middleware/pharmacyAccess.js';
 import { uploadCategoryImage, handleUploadError } from '../middleware/upload.js';
@@ -25,6 +26,8 @@ router.route('/:id')
   .get(getCategory)
   .put(uploadCategoryImage.single('image'), handleUploadError, updateCategory)
   .delete(deleteCategory);
+
+router.post('/bulk-import', bulkImportCategories);
 
 router.patch('/:id/status', toggleCategoryStatus);
 

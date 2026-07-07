@@ -8,6 +8,7 @@ import {
   toggleBrandStatus,
 } from '../../redux/slices/brandSlice';
 import Drawer from '../../components/common/Drawer';
+import BulkImportSimple from '../../components/common/BulkImportSimple';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 const initialFormState = {
@@ -214,9 +215,22 @@ export default function Brands() {
           <h2>Brands</h2>
           <p>Manage product brands</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreateDrawer}>
-          <i className="fa-solid fa-plus"></i> Add Brand
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <BulkImportSimple
+            title="Bulk Import Brands"
+            entityName="brands"
+            endpoint="/brands/bulk-import"
+            sampleFormat="Name, Description\nCipla, Cipla pharmaceuticals\nSun Pharma, Sun pharmaceutical products\nDr Reddys, Dr Reddys medicines"
+            fields={[
+              { key: 'name', label: 'Name', required: true, sample: 'Cipla' },
+              { key: 'description', label: 'Description', required: false, sample: 'Cipla pharmaceuticals' },
+            ]}
+            onComplete={() => loadBrands()}
+          />
+          <button className="btn btn-primary" onClick={openCreateDrawer}>
+            <i className="fa-solid fa-plus"></i> Add Brand
+          </button>
+        </div>
       </div>
 
       <div className="card">

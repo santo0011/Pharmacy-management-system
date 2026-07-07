@@ -3,7 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import SuperAdminLayout from './layouts/SuperAdminLayout';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/auth/Login';
-import Dashboard from './pages/dashboard/Dashboard';
+import Dashboard from './pages/dashboard/EnhancedDashboard';
 import Categories from './pages/categories/Categories';
 import Brands from './pages/brands/Brands';
 import Suppliers from './pages/suppliers/Suppliers';
@@ -25,6 +25,12 @@ import Subscriptions from './pages/subscriptions/Subscriptions';
 import Payments from './pages/payments/Payments';
 import Settings from './pages/settings/Settings';
 import Profile from './pages/profile/Profile';
+import NotificationCenter from './pages/notifications/NotificationCenter';
+import ActivityLogs from './pages/activity-logs/ActivityLogs';
+import BackupRestore from './pages/backup/BackupRestore';
+import BulkImport from './pages/medicines/BulkImport';
+import AdvancedAnalytics from './pages/super-admin/AdvancedAnalytics';
+import SystemHealth from './pages/super-admin/SystemHealth';
 
 function PublicRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -71,6 +77,8 @@ export default function App() {
         <Route path="payments" element={<Payments />} />
         <Route path="settings" element={<Settings />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="analytics" element={<AdvancedAnalytics />} />
+        <Route path="system-health" element={<SystemHealth />} />
 
         {/* Pharmacy User routes */}
         <Route path="subscriptions" element={<Subscriptions />} />
@@ -81,6 +89,7 @@ export default function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="medicines" element={<Medicines />} />
         <Route path="medicines/new" element={<MedicineForm />} />
+        <Route path="medicines/bulk-import" element={<BulkImport />} />
         <Route path="medicines/:id" element={<MedicineDetail />} />
         <Route path="medicines/:id/edit" element={<MedicineForm />} />
         <Route path="purchases" element={<Purchases />} />
@@ -93,6 +102,9 @@ export default function App() {
         <Route path="sales/:id/edit" element={<SaleForm />} />
         <Route path="sales/:id/invoice" element={<Invoice />} />
         <Route path="staff" element={<Staff />} />
+        <Route path="notifications" element={<NotificationCenter />} />
+        <Route path="activity-logs" element={<ActivityLogs />} />
+        <Route path="backup" element={<BackupRestore />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

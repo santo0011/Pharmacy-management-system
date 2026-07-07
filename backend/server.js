@@ -25,6 +25,10 @@ import customerRoutes from './routes/customerRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import subscriptionHistoryRoutes from './routes/subscriptionHistoryRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import activityLogRoutes from './routes/activityLogRoutes.js';
+import enhancedDashboardRoutes from './routes/enhancedDashboardRoutes.js';
+import backupRoutes from './routes/backupRoutes.js';
 
 dotenv.config();
 
@@ -65,6 +69,10 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/subscription-history', subscriptionHistoryRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/activity-logs', activityLogRoutes);
+app.use('/api/dashboard/enhanced', enhancedDashboardRoutes);
+app.use('/api/backup', backupRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -8,6 +8,7 @@ import {
   toggleCategoryStatus,
 } from '../../redux/slices/categorySlice';
 import Drawer from '../../components/common/Drawer';
+import BulkImportSimple from '../../components/common/BulkImportSimple';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 const initialFormState = {
@@ -215,26 +216,50 @@ export default function Categories() {
     <div>
       <div className="page-header">
         <div>
-          <h2>Categories</h2>
-          <p>Manage product categories</p>
+          <h2><i className="fa-solid fa-tags" style={{ marginRight: '10px', color: 'var(--primary)' }}></i>Categories</h2>
+          <p>Manage product categories for your pharmacy inventory</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreateDrawer}>
-          <i className="fa-solid fa-plus"></i> Add Category
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <BulkImportSimple
+            title="Bulk Import Categories"
+            entityName="categories"
+            endpoint="/categories/bulk-import"
+            sampleFormat="Name, Description\nPain Relief, Pain relief medications\nAntibiotics, Antibacterial medicines\nVitamins, Vitamin supplements"
+            fields={[
+              { key: 'name', label: 'Name', required: true, sample: 'Pain Relief' },
+              { key: 'description', label: 'Description', required: false, sample: 'Pain relief medications' },
+            ]}
+            onComplete={() => loadCategories()}
+          />
+          <button className="btn btn-primary" onClick={openCreateDrawer}>
+            <i className="fa-solid fa-plus"></i> Add Category
+          </button>
+        </div>
+      </div>
+
+      {/* Search & Filter Card */}
+      <div className="card" style={{ marginBottom: '20px' }}>
+        <div className="card-body">
+          <div className="search-bar" style={{ marginBottom: 0 }}>
+            <div className="search-input">
+              <i className="fa-solid fa-search"></i>
+              <input type="text" placeholder="Search categories by name..." value={search} onChange={handleSearch} />
+            </div>
+            {search && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setSearch('')}>
+                <i className="fa-solid fa-times"></i> Clear
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <h5>All Categories</h5>
+          <h5><i className="fa-solid fa-list" style={{ marginRight: '8px', color: '#3b82f6' }}></i>All Categories</h5>
           <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>Total: {total}</span>
         </div>
-        <div className="card-body">
-          <div className="search-bar">
-            <div className="search-input">
-              <i className="fa-solid fa-search"></i>
-              <input type="text" placeholder="Search categories..." value={search} onChange={handleSearch} />
-            </div>
-          </div>
+        <div className="card-body" style={{ padding: items?.length > 0 ? '0' : '20px' }}>
 
           {loading ? (
             <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>

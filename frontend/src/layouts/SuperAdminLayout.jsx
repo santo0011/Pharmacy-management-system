@@ -23,9 +23,12 @@ export default function SuperAdminLayout() {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: 'fa-solid fa-chart-pie' },
+    { path: '/analytics', label: 'Analytics', icon: 'fa-solid fa-chart-simple' },
+    { path: '/system-health', label: 'System Health', icon: 'fa-solid fa-heart-pulse' },
     { path: '/pharmacies', label: 'Pharmacies', icon: 'fa-solid fa-hospital' },
     { path: '/subscriptions', label: 'Subscriptions', icon: 'fa-solid fa-credit-card' },
     { path: '/payments', label: 'Payments', icon: 'fa-solid fa-money-bill-wave' },
+    { path: '/activity-logs', label: 'Activity Logs', icon: 'fa-solid fa-clock-rotate-left' },
     { path: '/settings', label: 'Settings', icon: 'fa-solid fa-gear' },
   ];
 

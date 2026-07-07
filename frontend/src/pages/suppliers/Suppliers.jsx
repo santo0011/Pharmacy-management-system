@@ -8,6 +8,7 @@ import {
   toggleSupplierStatus,
 } from '../../redux/slices/supplierSlice';
 import Drawer from '../../components/common/Drawer';
+import BulkImportSimple from '../../components/common/BulkImportSimple';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 const initialFormState = {
@@ -209,9 +210,25 @@ export default function Suppliers() {
           <h2>Suppliers</h2>
           <p>Manage product suppliers</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreateDrawer}>
-          <i className="fa-solid fa-plus"></i> Add Supplier
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <BulkImportSimple
+            title="Bulk Import Suppliers"
+            entityName="suppliers"
+            endpoint="/suppliers/bulk-import"
+            sampleFormat="Supplier Name, Company Name, Phone, Email, GST Number\nABC Pharma, ABC Pharmaceuticals, 9876543210, abc@pharma.com, 27AABC1234D1Z5\nXYZ Medicos, XYZ Medical Supplies, 9876543211, info@xyzmed.com, 27XYZ1234D1Z5"
+            fields={[
+              { key: 'supplierName', label: 'Supplier Name', required: true, sample: 'ABC Pharma' },
+              { key: 'companyName', label: 'Company Name', required: false, sample: 'ABC Pharmaceuticals' },
+              { key: 'phone', label: 'Phone', required: false, sample: '9876543210' },
+              { key: 'email', label: 'Email', required: false, sample: 'abc@pharma.com' },
+              { key: 'gstNumber', label: 'GST Number', required: false, sample: '27AABC1234D1Z5' },
+            ]}
+            onComplete={() => loadSuppliers()}
+          />
+          <button className="btn btn-primary" onClick={openCreateDrawer}>
+            <i className="fa-solid fa-plus"></i> Add Supplier
+          </button>
+        </div>
       </div>
 
       <div className="card">

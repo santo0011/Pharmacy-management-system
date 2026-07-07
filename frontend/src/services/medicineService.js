@@ -14,4 +14,5 @@ export const medicineService = {
   toggleStatus: (id) => API.patch(`/medicines/${id}/status`),
   checkBarcode: (barcode, excludeId = null) => API.post('/medicines/check-barcode', { barcode, excludeId }),
   lookupBarcode: (barcode) => API.post('/medicines/lookup-barcode', { barcode }),
+  bulkImport: (data) => API.post('/medicines/bulk-import', data),
 };
