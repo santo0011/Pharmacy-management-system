@@ -7,4 +7,7 @@ export const purchaseService = {
   updatePurchase: (id, data) => API.put(`/purchases/${id}`, data),
   deletePurchase: (id) => API.delete(`/purchases/${id}`),
   getPurchaseStats: () => API.get('/purchases/stats'),
+  addPurchasePayment: (id, data) => API.post(`/purchases/${id}/payments`, data),
+  getPurchasePayments: (id) => API.get(`/purchases/${id}/payments`),
+  getSupplierLedger: (supplierId, params) => API.get(`/purchases/supplier/${supplierId}/ledger`, { params }),
 };

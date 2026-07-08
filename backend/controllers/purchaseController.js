@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import Purchase from '../models/Purchase.js';
 import Medicine from '../models/Medicine.js';
+import Supplier from '../models/Supplier.js';
+import PurchasePayment from '../models/PurchasePayment.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 const generateInvoiceNumber = async (pharmacyId) => {
@@ -32,12 +34,37 @@ const revertStockForPurchase = async (items, pharmacyId, session) => {
   }
 };
 
+const updateSupplierFinancials = async (supplierId, pharmacyId, session) => {
+  if (!supplierId) return;
+  const stats = await Purchase.aggregate([
+    { $match: { supplier: new mongoose.Types.ObjectId(supplierId), pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $nin: ['cancelled', 'returned'] } } },
+    {
+      $group: {
+        _id: null,
+        totalPurchases: { $sum: 1 },
+        totalSpent: { $sum: '$grandTotal' },
+        totalPaid: { $sum: '$paidAmount' },
+        totalDue: { $sum: '$dueAmount' },
+        lastPurchaseDate: { $max: '$purchaseDate' },
+      },
+    },
+  ]);
+  const data = stats[0] || { totalPurchases: 0, totalSpent: 0, totalPaid: 0, totalDue: 0, lastPurchaseDate: null };
+  await Supplier.findByIdAndUpdate(supplierId, {
+    totalPurchases: data.totalPurchases,
+    totalSpent: data.totalSpent,
+    totalPaid: data.totalPaid,
+    totalDue: data.totalDue,
+    lastPurchaseDate: data.lastPurchaseDate,
+  }).session(session);
+};
+
 export const getPurchases = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const { search, startDate, endDate, status, supplier } = req.query;
+    const { search, startDate, endDate, status, supplier, paymentStatus } = req.query;
     const query = { pharmacyId: req.pharmacyId, isDeleted: false };
 
     if (search) {
@@ -50,6 +77,7 @@ export const getPurchases = async (req, res, next) => {
     if (endDate) query.purchaseDate = { ...query.purchaseDate, $lte: new Date(endDate) };
     if (status) query.status = status;
     if (supplier) query.supplier = supplier;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
 
     const total = await Purchase.countDocuments(query);
     const purchases = await Purchase.find(query)
@@ -72,7 +100,13 @@ export const getPurchase = async (req, res, next) => {
       .populate('items.medicine', 'medicineName genericName unit')
       .populate('createdBy', 'name');
     if (!purchase) return ApiResponse.error(res, 'Purchase not found', 404);
-    return ApiResponse.success(res, purchase);
+
+    // Get payment history
+    const payments = await PurchasePayment.find({ purchase: purchase._id, pharmacyId: req.pharmacyId })
+      .populate('createdBy', 'name')
+      .sort({ paymentDate: -1 });
+
+    return ApiResponse.success(res, { purchase, payments });
   } catch (error) {
     next(error);
   }
@@ -82,7 +116,7 @@ export const createPurchase = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, paymentStatus, notes } = req.body;
+    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, notes } = req.body;
 
     if (!items || items.length === 0) return ApiResponse.error(res, 'At least one item is required', 400);
 
@@ -94,7 +128,6 @@ export const createPurchase = async (req, res, next) => {
     const purchaseItems = [];
 
     for (const item of parsedItems) {
-      // Find or create medicine
       let medicine;
       if (item.medicineId) {
         medicine = await Medicine.findById(item.medicineId).session(session);
@@ -103,7 +136,6 @@ export const createPurchase = async (req, res, next) => {
       }
 
       if (!medicine) {
-        // Create new medicine
         medicine = await Medicine.create([{
           medicineName: item.medicineName,
           genericName: item.genericName || '',
@@ -182,6 +214,26 @@ export const createPurchase = async (req, res, next) => {
     // Update stock
     await updateStockForPurchase(purchaseItems, req.pharmacyId, session);
 
+    // Record payment if paid
+    if (paid > 0) {
+      await PurchasePayment.create([{
+        purchase: purchase._id,
+        supplier: supplier || null,
+        supplierName: supplierName || '',
+        pharmacyId: req.pharmacyId,
+        amount: paid,
+        paymentMethod: paymentMethod || 'cash',
+        paymentDate: new Date(),
+        notes: 'Initial payment',
+        createdBy: req.user._id,
+      }], { session });
+    }
+
+    // Update supplier financials
+    if (supplier) {
+      await updateSupplierFinancials(supplier, req.pharmacyId, session);
+    }
+
     await session.commitTransaction();
     return ApiResponse.success(res, purchase, 'Purchase created successfully', 201);
   } catch (error) {
@@ -219,7 +271,7 @@ export const updatePurchase = async (req, res, next) => {
       await revertStockForPurchase(purchase.items, req.pharmacyId, session);
     }
 
-    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, paymentStatus, notes } = req.body;
+    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, notes } = req.body;
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
 
     let subtotal = 0;
@@ -274,6 +326,9 @@ export const updatePurchase = async (req, res, next) => {
     const paid = Number(paidAmount) || grandTotal;
     const due = grandTotal - paid;
 
+    // Store old supplier for financial update
+    const oldSupplier = purchase.supplier;
+
     purchase.set({
       purchaseDate: purchaseDate || purchase.purchaseDate,
       supplier: supplier || purchase.supplier,
@@ -299,6 +354,10 @@ export const updatePurchase = async (req, res, next) => {
     await purchase.save({ session });
     await updateStockForPurchase(purchaseItems, req.pharmacyId, session);
 
+    // Update supplier financials for old and new supplier
+    if (oldSupplier) await updateSupplierFinancials(oldSupplier, req.pharmacyId, session);
+    if (supplier && supplier !== oldSupplier) await updateSupplierFinancials(supplier, req.pharmacyId, session);
+
     await session.commitTransaction();
     return ApiResponse.success(res, purchase, 'Purchase updated successfully');
   } catch (error) {
@@ -316,7 +375,6 @@ export const deletePurchase = async (req, res, next) => {
     const purchase = await Purchase.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId, isDeleted: false }).session(session);
     if (!purchase) return ApiResponse.error(res, 'Purchase not found', 404);
 
-    // Check for sales referencing this purchase's items
     const Sale = (await import('../models/Sale.js')).default;
     const medicineIds = purchase.items.map(i => i.medicine);
     const salesCount = await Sale.countDocuments({ 'items.medicine': { $in: medicineIds }, pharmacyId: req.pharmacyId, isDeleted: false }).session(session);
@@ -324,7 +382,6 @@ export const deletePurchase = async (req, res, next) => {
       return ApiResponse.error(res, 'Cannot delete purchase. Some medicines have been sold.', 400);
     }
 
-    // Revert stock
     if (purchase.isStockUpdated) {
       await revertStockForPurchase(purchase.items, req.pharmacyId, session);
     }
@@ -332,6 +389,11 @@ export const deletePurchase = async (req, res, next) => {
     purchase.isDeleted = true;
     purchase.deletedAt = new Date();
     await purchase.save({ session });
+
+    // Update supplier financials
+    if (purchase.supplier) {
+      await updateSupplierFinancials(purchase.supplier, req.pharmacyId, session);
+    }
 
     await session.commitTransaction();
     return ApiResponse.success(res, null, 'Purchase deleted successfully');
@@ -343,6 +405,152 @@ export const deletePurchase = async (req, res, next) => {
   }
 };
 
+// ===== New Endpoints =====
+
+// @desc    Record a payment for a purchase
+// @route   POST /api/purchases/:id/payments
+export const addPurchasePayment = async (req, res, next) => {
+  try {
+    const { amount, paymentMethod, paymentDate, notes } = req.body;
+    if (!amount || amount <= 0) return ApiResponse.error(res, 'Valid payment amount is required', 400);
+
+    const purchase = await Purchase.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId, isDeleted: false });
+    if (!purchase) return ApiResponse.error(res, 'Purchase not found', 404);
+    if (purchase.status === 'cancelled' || purchase.status === 'returned') {
+      return ApiResponse.error(res, 'Cannot add payment to cancelled/returned purchase', 400);
+    }
+    if (purchase.dueAmount <= 0) return ApiResponse.error(res, 'Purchase already fully paid', 400);
+
+    const payment = await PurchasePayment.create({
+      purchase: purchase._id,
+      supplier: purchase.supplier,
+      supplierName: purchase.supplierName,
+      pharmacyId: req.pharmacyId,
+      amount: Number(amount),
+      paymentMethod: paymentMethod || 'cash',
+      paymentDate: paymentDate || new Date(),
+      notes: notes || '',
+      createdBy: req.user._id,
+    });
+
+    // Update purchase paid/due amounts
+    purchase.paidAmount += Number(amount);
+    purchase.dueAmount = Math.max(0, purchase.grandTotal - purchase.paidAmount);
+    purchase.paymentStatus = purchase.dueAmount <= 0 ? 'paid' : 'partial';
+    await purchase.save();
+
+    // Update supplier financials
+    if (purchase.supplier) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        await updateSupplierFinancials(purchase.supplier, req.pharmacyId, session);
+        await session.commitTransaction();
+      } finally {
+        session.endSession();
+      }
+    }
+
+    return ApiResponse.success(res, payment, 'Payment recorded successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get payment history for a purchase
+// @route   GET /api/purchases/:id/payments
+export const getPurchasePayments = async (req, res, next) => {
+  try {
+    const payments = await PurchasePayment.find({ purchase: req.params.id, pharmacyId: req.pharmacyId })
+      .populate('createdBy', 'name')
+      .sort({ paymentDate: -1 });
+    return ApiResponse.success(res, payments);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get supplier purchase ledger
+// @route   GET /api/purchases/supplier/:supplierId/ledger
+export const getSupplierLedger = async (req, res, next) => {
+  try {
+    const { supplierId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const purchases = await Purchase.find({
+      supplier: supplierId,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+      status: { $nin: ['cancelled', 'returned'] },
+    })
+      .select('invoiceNumber purchaseDate grandTotal paidAmount dueAmount paymentStatus status')
+      .sort({ purchaseDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const payments = await PurchasePayment.aggregate([
+      {
+        $match: {
+          supplier: new mongoose.Types.ObjectId(supplierId),
+          pharmacyId: new mongoose.Types.ObjectId(req.pharmacyId),
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalPaid: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const total = await Purchase.countDocuments({
+      supplier: supplierId,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+      status: { $nin: ['cancelled', 'returned'] },
+    });
+
+    const totals = await Purchase.aggregate([
+      {
+        $match: {
+          supplier: new mongoose.Types.ObjectId(supplierId),
+          pharmacyId: new mongoose.Types.ObjectId(req.pharmacyId),
+          isDeleted: false,
+          status: { $nin: ['cancelled', 'returned'] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$grandTotal' },
+          totalDue: { $sum: '$dueAmount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const summary = totals[0] || { totalAmount: 0, totalDue: 0, count: 0 };
+    const totalPayments = payments[0]?.totalPaid || 0;
+
+    return ApiResponse.paginated(res, {
+      purchases,
+      summary: {
+        totalPurchases: summary.count,
+        totalAmount: summary.totalAmount,
+        totalPaid: totalPayments,
+        totalDue: summary.totalDue,
+      },
+    }, total, page, limit);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get purchase statistics
+// @route   GET /api/purchases/stats
 export const getPurchaseStats = async (req, res, next) => {
   try {
     const pharmacyId = req.pharmacyId;
@@ -350,10 +558,10 @@ export const getPurchaseStats = async (req, res, next) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-    const [totalPurchase, monthlyPurchase, yearlyPurchase, recentPurchases] = await Promise.all([
+    const [totalPurchase, monthlyPurchase, yearlyPurchase, dueStats, recentPurchases] = await Promise.all([
       Purchase.aggregate([
         { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } } },
-        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 }, totalPaid: { $sum: '$paidAmount' }, totalDue: { $sum: '$dueAmount' } } },
       ]),
       Purchase.aggregate([
         { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, purchaseDate: { $gte: startOfMonth }, status: { $ne: 'cancelled' } } },
@@ -363,16 +571,24 @@ export const getPurchaseStats = async (req, res, next) => {
         { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, purchaseDate: { $gte: startOfYear }, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
       ]),
-      Purchase.find({ pharmacyId, isDeleted: false }).sort({ createdAt: -1 }).limit(5).populate('supplier', 'supplierName').select('invoiceNumber supplierName grandTotal purchaseDate status'),
+      Purchase.aggregate([
+        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $nin: ['cancelled', 'returned'] } } },
+        { $group: { _id: null, totalDue: { $sum: '$dueAmount' }, totalOutstanding: { $sum: '$grandTotal' } } },
+      ]),
+      Purchase.find({ pharmacyId, isDeleted: false }).sort({ createdAt: -1 }).limit(5).populate('supplier', 'supplierName').select('invoiceNumber supplierName grandTotal paidAmount dueAmount purchaseDate status paymentStatus'),
     ]);
 
     return ApiResponse.success(res, {
       totalAmount: totalPurchase[0]?.total || 0,
       totalPurchases: totalPurchase[0]?.count || 0,
+      totalPaid: totalPurchase[0]?.totalPaid || 0,
+      totalDue: totalPurchase[0]?.totalDue || 0,
       monthlyAmount: monthlyPurchase[0]?.total || 0,
       monthlyPurchases: monthlyPurchase[0]?.count || 0,
       yearlyAmount: yearlyPurchase[0]?.total || 0,
       yearlyPurchases: yearlyPurchase[0]?.count || 0,
+      outstandingDue: dueStats[0]?.totalDue || 0,
+      outstandingTotal: dueStats[0]?.totalOutstanding || 0,
       recentPurchases,
     });
   } catch (error) {

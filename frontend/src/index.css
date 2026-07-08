@@ -1504,6 +1504,41 @@ input[type="number"]:focus {
   top: 88px;
 }
 
+/* ===== Invoice Summary Compact Styles ===== */
+.invoice-summary-sticky .card-body {
+  padding: 18px 22px;
+}
+
+.invoice-summary-sticky .cart-item-row {
+  padding: 7px 0;
+  font-size: 13px;
+}
+
+.invoice-summary-sticky .summary-row {
+  padding: 6px 0;
+  border-bottom: none;
+}
+
+.invoice-summary-sticky .summary-label {
+  font-size: 14px;
+}
+
+.invoice-summary-sticky .summary-value {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 0;
+}
+
+.invoice-summary-sticky .grand-total-row {
+  padding: 0;
+  font-size: 17px;
+}
+
+.invoice-summary-sticky .grand-total-row span:last-child {
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .qty-input-sm {
   width: 55px;
   padding: 4px 6px;

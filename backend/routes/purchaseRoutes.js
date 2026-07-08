@@ -6,6 +6,9 @@ import {
   updatePurchase,
   deletePurchase,
   getPurchaseStats,
+  addPurchasePayment,
+  getPurchasePayments,
+  getSupplierLedger,
 } from '../controllers/purchaseController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
@@ -16,6 +19,8 @@ router.use(protect);
 router.use(pharmacyScope);
 
 router.get('/stats', getPurchaseStats);
+router.get('/supplier/:supplierId/ledger', getSupplierLedger);
+
 router.route('/')
   .get(getPurchases)
   .post(authorize('admin', 'pharmacist'), createPurchase);
@@ -24,5 +29,9 @@ router.route('/:id')
   .get(getPurchase)
   .put(authorize('admin', 'pharmacist'), updatePurchase)
   .delete(authorize('admin'), deletePurchase);
+
+router.route('/:id/payments')
+  .get(getPurchasePayments)
+  .post(authorize('admin', 'pharmacist'), addPurchasePayment);
 
 export default router;

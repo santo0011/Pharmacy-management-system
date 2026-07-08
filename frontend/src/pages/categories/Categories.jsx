@@ -283,9 +283,9 @@ export default function Categories() {
                         <tr key={category._id}>
                           <td>
                             {category.image ? (
-                              <img src={category.image} alt={category.name} className="image-preview" />
+                              <img src={category.image} alt={category.name} style={{ width: '36px', height: '36px', borderRadius: '4px', objectFit: 'cover' }} />
                             ) : (
-                              <div className="image-preview" style={{ background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
+                              <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
                                 <i className="fa-solid fa-image"></i>
                               </div>
                             )}

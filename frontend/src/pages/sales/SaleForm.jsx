@@ -756,7 +756,7 @@ export default function SaleForm() {
               <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{items.length} item(s)</span>
             </div>
             <div className="card-body">
-              <div style={{ marginBottom: '12px' }}>
+              <div style={{ marginBottom: '8px' }}>
                 {items.map((item, idx) => (
                   <div key={idx} className="cart-item-row">
                     <div>
@@ -768,7 +768,7 @@ export default function SaleForm() {
                 ))}
               </div>
 
-              <hr style={{ margin: '12px 0', borderColor: 'var(--gray-200)' }} />
+              <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="summary-row">
                 <span className="summary-label">Subtotal:</span><span className="summary-value">₹{calcSubtotal().toFixed(2)}</span>
@@ -801,9 +801,9 @@ export default function SaleForm() {
                 </div>
               )}
 
-              <hr style={{ margin: '12px 0', borderColor: 'var(--gray-200)' }} />
+              <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
-              <div className="grand-total-row" style={{ marginBottom: '16px' }}>
+              <div className="grand-total-row" style={{ marginBottom: '10px' }}>
                 <span>Final Grand Total:</span><span>₹{gt.toFixed(2)}</span>
               </div>
 
@@ -851,7 +851,7 @@ export default function SaleForm() {
                 className="btn btn-success btn-block"
                 onClick={handleSubmit}
                 disabled={submitting || items.length === 0}
-                style={{ marginTop: '16px', padding: '14px', fontSize: '16px', fontWeight: 700 }}
+                style={{ marginTop: '12px', padding: '10px', fontSize: '15px', fontWeight: 700 }}
               >
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
                 {submitting ? ' Processing...' : ` ₹${gt.toFixed(2)} • ${isEditing ? 'Update Sale' : 'Complete Sale'}`}

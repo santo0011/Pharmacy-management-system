@@ -1,29 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { fetchPurchases, deletePurchase } from '../../redux/slices/purchaseSlice';
+import { fetchPurchases, deletePurchase, fetchPurchaseStats } from '../../redux/slices/purchaseSlice';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 export default function Purchases() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { items, total, loading } = useSelector((state) => state.purchases);
+  const { items, total, loading, stats } = useSelector((state) => state.purchases);
 
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [filters, setFilters] = useState({ status: '', startDate: '', endDate: '' });
+  const [filters, setFilters] = useState({ status: '', paymentStatus: '', startDate: '', endDate: '' });
   const [expandedRows, setExpandedRows] = useState({});
 
   const toggleRow = (rowIdx) => {
-    setExpandedRows(prev => ({
-      ...prev,
-      [rowIdx]: !prev[rowIdx],
-    }));
+    setExpandedRows(prev => ({ ...prev, [rowIdx]: !prev[rowIdx] }));
   };
 
-  const isRowExpanded = (rowIdx) => {
-    return !!expandedRows[rowIdx];
-  };
+  const isRowExpanded = (rowIdx) => !!expandedRows[rowIdx];
 
   const loadData = useCallback(() => {
     const params = { page: currentPage, limit: 10, ...filters };
@@ -34,6 +29,7 @@ export default function Purchases() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setCurrentPage(1); }, [search, filters]);
+  useEffect(() => { dispatch(fetchPurchaseStats()); }, [dispatch]);
 
   const handleDelete = async (id) => {
     const confirmed = await confirmDelete('this purchase');
@@ -41,6 +37,7 @@ export default function Purchases() {
     try {
       await dispatch(deletePurchase(id)).unwrap();
       showSuccess('Purchase deleted');
+      dispatch(fetchPurchaseStats());
     } catch (error) {
       showError(error || 'Delete failed');
     }
@@ -48,23 +45,25 @@ export default function Purchases() {
 
   const totalPages = Math.ceil(total / 10);
 
-  // --- Render Mobile Expandable Row (matching Sales page pattern) ---
+  const paymentStatusBadge = (status) => {
+    const map = { paid: 'badge-success', partial: 'badge-warning', unpaid: 'badge-danger' };
+    return <span className={`badge ${map[status] || 'badge-info'}`} style={{ fontSize: '11px' }}>{status || 'N/A'}</span>;
+  };
+
+  const statusBadge = (status) => {
+    const map = { completed: 'badge-success', pending: 'badge-warning', cancelled: 'badge-danger', returned: 'badge-info' };
+    return <span className={`badge ${map[status] || 'badge-info'}`} style={{ fontSize: '11px' }}>{status}</span>;
+  };
+
   const renderPurchaseMobileRow = (purchase, idx) => {
     const expanded = isRowExpanded(idx);
-    const statusBadgeClass = purchase.status === 'completed' ? 'badge-success' : purchase.status === 'pending' ? 'badge-warning' : purchase.status === 'cancelled' ? 'badge-danger' : 'badge-info';
     return (
       <tbody key={purchase._id || idx}>
         <tr className="sales-mobile-row" onClick={() => toggleRow(idx)}>
-          <td>
-            <span style={{ fontWeight: 500, fontSize: '13px' }}>{purchase.invoiceNumber}</span>
-          </td>
-          <td>
-            <span style={{ fontWeight: 600, fontSize: '13px' }}>₹{purchase.grandTotal?.toFixed(2)}</span>
-          </td>
+          <td><span style={{ fontWeight: 500, fontSize: '13px' }}>{purchase.invoiceNumber}</span></td>
+          <td><span style={{ fontWeight: 600, fontSize: '13px' }}>₹{purchase.grandTotal?.toFixed(2)}</span></td>
           <td className="sales-expand-cell">
-            <button className="sales-expand-btn">
-              <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
-            </button>
+            <button className="sales-expand-btn"><i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i></button>
           </td>
         </tr>
         <tr className={`sales-detail-row ${expanded ? 'sales-detail-row-open' : ''}`}>
@@ -87,36 +86,37 @@ export default function Purchases() {
                 <span className="sales-detail-value">₹{purchase.paidAmount?.toFixed(2)}</span>
               </div>
               <div className="sales-detail-item">
-                <span className="sales-detail-label">Status</span>
-                <span className="sales-detail-value">
-                  <span className={`badge ${statusBadgeClass}`} style={{ fontSize: '11px' }}>{purchase.status}</span>
+                <span className="sales-detail-label">Due</span>
+                <span className="sales-detail-value" style={{ color: purchase.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
+                  ₹{purchase.dueAmount?.toFixed(2)}
                 </span>
+              </div>
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Payment</span>
+                <span className="sales-detail-value">{paymentStatusBadge(purchase.paymentStatus)}</span>
+              </div>
+              <div className="sales-detail-item">
+                <span className="sales-detail-label">Status</span>
+                <span className="sales-detail-value">{statusBadge(purchase.status)}</span>
               </div>
               <div className="sales-detail-item">
                 <span className="sales-detail-label">Actions</span>
                 <span className="sales-detail-value">
                   <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                    <button
-                      className="btn btn-info btn-sm"
-                      onClick={(e) => { e.stopPropagation(); navigate(`/purchases/${purchase._id}`); }}
-                      title="View Details"
-                    >
+                    <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/purchases/${purchase._id}`); }} title="View Details">
                       <i className="fa-solid fa-eye"></i>
                     </button>
                     {purchase.status !== 'cancelled' && purchase.status !== 'returned' && (
-                      <button
-                        className="btn btn-warning btn-sm"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/purchases/${purchase._id}/edit`); }}
-                        title="Edit"
-                      >
+                      <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/purchases/${purchase._id}/edit`); }} title="Edit">
                         <i className="fa-solid fa-edit"></i>
                       </button>
                     )}
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(purchase._id); }}
-                      title="Delete"
-                    >
+                    {purchase.dueAmount > 0 && (
+                      <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/purchases/${purchase._id}`); }} title="Pay">
+                        <i className="fa-solid fa-money-bill"></i>
+                      </button>
+                    )}
+                    <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(purchase._id); }} title="Delete">
                       <i className="fa-solid fa-trash"></i>
                     </button>
                   </div>
@@ -134,11 +134,35 @@ export default function Purchases() {
       <div className="page-header">
         <div>
           <h2>Purchases</h2>
-          <p>Manage purchase orders and stock</p>
+          <p>Manage purchase orders, supplier payments & stock</p>
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/purchases/new')}>
           <i className="fa-solid fa-plus"></i> New Purchase
         </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="dashboard-summary-grid" style={{ marginBottom: '20px' }}>
+        <div className="summary-item summary-item-blue">
+          <div className="summary-label">Total Purchases</div>
+          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}>₹{(stats?.totalAmount || 0).toFixed(2)}</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalPurchases || 0} invoices</div>
+        </div>
+        <div className="summary-item summary-item-green">
+          <div className="summary-label">Total Paid</div>
+          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}>₹{(stats?.totalPaid || 0).toFixed(2)}</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>This month: ₹{(stats?.monthlyAmount || 0).toFixed(2)}</div>
+        </div>
+        <div className="summary-item summary-item-red">
+          <div className="summary-label">Outstanding Due</div>
+          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}>₹{(stats?.totalDue || 0).toFixed(2)}</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalPurchases || 0} total invoices</div>
+        </div>
+        <div className="summary-item summary-item-gray">
+          <div className="summary-label">Yearly Purchases</div>
+          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}>₹{(stats?.yearlyAmount || 0).toFixed(2)}</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.yearlyPurchases || 0} purchases this year</div>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: '20px' }}>
@@ -154,11 +178,20 @@ export default function Purchases() {
             <div className="form-group sales-filter-field" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '12px', marginBottom: '4px' }}>Status</label>
               <select className="sales-filter-select" value={filters.status} onChange={(e) => setFilters(p => ({ ...p, status: e.target.value }))}>
-                <option value="">All</option>
+                <option value="">All Status</option>
                 <option value="completed">Completed</option>
                 <option value="pending">Pending</option>
                 <option value="cancelled">Cancelled</option>
                 <option value="returned">Returned</option>
+              </select>
+            </div>
+            <div className="form-group sales-filter-field" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '12px', marginBottom: '4px' }}>Payment</label>
+              <select className="sales-filter-select" value={filters.paymentStatus} onChange={(e) => setFilters(p => ({ ...p, paymentStatus: e.target.value }))}>
+                <option value="">All Payments</option>
+                <option value="paid">Paid</option>
+                <option value="partial">Partial</option>
+                <option value="unpaid">Unpaid</option>
               </select>
             </div>
             <div className="form-group sales-filter-field" style={{ marginBottom: 0 }}>
@@ -183,7 +216,6 @@ export default function Purchases() {
             <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
           ) : items?.length > 0 ? (
             <>
-              {/* Desktop table */}
               <div className="sales-desktop-table">
                 <div className="table-container">
                   <table>
@@ -195,6 +227,8 @@ export default function Purchases() {
                         <th>Items</th>
                         <th>Total</th>
                         <th>Paid</th>
+                        <th>Due</th>
+                        <th>Payment</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -208,11 +242,11 @@ export default function Purchases() {
                           <td>{p.items?.length || 0}</td>
                           <td style={{ fontWeight: 600 }}>₹{p.grandTotal?.toFixed(2)}</td>
                           <td>₹{p.paidAmount?.toFixed(2)}</td>
-                          <td>
-                            <span className={`badge ${p.status === 'completed' ? 'badge-success' : p.status === 'pending' ? 'badge-warning' : p.status === 'cancelled' ? 'badge-danger' : 'badge-info'}`}>
-                              {p.status}
-                            </span>
+                          <td style={{ color: p.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
+                            ₹{p.dueAmount?.toFixed(2)}
                           </td>
+                          <td>{paymentStatusBadge(p.paymentStatus)}</td>
+                          <td>{statusBadge(p.status)}</td>
                           <td onClick={(e) => e.stopPropagation()}>
                             <div className="action-buttons">
                               <button className="btn btn-info btn-sm" onClick={() => navigate(`/purchases/${p._id}`)} title="View">
@@ -221,6 +255,11 @@ export default function Purchases() {
                               {p.status !== 'cancelled' && p.status !== 'returned' && (
                                 <button className="btn btn-warning btn-sm" onClick={() => navigate(`/purchases/${p._id}/edit`)} title="Edit">
                                   <i className="fa-solid fa-edit"></i>
+                                </button>
+                              )}
+                              {p.dueAmount > 0 && (
+                                <button className="btn btn-success btn-sm" onClick={() => navigate(`/purchases/${p._id}`)} title="Pay">
+                                  <i className="fa-solid fa-money-bill"></i>
                                 </button>
                               )}
                               <button className="btn btn-danger btn-sm" onClick={() => handleDelete(p._id)} title="Delete">
@@ -235,7 +274,6 @@ export default function Purchases() {
                 </div>
               </div>
 
-              {/* Mobile expandable rows (matching Sales page) */}
               <div className="sales-mobile-table">
                 <table>
                   <thead>

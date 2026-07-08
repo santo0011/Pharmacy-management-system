@@ -41,11 +41,36 @@ const supplierSchema = mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Financial tracking fields
+    totalPurchases: {
+      type: Number,
+      default: 0,
+    },
+    totalSpent: {
+      type: Number,
+      default: 0,
+    },
+    totalPaid: {
+      type: Number,
+      default: 0,
+    },
+    totalDue: {
+      type: Number,
+      default: 0,
+    },
+    lastPurchaseDate: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+supplierSchema.index({ pharmacyId: 1, supplierName: 1 });
+supplierSchema.index({ pharmacyId: 1, email: 1 });
+supplierSchema.index({ pharmacyId: 1, phone: 1 });
 
 const Supplier = mongoose.model('Supplier', supplierSchema);
 
