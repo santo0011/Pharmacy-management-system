@@ -1350,10 +1350,33 @@ input[type="number"]:focus {
 }
 
 /* ===== Sale Form Specific ===== */
-.sale-layout {
-  display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: 20px;
+/* Large screens: side by side with generous right column */
+@media (min-width: 1200px) {
+  .sale-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 480px;
+    gap: 24px;
+    align-items: start;
+  }
+}
+
+/* Medium screens: side by side with narrower summary */
+@media (min-width: 992px) and (max-width: 1199px) {
+  .sale-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 20px;
+    align-items: start;
+  }
+}
+
+/* Small/tablet: stacked vertically */
+@media (max-width: 991px) {
+  .sale-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
 }
 
 .search-box-wrapper {
@@ -2603,10 +2626,6 @@ input[type="number"]:focus {
 
 /* Small tablets & large phones */
 @media (max-width: 992px) {
-  .sale-layout {
-    grid-template-columns: 1fr;
-  }
-
   .purchase-form-grid {
     grid-template-columns: 1fr;
   }
@@ -3183,10 +3202,6 @@ input[type="number"]:focus {
   }
 
   /* === Sale Form - Mobile === */
-  .sale-layout {
-    grid-template-columns: 1fr;
-  }
-
   .search-box-wrapper {
     flex-direction: column;
     gap: 8px;
@@ -3985,6 +4000,366 @@ input[type="number"]:focus {
     width: 100%;
     font-size: 15px;
     padding: 10px 18px;
+  }
+}
+
+/* ===== Purchase Items - Mobile Card View ===== */
+.purchase-items-mobile-cards {
+  display: none;
+}
+
+.purchase-items-desktop-table {
+  display: block;
+}
+
+.purchase-item-card {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.purchase-item-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  gap: 8px;
+}
+
+.purchase-item-card-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.purchase-item-card-name-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 15px;
+  background: white;
+  color: var(--gray-800);
+  font-weight: 500;
+}
+
+.purchase-item-card-name-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.purchase-item-card-remove {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.purchase-item-card-body {
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.purchase-item-card-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.purchase-item-card-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.purchase-item-card-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  color: var(--gray-800);
+  min-height: 38px;
+}
+
+.purchase-item-card-field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.purchase-item-card-subtotal {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--gray-200);
+  margin-top: 4px;
+}
+
+.purchase-item-card-subtotal label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-700);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.purchase-item-card-subtotal span {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* ===== Mobile responsive for purchase form ===== */
+@media (max-width: 768px) {
+  .purchase-items-desktop-table {
+    display: none;
+  }
+
+  .purchase-items-mobile-cards {
+    display: block;
+  }
+
+  .inline-discount input {
+    width: 70px;
+    font-size: 14px;
+    min-height: 38px;
+  }
+
+  .inline-discount select {
+    min-height: 38px;
+    font-size: 13px;
+    padding: 6px;
+  }
+
+  .inline-input-sm {
+    width: 90px;
+    min-height: 38px;
+    font-size: 14px;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .purchase-item-card-body {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .purchase-item-card-subtotal {
+    grid-column: 1;
+  }
+}
+
+/* ===== Supplier Financial Summary ===== */
+.supplier-financial-summary {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #f0f5ff;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+}
+
+.supplier-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.supplier-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+}
+
+.supplier-summary-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.supplier-summary-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+/* ===== Due Invoices Section ===== */
+.due-invoices-section {
+  margin-top: 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  overflow: hidden;
+}
+
+.due-invoices-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #fee2e2;
+  border-bottom: 1px solid #fecaca;
+}
+
+.due-invoices-header h6 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.due-invoices-header h6 i {
+  font-size: 14px;
+}
+
+.due-invoices-select-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--gray-600);
+  font-weight: 500;
+}
+
+.due-invoices-select-all input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.due-invoices-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.due-invoice-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #fecaca;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.due-invoice-item:last-child {
+  border-bottom: none;
+}
+
+.due-invoice-item:hover {
+  background: #fee2e2;
+}
+
+.due-invoice-item.selected {
+  background: #fef2f2;
+}
+
+.due-invoice-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--danger);
+  flex-shrink: 0;
+}
+
+.due-invoice-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.due-invoice-number {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.due-invoice-date {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.due-invoice-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+.due-invoice-payment-details {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.due-invoice-payment-details span {
+  white-space: nowrap;
+}
+
+.due-invoice-remaining {
+  font-weight: 600;
+  color: var(--danger);
+}
+
+/* ===== Previous Due & Total Payable in Summary ===== */
+.previous-due-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+.total-payable-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  margin-bottom: 6px;
+  border-top: 1px dashed var(--gray-300);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+@media (max-width: 768px) {
+  .supplier-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .supplier-summary-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

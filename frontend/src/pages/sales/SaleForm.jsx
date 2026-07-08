@@ -20,6 +20,7 @@ export default function SaleForm() {
   const [customerRef, setCustomerRef] = useState(null);
   const [customerDueInfo, setCustomerDueInfo] = useState(null);
   const [includePreviousDue, setIncludePreviousDue] = useState(false);
+  const [selectedDueInvoices, setSelectedDueInvoices] = useState([]);
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage');
@@ -90,6 +91,7 @@ export default function SaleForm() {
     setCustomerRef(null);
     setCustomerDueInfo(null);
     setIncludePreviousDue(false);
+    setSelectedDueInvoices([]);
     setCustomerVerified(false);
     setPhoneVerifiedMatch(null);
 
@@ -112,6 +114,7 @@ export default function SaleForm() {
     setCustomerSearchQuery(customer.name);
     setShowCustomerDropdown(false);
     setIncludePreviousDue(false);
+    setSelectedDueInvoices([]);
     setCustomerVerified(true);
     setPhoneVerifiedMatch(null);
 
@@ -281,8 +284,13 @@ export default function SaleForm() {
   // Current bill total (without previous due) - this is what gets sent to backend
   const calcCurrentBillTotal = () => calcSubtotal() + calcTax() - calcDiscount();
 
-  // Previous due amount (if included)
-  const calcPreviousDue = () => (includePreviousDue && customerDueInfo ? customerDueInfo.totalDue : 0);
+  // Previous due amount (from individually selected invoices)
+  const calcPreviousDue = () => {
+    if (!customerDueInfo || !customerDueInfo.invoices) return 0;
+    return customerDueInfo.invoices
+      .filter(inv => selectedDueInvoices.includes(inv._id))
+      .reduce((sum, inv) => sum + (inv.dueAmount || 0), 0);
+  };
 
   // Final Grand Total displayed in UI (includes previous due if toggled)
   const calcGrandTotal = () => calcCurrentBillTotal() + calcPreviousDue();
@@ -397,9 +405,12 @@ export default function SaleForm() {
       let previousDuePayments = [];
       let paidForNewInvoice = paid;
 
-      if (includePreviousDue && customerDueInfo && customerDueInfo.invoices && customerDueInfo.invoices.length > 0) {
+      if (selectedDueInvoices.length > 0 && customerDueInfo && customerDueInfo.invoices && customerDueInfo.invoices.length > 0) {
+        // Only process invoices that were actually selected
+        const selectedInvoices = customerDueInfo.invoices.filter(inv => selectedDueInvoices.includes(inv._id));
+
         // Sort old invoices by oldest saleDate first (FIFO)
-        const sortedInvoices = [...customerDueInfo.invoices].sort(
+        const sortedInvoices = [...selectedInvoices].sort(
           (a, b) => new Date(a.saleDate) - new Date(b.saleDate)
         );
 
@@ -444,7 +455,7 @@ export default function SaleForm() {
         // Send the total amount paid by the customer
         paidAmount: paid,
         paymentMethod,
-        notes: includePreviousDue && customerDueInfo ? `Previous due of ₹${customerDueInfo.totalDue.toFixed(2)} included` : '',
+        notes: selectedDueInvoices.length > 0 && customerDueInfo ? `Previous due of ₹${calcPreviousDue().toFixed(2)} included` : '',
       };
 
       // Add previous due payments array with FIFO allocation
@@ -647,45 +658,75 @@ export default function SaleForm() {
             </div>
           </div>
 
-          {/* Due Notice Card - Only shown when customer is explicitly verified */}
-          {customerVerified && customerDueInfo && (
-            <div className="card" style={{
-              marginTop: '16px',
-              borderLeft: '4px solid #f97316',
-              background: '#fff7ed',
-            }}>
-              <div className="card-body" style={{ padding: '12px 14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#9a3412' }}>
-                      <i className="fa-solid fa-exclamation-triangle"></i> Outstanding Due
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#c2410c', marginTop: '2px' }}>
-                      {customerDueInfo.invoiceCount} invoice(s) - Total Due: <strong>₹{customerDueInfo.totalDue.toFixed(2)}</strong>
-                    </div>
-                  </div>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    padding: '6px 10px',
-                    background: includePreviousDue ? '#dc2626' : '#16a34a',
-                    color: '#fff',
-                    borderRadius: '6px',
-                    userSelect: 'none',
-                  }}>
+          {/* Due Details - Shown when customer is verified */}
+          {customerVerified && customerDueInfo && !isEditing && (
+            <div className="due-invoices-section" style={{ marginTop: '16px' }}>
+              <div className="due-invoices-header">
+                <h6><i className="fa-solid fa-file-invoice"></i> Previous Due Invoices</h6>
+                <label className="due-invoices-select-all">
+                  <input
+                    type="checkbox"
+                    checked={selectedDueInvoices.length > 0 && selectedDueInvoices.length === customerDueInfo.invoices.length}
+                    onChange={() => {
+                      if (selectedDueInvoices.length === customerDueInfo.invoices.length) {
+                        setSelectedDueInvoices([]);
+                      } else {
+                        setSelectedDueInvoices(customerDueInfo.invoices.map(inv => inv._id));
+                      }
+                    }}
+                  />
+                  <span>{selectedDueInvoices.length > 0 ? `${selectedDueInvoices.length} Due Included` : 'Select All'}</span>
+                </label>
+              </div>
+              <div className="due-invoices-list">
+                {customerDueInfo.invoices.map(inv => (
+                  <div
+                    key={inv._id}
+                    className={`due-invoice-item ${selectedDueInvoices.includes(inv._id) ? 'selected' : ''}`}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <input
                       type="checkbox"
-                      checked={includePreviousDue}
-                      onChange={(e) => setIncludePreviousDue(e.target.checked)}
-                      style={{ accentColor: '#fff' }}
+                      checked={selectedDueInvoices.includes(inv._id)}
+                      onChange={() => {
+                        setSelectedDueInvoices(prev =>
+                          prev.includes(inv._id)
+                            ? prev.filter(id => id !== inv._id)
+                            : [...prev, inv._id]
+                        );
+                      }}
                     />
-                    {includePreviousDue ? 'Due Included (+₹' + customerDueInfo.totalDue.toFixed(2) + ')' : 'Add to Bill'}
-                  </label>
-                </div>
+                    <div className="due-invoice-info">
+                      <span className="due-invoice-number">{inv.invoiceNumber}</span>
+                      <span className="due-invoice-date">{new Date(inv.saleDate).toLocaleDateString()}</span>
+                      <div className="due-invoice-payment-details">
+                        <span>Total: ₹{(inv.grandTotal || 0).toFixed(2)}</span>
+                        <span>Paid: ₹{(inv.paidAmount || 0).toFixed(2)}</span>
+                        <span className="due-invoice-remaining">Due: ₹{(inv.dueAmount || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                      <span className="due-invoice-amount">₹{inv.dueAmount.toFixed(2)}</span>
+                      <span className={`badge ${inv.paymentStatus === 'paid' ? 'badge-success' : inv.paymentStatus === 'partial' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '10px' }}>
+                        {inv.paymentStatus || 'due'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{
+                padding: '10px 14px',
+                background: '#fef2f2',
+                borderTop: '1px solid #fecaca',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '14px',
+                fontWeight: 700,
+                color: '#991b1b',
+              }}>
+                <span>Total Due</span>
+                <span>₹{customerDueInfo.totalDue.toFixed(2)}</span>
               </div>
             </div>
           )}

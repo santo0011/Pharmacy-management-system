@@ -235,7 +235,7 @@ export default function Purchases() {
                     </thead>
                     <tbody>
                       {items.map((p) => (
-                        <tr key={p._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/purchases/${p._id}`)}>
+                        <tr key={p._id} style={{ cursor: 'pointer' }}>
                           <td style={{ fontWeight: 500 }}>{p.invoiceNumber}</td>
                           <td>{p.supplierName || p.supplier?.supplierName || '-'}</td>
                           <td style={{ fontSize: '13px' }}>{new Date(p.purchaseDate).toLocaleDateString()}</td>
@@ -257,11 +257,11 @@ export default function Purchases() {
                                   <i className="fa-solid fa-edit"></i>
                                 </button>
                               )}
-                              {p.dueAmount > 0 && (
+                              {/* {p.dueAmount > 0 && (
                                 <button className="btn btn-success btn-sm" onClick={() => navigate(`/purchases/${p._id}`)} title="Pay">
                                   <i className="fa-solid fa-money-bill"></i>
                                 </button>
-                              )}
+                              )} */}
                               <button className="btn btn-danger btn-sm" onClick={() => handleDelete(p._id)} title="Delete">
                                 <i className="fa-solid fa-trash"></i>
                               </button>

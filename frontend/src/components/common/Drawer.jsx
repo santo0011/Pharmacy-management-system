@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-export default function Drawer({ isOpen, onClose, title, children, footer }) {
+export default function Drawer({ isOpen, onClose, title, children, footer, width = '550px', className = '' }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -18,7 +18,7 @@ export default function Drawer({ isOpen, onClose, title, children, footer }) {
         className={`drawer-overlay ${isOpen ? 'open' : ''}`}
         onClick={onClose}
       />
-      <div className={`drawer ${isOpen ? 'open' : ''}`}>
+      <div className={`drawer ${isOpen ? 'open' : ''} ${className}`} style={{ maxWidth: width }}>
         <div className="drawer-header">
           <h3>{title}</h3>
           <button className="close-btn" onClick={onClose}>

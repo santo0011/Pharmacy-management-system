@@ -46,6 +46,11 @@ export const fetchSupplierLedger = createAsyncThunk('purchases/fetchSupplierLedg
   catch (error) { return rejectWithValue(error.response?.data?.message || 'Failed to fetch ledger'); }
 });
 
+export const fetchSupplierDueInvoices = createAsyncThunk('purchases/fetchSupplierDueInvoices', async (supplierId, { rejectWithValue }) => {
+  try { const { data } = await purchaseService.getSupplierDueInvoices(supplierId); return data.data; }
+  catch (error) { return rejectWithValue(error.response?.data?.message || 'Failed to fetch due invoices'); }
+});
+
 const purchaseSlice = createSlice({
   name: 'purchases',
   initialState: {

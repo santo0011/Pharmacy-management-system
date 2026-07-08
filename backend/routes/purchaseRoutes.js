@@ -9,6 +9,7 @@ import {
   addPurchasePayment,
   getPurchasePayments,
   getSupplierLedger,
+  getSupplierDueInvoices,
 } from '../controllers/purchaseController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
@@ -20,6 +21,7 @@ router.use(pharmacyScope);
 
 router.get('/stats', getPurchaseStats);
 router.get('/supplier/:supplierId/ledger', getSupplierLedger);
+router.get('/supplier/:supplierId/due-invoices', getSupplierDueInvoices);
 
 router.route('/')
   .get(getPurchases)

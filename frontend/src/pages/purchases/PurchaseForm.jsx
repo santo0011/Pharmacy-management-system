@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { createPurchase, updatePurchase, fetchPurchase, clearSelectedPurchase } from '../../redux/slices/purchaseSlice';
+import { createPurchase, updatePurchase, fetchPurchase, clearSelectedPurchase, fetchSupplierDueInvoices } from '../../redux/slices/purchaseSlice';
 import { fetchSuppliers } from '../../redux/slices/supplierSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
-import { showSuccess, showError } from '../../utils/sweetAlert';
+import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 
 export default function PurchaseForm() {
   const dispatch = useDispatch();
@@ -31,7 +31,41 @@ export default function PurchaseForm() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const searchContainerRef = useRef(null);
 
+  // Supplier due invoice state
+  const [supplierData, setSupplierData] = useState(null);
+  const [dueInvoices, setDueInvoices] = useState([]);
+  const [selectedDueInvoices, setSelectedDueInvoices] = useState([]);
+  const [loadingDueData, setLoadingDueData] = useState(false);
+
   const selectedSupplier = suppliers?.find(s => s._id === supplier);
+
+  // Fetch supplier due data when supplier changes
+  const loadSupplierDueData = useCallback(async (supplierId) => {
+    if (!supplierId) {
+      setSupplierData(null);
+      setDueInvoices([]);
+      setSelectedDueInvoices([]);
+      return;
+    }
+    setLoadingDueData(true);
+    try {
+      const result = await dispatch(fetchSupplierDueInvoices(supplierId)).unwrap();
+      setSupplierData(result);
+      setDueInvoices(result.dueInvoices || []);
+      // Auto-select all due invoices
+      if (result.dueInvoices?.length > 0) {
+        setSelectedDueInvoices(result.dueInvoices.map(inv => inv._id));
+      } else {
+        setSelectedDueInvoices([]);
+      }
+    } catch (err) {
+      setSupplierData(null);
+      setDueInvoices([]);
+      setSelectedDueInvoices([]);
+    } finally {
+      setLoadingDueData(false);
+    }
+  }, [dispatch]);
 
   useEffect(() => {
     dispatch(fetchSuppliers({ limit: 200 }));
@@ -68,6 +102,17 @@ export default function PurchaseForm() {
     }
   }, [selectedPurchase, isEditing]);
 
+  // Load due data when supplier changes
+  useEffect(() => {
+    if (supplier && !isEditing) {
+      loadSupplierDueData(supplier);
+    } else if (!supplier) {
+      setSupplierData(null);
+      setDueInvoices([]);
+      setSelectedDueInvoices([]);
+    }
+  }, [supplier, loadSupplierDueData, isEditing]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
@@ -98,6 +143,14 @@ export default function PurchaseForm() {
   const calcDiscount = () => discountType === 'percentage' ? calcSubtotal() * (Number(discount) / 100) : Number(discount);
   const calcGrandTotal = () => calcSubtotal() + calcTax() + Number(shippingCost) + Number(otherCost) - calcDiscount();
 
+  // Calculate selected due total
+  const selectedDueTotal = dueInvoices
+    .filter(inv => selectedDueInvoices.includes(inv._id))
+    .reduce((sum, inv) => sum + (inv.dueAmount || 0), 0);
+  const previousDue = selectedDueTotal;
+  const currentTotal = calcGrandTotal();
+  const totalPayable = previousDue + currentTotal;
+
   const handleItemChange = (index, field, value) => {
     setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   };
@@ -126,10 +179,42 @@ export default function PurchaseForm() {
     setShowSearchDropdown(false);
   };
 
+  const toggleDueInvoice = (invoiceId) => {
+    setSelectedDueInvoices(prev =>
+      prev.includes(invoiceId)
+        ? prev.filter(id => id !== invoiceId)
+        : [...prev, invoiceId]
+    );
+  };
+
+  const selectAllDueInvoices = () => {
+    if (selectedDueInvoices.length === dueInvoices.length) {
+      setSelectedDueInvoices([]);
+    } else {
+      setSelectedDueInvoices(dueInvoices.map(inv => inv._id));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!supplier && !supplierName) { showError('Please select a supplier'); return; }
     if (items.length === 0) { showError('Add at least one item'); return; }
+
+    const paid = Number(paidAmount) || calcGrandTotal();
+    if (paid > totalPayable) {
+      showError(`Payment amount cannot exceed the total payable amount of ₹${totalPayable.toFixed(2)}.`);
+      return;
+    }
+
+    // Show payment confirmation before completing the purchase
+    const confirmed = await confirmAction(
+      `${isEditing ? 'Update' : 'Complete'} Purchase`,
+      `Supplier: ${selectedSupplier?.supplierName || supplierName || 'N/A'}\nItems: ${items.length}\nGrand Total: ₹${gt.toFixed(2)}\nPrevious Due: ₹${previousDue.toFixed(2)}\nTotal Payable: ₹${totalPayable.toFixed(2)}\nPaid: ₹${paid.toFixed(2)}\nRemaining Due: ₹${Math.max(0, totalPayable - paid).toFixed(2)}\nMethod: ${paymentMethod}`,
+      `Yes, ${isEditing ? 'Update' : 'Complete'}`
+    );
+    if (!confirmed) {
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -148,9 +233,10 @@ export default function PurchaseForm() {
         discountType,
         shippingCost: Number(shippingCost),
         otherCost: Number(otherCost),
-        paidAmount: Number(paidAmount) || calcGrandTotal(),
+        paidAmount: paid,
         paymentMethod,
         notes,
+        selectedDueInvoices: selectedDueInvoices.length > 0 ? selectedDueInvoices : undefined,
       };
 
       if (isEditing) {
@@ -169,7 +255,8 @@ export default function PurchaseForm() {
   };
 
   const gt = calcGrandTotal();
-  const due = Math.max(0, gt - Number(paidAmount));
+  const currentDue = Math.max(0, gt - Number(paidAmount));
+  const creditPurchase = currentDue + previousDue;
 
   return (
     <div>
@@ -217,12 +304,81 @@ export default function PurchaseForm() {
                 </div>
               </div>
 
-              {selectedSupplier && (
-                <div style={{ marginTop: '12px', padding: '10px 14px', background: '#f0f5ff', borderRadius: '8px', border: '1px solid #bfdbfe', display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '13px' }}>
-                  <div><span style={{ color: 'var(--gray-500)' }}>Total Purchases:</span> <strong>{selectedSupplier.totalPurchases || 0}</strong></div>
-                  <div><span style={{ color: 'var(--gray-500)' }}>Total Spent:</span> <strong>₹{(selectedSupplier.totalSpent || 0).toFixed(2)}</strong></div>
-                  <div><span style={{ color: 'var(--gray-500)' }}>Total Paid:</span> <strong style={{ color: 'var(--success)' }}>₹{(selectedSupplier.totalPaid || 0).toFixed(2)}</strong></div>
-                  <div><span style={{ color: 'var(--gray-500)' }}>Outstanding Due:</span> <strong style={{ color: (selectedSupplier.totalDue || 0) > 0 ? 'var(--danger)' : 'var(--success)' }}>₹{(selectedSupplier.totalDue || 0).toFixed(2)}</strong></div>
+              {/* Supplier Financial Summary */}
+              {/* {selectedSupplier && (
+                <div className="supplier-financial-summary">
+                  <div className="supplier-summary-grid">
+                    <div className="supplier-summary-item">
+                      <span className="supplier-summary-label">Total Purchases</span>
+                      <span className="supplier-summary-value">{supplierData?.summary?.totalPurchases || selectedSupplier.totalPurchases || 0}</span>
+                    </div>
+                    <div className="supplier-summary-item">
+                      <span className="supplier-summary-label">Total Spent</span>
+                      <span className="supplier-summary-value">₹{(supplierData?.summary?.totalAmount || selectedSupplier.totalSpent || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="supplier-summary-item">
+                      <span className="supplier-summary-label">Total Paid</span>
+                      <span className="supplier-summary-value" style={{ color: 'var(--success)' }}>₹{(supplierData?.summary?.totalPaid || selectedSupplier.totalPaid || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="supplier-summary-item">
+                      <span className="supplier-summary-label">Outstanding Due</span>
+                      <span className="supplier-summary-value" style={{ color: previousDue > 0 ? 'var(--danger)' : 'var(--success)' }}>₹{previousDue.toFixed(2)}</span>
+                    </div>
+                    <div className="supplier-summary-item">
+                      <span className="supplier-summary-label">Unpaid Invoices</span>
+                      <span className="supplier-summary-value">{supplierData?.summary?.unpaidInvoices || 0}</span>
+                    </div>
+                    <div className="supplier-summary-item">
+                      <span className="supplier-summary-label">Last Payment</span>
+                      <span className="supplier-summary-value" style={{ fontSize: '12px' }}>
+                        {supplierData?.lastPayment?.paymentDate
+                          ? new Date(supplierData.lastPayment.paymentDate).toLocaleDateString()
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )} */}
+
+              {/* Previous Due Invoices */}
+              {dueInvoices.length > 0 && !isEditing && (
+                <div className="due-invoices-section">
+                  <div className="due-invoices-header">
+                    <h6><i className="fa-solid fa-file-invoice"></i> Previous Due Invoices</h6>
+                    <label className="due-invoices-select-all">
+                      <input
+                        type="checkbox"
+                        checked={selectedDueInvoices.length === dueInvoices.length}
+                        onChange={selectAllDueInvoices}
+                      />
+                      <span>Select All</span>
+                    </label>
+                  </div>
+                  <div className="due-invoices-list">
+                    {dueInvoices.map(inv => (
+                      <div
+                        key={inv._id}
+                        className={`due-invoice-item ${selectedDueInvoices.includes(inv._id) ? 'selected' : ''}`}
+                        onClick={() => toggleDueInvoice(inv._id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedDueInvoices.includes(inv._id)}
+                          readOnly
+                        />
+                        <div className="due-invoice-info">
+                          <span className="due-invoice-number">{inv.invoiceNumber}</span>
+                          <span className="due-invoice-date">{new Date(inv.purchaseDate).toLocaleDateString()}</span>
+                          <div className="due-invoice-payment-details">
+                            <span>Total: ₹{(inv.grandTotal || 0).toFixed(2)}</span>
+                            <span>Paid: ₹{(inv.paidAmount || 0).toFixed(2)}</span>
+                            <span className="due-invoice-remaining">Due: ₹{(inv.dueAmount || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <span className="due-invoice-amount">₹{inv.dueAmount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -265,45 +421,109 @@ export default function PurchaseForm() {
                 </button>
               </div>
 
-              <div className="table-container" style={{ marginTop: '12px' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Medicine</th>
-                      <th>Batch</th>
-                      <th style={{ width: '60px' }}>Qty</th>
-                      <th style={{ width: '90px' }}>Purchase Price</th>
-                      <th style={{ width: '90px' }}>Selling Price</th>
-                      <th style={{ width: '70px' }}>MRP</th>
-                      <th style={{ width: '105px' }}>Expiry</th>
-                      <th style={{ width: '55px' }}>GST %</th>
-                      <th style={{ width: '80px' }}>Subtotal</th>
-                      <th style={{ width: '36px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item, index) => (
-                      <tr key={index}>
-                        <td style={{ minWidth: '150px' }}>
-                          <input type="text" placeholder="Medicine name" value={item.medicineName} onChange={(e) => handleItemChange(index, 'medicineName', e.target.value)} className="input-sm" style={{ width: '100%' }} />
-                        </td>
-                        <td><input type="text" placeholder="Batch" value={item.batchNumber} onChange={(e) => handleItemChange(index, 'batchNumber', e.target.value)} className="input-sm" style={{ width: '65px' }} /></td>
-                        <td><input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} className="qty-input-sm" onWheel={(e) => e.target.blur()} /></td>
-                        <td><input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} className="price-input-sm" onWheel={(e) => e.target.blur()} /></td>
-                        <td><input type="number" min="0" step="0.01" value={item.sellingPrice} onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value)} className="price-input-sm" onWheel={(e) => e.target.blur()} /></td>
-                        <td><input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} className="input-sm" style={{ width: '60px' }} /></td>
-                        <td><input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} className="input-sm" style={{ width: '105px' }} /></td>
-                        <td><input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} className="input-sm" style={{ width: '50px' }} /></td>
-                        <td style={{ fontWeight: 600, whiteSpace: 'nowrap', fontSize: '13px' }}>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</td>
-                        <td>
-                          <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} disabled={items.length === 1} style={{ padding: '4px 8px' }}>
-                            <i className="fa-solid fa-times"></i>
-                          </button>
-                        </td>
+              {/* Desktop Table View */}
+              <div className="purchase-items-desktop-table" style={{ marginTop: '12px' }}>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Medicine</th>
+                        <th>Batch</th>
+                        <th style={{ width: '60px' }}>Qty</th>
+                        <th style={{ width: '90px' }}>Purchase Price</th>
+                        <th style={{ width: '90px' }}>Selling Price</th>
+                        <th style={{ width: '70px' }}>MRP</th>
+                        <th style={{ width: '105px' }}>Expiry</th>
+                        <th style={{ width: '55px' }}>GST %</th>
+                        <th style={{ width: '80px' }}>Subtotal</th>
+                        <th style={{ width: '36px' }}></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {items.map((item, index) => (
+                        <tr key={index}>
+                          <td style={{ minWidth: '150px' }}>
+                            <input type="text" placeholder="Medicine name" value={item.medicineName} onChange={(e) => handleItemChange(index, 'medicineName', e.target.value)} className="input-sm" style={{ width: '100%' }} />
+                          </td>
+                          <td><input type="text" placeholder="Batch" value={item.batchNumber} onChange={(e) => handleItemChange(index, 'batchNumber', e.target.value)} className="input-sm" style={{ width: '65px' }} /></td>
+                          <td><input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} className="qty-input-sm" onWheel={(e) => e.target.blur()} /></td>
+                          <td><input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} className="price-input-sm" onWheel={(e) => e.target.blur()} /></td>
+                          <td><input type="number" min="0" step="0.01" value={item.sellingPrice} onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value)} className="price-input-sm" onWheel={(e) => e.target.blur()} /></td>
+                          <td><input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} className="input-sm" style={{ width: '60px' }} /></td>
+                          <td><input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} className="input-sm" style={{ width: '105px' }} /></td>
+                          <td><input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} className="input-sm" style={{ width: '50px' }} /></td>
+                          <td style={{ fontWeight: 600, whiteSpace: 'nowrap', fontSize: '13px' }}>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</td>
+                          <td>
+                            <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} disabled={items.length === 1} style={{ padding: '4px 8px' }}>
+                              <i className="fa-solid fa-times"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="purchase-items-mobile-cards" style={{ marginTop: '12px' }}>
+                {items.map((item, index) => (
+                  <div key={index} className="purchase-item-card">
+                    <div className="purchase-item-card-header">
+                      <div className="purchase-item-card-title">
+                        <input
+                          type="text"
+                          placeholder="Medicine name"
+                          value={item.medicineName}
+                          onChange={(e) => handleItemChange(index, 'medicineName', e.target.value)}
+                          className="purchase-item-card-name-input"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm purchase-item-card-remove"
+                        onClick={() => removeItem(index)}
+                        disabled={items.length === 1}
+                      >
+                        <i className="fa-solid fa-times"></i>
+                      </button>
+                    </div>
+                    <div className="purchase-item-card-body">
+                      <div className="purchase-item-card-field">
+                        <label>Batch</label>
+                        <input type="text" placeholder="Batch" value={item.batchNumber} onChange={(e) => handleItemChange(index, 'batchNumber', e.target.value)} />
+                      </div>
+                      <div className="purchase-item-card-field">
+                        <label>Qty</label>
+                        <input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} onWheel={(e) => e.target.blur()} />
+                      </div>
+                      <div className="purchase-item-card-field">
+                        <label>Purchase Price</label>
+                        <input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} onWheel={(e) => e.target.blur()} />
+                      </div>
+                      <div className="purchase-item-card-field">
+                        <label>Selling Price</label>
+                        <input type="number" min="0" step="0.01" value={item.sellingPrice} onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value)} onWheel={(e) => e.target.blur()} />
+                      </div>
+                      <div className="purchase-item-card-field">
+                        <label>MRP</label>
+                        <input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} />
+                      </div>
+                      <div className="purchase-item-card-field">
+                        <label>Expiry</label>
+                        <input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} />
+                      </div>
+                      <div className="purchase-item-card-field">
+                        <label>GST %</label>
+                        <input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} />
+                      </div>
+                      <div className="purchase-item-card-field purchase-item-card-subtotal">
+                        <label>Subtotal</label>
+                        <span>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -371,13 +591,29 @@ export default function PurchaseForm() {
                 <span>Grand Total:</span><span>₹{gt.toFixed(2)}</span>
               </div>
 
+              {/* Previous Due Display */}
+              {previousDue > 0 && !isEditing && (
+                <div className="previous-due-row">
+                  <span>Previous Due:</span>
+                  <span style={{ color: 'var(--danger)', fontWeight: 600 }}>₹{previousDue.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* Total Payable */}
+              {previousDue > 0 && !isEditing && (
+                <div className="total-payable-row">
+                  <span>Total Payable:</span>
+                  <span>₹{totalPayable.toFixed(2)}</span>
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Paid Amount</label>
                 <input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} className="form-select" style={{ width: '100%' }} onWheel={(e) => e.target.blur()} />
               </div>
 
-              <div className={`due-row ${Number(paidAmount) >= gt ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
-                <span>Due Amount:</span><span className="due-value">₹{due.toFixed(2)}</span>
+              <div className={`due-row ${Number(paidAmount) >= totalPayable ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
+                <span>Remaining Due:</span><span className="due-value">₹{Math.max(0, totalPayable - Number(paidAmount)).toFixed(2)}</span>
               </div>
 
               <button

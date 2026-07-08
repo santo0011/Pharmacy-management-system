@@ -183,7 +183,7 @@ export default function Sales() {
                     </thead>
                     <tbody>
                       {items.map((s) => (
-                        <tr key={s._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/sales/${s._id}`)}>
+                        <tr key={s._id} style={{ cursor: 'pointer' }}>
                           <td style={{ fontWeight: 500 }}>{s.invoiceNumber}</td>
                           <td>{s.customerName}</td>
                           <td style={{ fontSize: '13px' }}>{new Date(s.saleDate).toLocaleDateString()}</td>

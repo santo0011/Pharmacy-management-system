@@ -10,4 +10,5 @@ export const purchaseService = {
   addPurchasePayment: (id, data) => API.post(`/purchases/${id}/payments`, data),
   getPurchasePayments: (id) => API.get(`/purchases/${id}/payments`),
   getSupplierLedger: (supplierId, params) => API.get(`/purchases/supplier/${supplierId}/ledger`, { params }),
+  getSupplierDueInvoices: (supplierId) => API.get(`/purchases/supplier/${supplierId}/due-invoices`),
 };

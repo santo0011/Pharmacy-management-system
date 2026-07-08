@@ -12,7 +12,7 @@ export default function PurchaseDetail() {
   const { selectedPurchase: purchase, payments, loading } = useSelector((state) => state.purchases);
   const { items: suppliers } = useSelector((state) => state.suppliers);
 
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showPaymentDrawer, setShowPaymentDrawer] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -25,6 +25,16 @@ export default function PurchaseDetail() {
     dispatch(fetchSuppliers({ limit: 200 }));
     return () => dispatch(clearSelectedPurchase());
   }, [dispatch, id]);
+
+  const openPaymentDrawer = () => {
+    setPaymentAmount('');
+    setPaymentMethod('cash');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentNotes('');
+    setShowPaymentDrawer(true);
+  };
+
+  const closePaymentDrawer = () => setShowPaymentDrawer(false);
 
   const handleAddPayment = async (e) => {
     e.preventDefault();
@@ -47,7 +57,7 @@ export default function PurchaseDetail() {
       })).unwrap();
       showSuccess('Payment recorded successfully');
       dispatch(fetchPurchasePayments(id));
-      setShowPaymentModal(false);
+      closePaymentDrawer();
       setPaymentAmount('');
       setPaymentNotes('');
     } catch (error) {
@@ -87,7 +97,7 @@ export default function PurchaseDetail() {
           <p>{purchase.supplierName || purchase.supplier?.supplierName}</p>
         </div>
         <div className="btn-group-grid">
-          <button className="btn btn-success" onClick={() => setShowPaymentModal(true)} disabled={purchase.dueAmount <= 0 || purchase.status === 'cancelled' || purchase.status === 'returned'}>
+          <button className="btn btn-success" onClick={openPaymentDrawer} disabled={purchase.dueAmount <= 0 || purchase.status === 'cancelled' || purchase.status === 'returned'}>
             <i className="fa-solid fa-money-bill"></i> Pay Now
           </button>
           <button className="btn btn-warning" onClick={() => navigate(`/purchases/${id}/edit`)} disabled={purchase.status === 'cancelled' || purchase.status === 'returned'}>
@@ -178,7 +188,7 @@ export default function PurchaseDetail() {
           </h5>
           <div style={{ display: 'flex', gap: '8px' }}>
             {purchase.dueAmount > 0 && purchase.status !== 'cancelled' && purchase.status !== 'returned' && (
-              <button className="btn btn-success btn-sm" onClick={() => setShowPaymentModal(true)}>
+              <button className="btn btn-success btn-sm" onClick={openPaymentDrawer}>
                 <i className="fa-solid fa-plus"></i> Add Payment
               </button>
             )}
@@ -234,72 +244,72 @@ export default function PurchaseDetail() {
         )}
       </div>
 
-      {/* Record Payment Modal */}
-      {showPaymentModal && (
-        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
-              <h3><i className="fa-solid fa-money-bill"></i> Record Payment</h3>
-              <button className="close-btn" onClick={() => setShowPaymentModal(false)}>&times;</button>
-            </div>
-            <form onSubmit={handleAddPayment}>
-              <div className="modal-body">
-                <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#f0f5ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--gray-500)' }}>Supplier:</span>
-                    <span style={{ fontWeight: 600 }}>{purchase.supplierName || purchase.supplier?.supplierName}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--gray-500)' }}>Invoice:</span>
-                    <span style={{ fontWeight: 600 }}>{purchase.invoiceNumber}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <span style={{ color: 'var(--gray-500)' }}>Outstanding Due:</span>
-                    <span style={{ fontWeight: 700, color: 'var(--danger)' }}>₹{purchase.dueAmount?.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Payment Amount *</label>
-                  <input type="number" step="0.01" min="0" max={purchase.dueAmount} value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    className="form-select" style={{ width: '100%' }}
-                    placeholder={`Max: ₹${purchase.dueAmount?.toFixed(2)}`} required />
-                </div>
-                <div className="form-group">
-                  <label>Payment Method</label>
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="form-select" style={{ width: '100%' }}>
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="upi">UPI</option>
-                    <option value="credit">Credit</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Payment Date</label>
-                  <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)}
-                    className="form-select" style={{ width: '100%' }} />
-                </div>
-                <div className="form-group">
-                  <label>Notes (optional)</label>
-                  <textarea value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)}
-                    className="form-select" style={{ width: '100%', minHeight: '60px', resize: 'vertical' }} rows={2} />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-success" disabled={submittingPayment}>
-                  {submittingPayment ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-                  {submittingPayment ? ' Recording...' : ' Record Payment'}
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Record Payment Drawer */}
+      <div className={`drawer-overlay ${showPaymentDrawer ? 'open' : ''}`} onClick={closePaymentDrawer}></div>
+      <div className={`drawer ${showPaymentDrawer ? 'open' : ''}`}>
+        <div className="drawer-header">
+          <h3><i className="fa-solid fa-money-bill"></i> Record Payment</h3>
+          <button className="close-btn" onClick={closePaymentDrawer}>
+            <i className="fa-solid fa-times"></i>
+          </button>
         </div>
-      )}
+        <form onSubmit={handleAddPayment} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+          <div className="drawer-body">
+            {/* Invoice Summary Card */}
+            <div style={{ marginBottom: '20px', padding: '14px 16px', background: '#f0f5ff', borderRadius: 'var(--radius)', border: '1px solid #bfdbfe' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Supplier</span>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gray-800)' }}>{purchase.supplierName || purchase.supplier?.supplierName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Invoice</span>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gray-800)' }}>{purchase.invoiceNumber}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid #bfdbfe' }}>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--gray-600)' }}>Outstanding Due</span>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--danger)' }}>₹{purchase.dueAmount?.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Payment Amount *</label>
+              <input type="number" step="0.01" min="0" max={purchase.dueAmount} value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                className="form-select" style={{ width: '100%' }}
+                placeholder={`Max: ₹${purchase.dueAmount?.toFixed(2)}`} required />
+            </div>
+            <div className="form-group">
+              <label>Payment Method</label>
+              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}
+                className="form-select" style={{ width: '100%' }}>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="upi">UPI</option>
+                <option value="credit">Credit</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Payment Date</label>
+              <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)}
+                className="form-select" style={{ width: '100%' }} />
+            </div>
+            <div className="form-group">
+              <label>Notes (optional)</label>
+              <textarea value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)}
+                className="form-select" style={{ width: '100%', minHeight: '60px', resize: 'vertical' }} rows={2} />
+            </div>
+          </div>
+          <div className="drawer-footer">
+            <button type="button" className="btn btn-secondary" onClick={closePaymentDrawer}>Cancel</button>
+            <button type="submit" className="btn btn-success" disabled={submittingPayment}>
+              {submittingPayment ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
+              {submittingPayment ? ' Recording...' : ' Record Payment'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
