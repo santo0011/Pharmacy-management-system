@@ -60,7 +60,7 @@ export default function EnhancedDashboard() {
       // Fetch unread notification count
       notificationService.getUnreadCount().then(res => {
         setUnreadNotifications(res.data?.data?.count || 0);
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [dispatch, isSuperAdmin]);
 
@@ -159,7 +159,7 @@ export default function EnhancedDashboard() {
             </div>
             <div className="card-body card-body-chart">
               {registrationChartData ? <Bar data={registrationChartData} options={chartOptions} />
-              : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-line" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Registration data will appear here</p></div>}
+                : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-line" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Registration data will appear here</p></div>}
             </div>
           </div>
           <div className="card">
@@ -319,11 +319,19 @@ export default function EnhancedDashboard() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="stats-grid">
+      {/* Stats Cards - 6 cards in a single grid for consistent 2-per-row on mobile */}
+      <div className="stats-grid" style={{ marginBottom: '24px' }}>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-pills"></i></div>
           <div className="stat-info"><h3>{totalMedicines}</h3><p>Total Products</p></div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
+          <div className="stat-icon green"><i className="fa-solid fa-coins"></i></div>
+          <div className="stat-info"><h3>₹{totalRevenue.toFixed(2)}</h3><p>Total Revenue</p></div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+          <div className="stat-icon blue"><i className="fa-solid fa-receipt"></i></div>
+          <div className="stat-info"><h3>{totalSales}</h3><p>Total Sales Count</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
           <div className="stat-icon green"><i className="fa-solid fa-indian-rupee-sign"></i></div>
@@ -339,26 +347,6 @@ export default function EnhancedDashboard() {
         </div>
       </div>
 
-      {/* Profit/Loss Summary Cards */}
-      <div className="stats-grid" style={{ marginBottom: '24px' }}>
-        <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
-          <div className="stat-icon green"><i className="fa-solid fa-coins"></i></div>
-          <div className="stat-info"><h3>₹{totalRevenue.toFixed(2)}</h3><p>Total Revenue</p></div>
-        </div>
-        <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <div className="stat-icon blue"><i className="fa-solid fa-receipt"></i></div>
-          <div className="stat-info"><h3>{totalSales}</h3><p>Total Sales Count</p></div>
-        </div>
-        <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
-          <div className="stat-icon purple"><i className="fa-solid fa-chart-simple"></i></div>
-          <div className="stat-info"><h3>₹{monthlyProfit.toFixed(2)}</h3><p>Monthly Profit</p></div>
-        </div>
-        <div className="stat-card" style={{ borderLeft: '4px solid #06b6d4' }}>
-          <div className="stat-icon" style={{ background: '#cffafe', color: '#06b6d4' }}><i className="fa-solid fa-calendar-week"></i></div>
-          <div className="stat-info"><h3>₹{weeklyProfit.toFixed(2)}</h3><p>Weekly Profit</p></div>
-        </div>
-      </div>
-
       {/* Sales Charts Row */}
       <div className="dashboard-charts-row">
         <div className="card">
@@ -368,7 +356,7 @@ export default function EnhancedDashboard() {
           </div>
           <div className="card-body card-body-chart">
             {dailySalesChart ? <Line data={dailySalesChart} options={chartOptions} />
-            : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-line" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Sales data will appear here</p></div>}
+              : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-line" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Sales data will appear here</p></div>}
           </div>
         </div>
         <div className="card">
@@ -378,7 +366,7 @@ export default function EnhancedDashboard() {
           </div>
           <div className="card-body card-body-chart">
             {monthlyRevenueChart ? <Bar data={monthlyRevenueChart} options={chartOptions} />
-            : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-coins" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Revenue data will appear here</p></div>}
+              : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-coins" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Revenue data will appear here</p></div>}
           </div>
         </div>
       </div>
@@ -391,7 +379,7 @@ export default function EnhancedDashboard() {
           </div>
           <div className="card-body card-body-chart">
             {purchaseVsSaleChart ? <Bar data={purchaseVsSaleChart} options={chartOptions} />
-            : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-bar" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Purchase & sale data will appear here</p></div>}
+              : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-chart-bar" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Purchase & sale data will appear here</p></div>}
           </div>
         </div>
         <div className="card">
@@ -400,7 +388,7 @@ export default function EnhancedDashboard() {
           </div>
           <div className="card-body card-body-chart">
             {topMedicinesChart ? <Bar data={topMedicinesChart} options={{ ...chartOptions, indexAxis: 'y', plugins: { ...chartOptions.plugins, legend: { display: false } } }} />
-            : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-star" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Sales data needed for top medicines</p></div>}
+              : <div style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-500)' }}><i className="fa-solid fa-star" style={{ fontSize: '36px', marginBottom: '8px', color: 'var(--gray-300)' }}></i><p>Sales data needed for top medicines</p></div>}
           </div>
         </div>
         <div className="card">

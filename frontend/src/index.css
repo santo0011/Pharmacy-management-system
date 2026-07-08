@@ -557,7 +557,7 @@ a {
 /* Stats Cards */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   margin-bottom: 24px;
 }
@@ -2638,6 +2638,10 @@ input[type="number"]:focus {
     flex-direction: column;
   }
 
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
   .dashboard-charts-row-three {
     grid-template-columns: 1fr 1fr;
   }
@@ -2777,7 +2781,7 @@ input[type="number"]:focus {
     margin-top: 0;
   }
 
-  /* === Stats Cards - 2x2 grid === */
+  /* === Stats Cards - 2 per row on mobile === */
   .stats-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 14px;
