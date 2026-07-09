@@ -8,22 +8,40 @@ import { notificationService } from '../services/notificationService';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [inventoryOpen, setInventoryOpen] = useState(false);
-  const [salesOpen, setSalesOpen] = useState(true);
-  const [managementOpen, setManagementOpen] = useState(() => window.innerWidth > 768);
   const [notifCount, setNotifCount] = useState(0);
   const { user, logout } = useAuth();
   const dispatch = useDispatch();
   const location = useLocation();
   const { subscriptionStatus } = useSelector((state) => state.dashboard);
 
+  // Smart auto-open: determine which section should be open based on current route
+  const getInitialSection = (pathname) => {
+    if (pathname === '/') return null; // Dashboard — all collapsed
+    const inventoryPaths = ['/medicines', '/categories', '/brands', '/suppliers'];
+    const salesPaths = ['/purchases', '/sales', '/customers'];
+    const managementPaths = ['/subscriptions', '/reports', '/staff', '/settings'];
+    if (inventoryPaths.some(p => pathname.startsWith(p))) return 'inventory';
+    if (salesPaths.some(p => pathname.startsWith(p))) return 'sales';
+    if (managementPaths.some(p => pathname.startsWith(p))) return 'management';
+    return null;
+  };
+
+  const [openSection, setOpenSection] = useState(() => getInitialSection(location.pathname));
+
+  // Update open section when route changes
   useEffect(() => {
-    // Fetch subscription status on mount and periodically
+    const section = getInitialSection(location.pathname);
+    if (section !== undefined) {
+      setOpenSection(section);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     if (user?.role === 'admin') {
       dispatch(fetchSubscriptionStatus());
       const interval = setInterval(() => {
         dispatch(fetchSubscriptionStatus());
-      }, 60000); // Check every minute
+      }, 60000);
       return () => clearInterval(interval);
     }
   }, [dispatch, user]);
@@ -39,9 +57,13 @@ export default function MainLayout() {
       }
     };
     fetchNotifCount();
-    const interval = setInterval(fetchNotifCount, 30000); // Poll every 30s
+    const interval = setInterval(fetchNotifCount, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const toggleSection = (section) => {
+    setOpenSection(prev => prev === section ? null : section);
+  };
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -61,7 +83,6 @@ export default function MainLayout() {
     return titles[path] || path.charAt(1).toUpperCase() + path.slice(2);
   };
 
-  // Check if subscription is expired - only allow Dashboard, Subscriptions, and Logout
   const isExpired = subscriptionStatus?.status === 'expired';
   const isExpiringSoon = subscriptionStatus?.status === 'expiring_soon';
   const isSubRoute = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
@@ -125,21 +146,13 @@ export default function MainLayout() {
 
     if (isExpired) {
       return (
-        <div style={{
-          padding: '10px 16px',
-          backgroundColor: '#fce4ec',
-          borderBottom: '1px solid #ef9a9a',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          fontSize: '13px',
-        }}>
+        <div className="sub-banner sub-banner-expired">
           <i className="fa-solid fa-circle-exclamation" style={{ color: '#e53935' }}></i>
           <span style={{ color: '#c62828' }}>
             <strong>Subscription Expired.</strong> Your subscription has ended. Please renew to access all features.
           </span>
           {location.pathname !== '/subscriptions' && (
-            <a href="/subscriptions" style={{ color: '#1565c0', marginLeft: 'auto', fontWeight: 500, textDecoration: 'underline' }}>
+            <a href="/subscriptions" className="sub-banner-link">
               Renew Now →
             </a>
           )}
@@ -148,24 +161,15 @@ export default function MainLayout() {
     }
 
     if (isExpiringSoon && subscriptionStatus.daysRemaining > 0) {
-      const color = subscriptionStatus.daysRemaining <= 3 ? '#e65100' : '#f57f17';
-      const bgColor = subscriptionStatus.daysRemaining <= 3 ? '#fff3e0' : '#fff8e1';
-      const borderColor = subscriptionStatus.daysRemaining <= 3 ? '#ffcc80' : '#ffe082';
+      const daysLeft = subscriptionStatus.daysRemaining;
+      const isUrgent = daysLeft <= 3;
       return (
-        <div style={{
-          padding: '10px 16px',
-          backgroundColor: bgColor,
-          borderBottom: `1px solid ${borderColor}`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          fontSize: '13px',
-        }}>
-          <i className="fa-solid fa-clock" style={{ color }}></i>
-          <span style={{ color }}>
-            <strong>Subscription Expiring Soon.</strong> Your subscription will end in {subscriptionStatus.daysRemaining} day{subscriptionStatus.daysRemaining > 1 ? 's' : ''}. Please renew to avoid interruption.
+        <div className={`sub-banner ${isUrgent ? 'sub-banner-urgent' : 'sub-banner-warning'}`}>
+          <i className="fa-solid fa-clock" style={{ color: isUrgent ? '#e65100' : '#f57f17' }}></i>
+          <span style={{ color: isUrgent ? '#e65100' : '#f57f17' }}>
+            <strong>Subscription Expiring Soon.</strong> Your subscription will end in {daysLeft} day{daysLeft > 1 ? 's' : ''}. Please renew to avoid interruption.
           </span>
-          <a href="/subscriptions" style={{ color: '#1565c0', marginLeft: 'auto', fontWeight: 500, textDecoration: 'underline' }}>
+          <a href="/subscriptions" className="sub-banner-link" style={{ color: '#1565c0' }}>
             Renew Now →
           </a>
         </div>
@@ -173,6 +177,39 @@ export default function MainLayout() {
     }
 
     return null;
+  };
+
+  const renderNavGroup = (key, label, items, icon) => {
+    if (items.length === 0) return null;
+    const isOpen = openSection === key;
+    return (
+      <div className="sidebar-group">
+        <div
+          className={`sidebar-group-header ${isOpen ? 'sidebar-group-header-open' : ''}`}
+          onClick={() => toggleSection(key)}
+        >
+          <div className="sidebar-group-header-left">
+            <i className={icon}></i>
+            <span>{label}</span>
+          </div>
+          <i className={`fa-solid fa-chevron-${isOpen ? 'down' : 'right'} sidebar-group-chevron`}></i>
+        </div>
+        <div className={`sidebar-group-items ${isOpen ? 'sidebar-group-items-open' : ''}`}>
+          {items.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end
+              className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <i className={item.icon}></i>
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   // If expired and not on allowed routes, block content
@@ -192,10 +229,10 @@ export default function MainLayout() {
         </div>
           <nav className="sidebar-nav">
             <div className="nav-label">Main Menu</div>
-            <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
+            <NavLink to="/" end className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')} onClick={() => setSidebarOpen(false)}>
               <i className="fa-solid fa-chart-pie"></i><span>Dashboard</span>
             </NavLink>
-            <NavLink to="/subscriptions" className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
+            <NavLink to="/subscriptions" className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')} onClick={() => setSidebarOpen(false)}>
               <i className="fa-solid fa-credit-card"></i><span>Subscription</span>
             </NavLink>
             <div className="nav-label" style={{ marginTop: 'auto' }}>Account</div>
@@ -232,8 +269,10 @@ export default function MainLayout() {
     <div className="app-layout">
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <i className="fa-solid fa-prescription-bottle-medical"></i>
-          <div>
+          <div className="sidebar-header-logo">
+            <i className="fa-solid fa-prescription-bottle-medical"></i>
+          </div>
+          <div className="sidebar-header-text">
             <h3>Pharmacy</h3>
             <span>Management System</span>
           </div>
@@ -242,60 +281,36 @@ export default function MainLayout() {
           </button>
         </div>
         <nav className="sidebar-nav">
-          <div className="nav-label">Main Menu</div>
-          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
-            <i className="fa-solid fa-chart-pie"></i><span>Dashboard</span>
+          {/* Dashboard Link */}
+          <NavLink to="/" end className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')} onClick={() => setSidebarOpen(false)}>
+            <i className="fa-solid fa-chart-pie"></i>
+            <span>Dashboard</span>
           </NavLink>
 
+          <div className="sidebar-divider"></div>
+
           {/* Inventory Group */}
-          {filteredItems.inventory.length > 0 && (
-            <>
-              <div className="nav-group-header" onClick={() => setInventoryOpen(!inventoryOpen)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <span>Inventory</span>
-                <i className={`fa-solid fa-chevron-${inventoryOpen ? 'down' : 'right'}`} style={{ fontSize: '10px' }}></i>
-              </div>
-              {inventoryOpen && filteredItems.inventory.map((item) => (
-                <NavLink key={item.path} to={item.path} end className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
-                  <i className={item.icon}></i><span>{item.label}</span>
-                </NavLink>
-              ))}
-            </>
-          )}
+          {renderNavGroup('inventory', 'Inventory', filteredItems.inventory, 'fa-solid fa-warehouse')}
 
           {/* Sales Group */}
-          {filteredItems.sales.length > 0 && (
-            <>
-              <div className="nav-group-header" onClick={() => setSalesOpen(!salesOpen)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <span>Sales & Customers</span>
-                <i className={`fa-solid fa-chevron-${salesOpen ? 'down' : 'right'}`} style={{ fontSize: '10px' }}></i>
-              </div>
-              {salesOpen && filteredItems.sales.map((item) => (
-                <NavLink key={item.path} to={item.path} end className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
-                  <i className={item.icon}></i><span>{item.label}</span>
-                </NavLink>
-              ))}
-            </>
-          )}
+          {renderNavGroup('sales', 'Sales & Customers', filteredItems.sales, 'fa-solid fa-cash-register')}
 
           {/* Management Group */}
-          {filteredItems.management.length > 0 && (
-            <>
-              <div className="nav-group-header" onClick={() => setManagementOpen(!managementOpen)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <span>Management</span>
-                <i className={`fa-solid fa-chevron-${managementOpen ? 'down' : 'right'}`} style={{ fontSize: '10px' }}></i>
-              </div>
-              {managementOpen && filteredItems.management.map((item) => (
-                <NavLink key={item.path} to={item.path} end className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setSidebarOpen(false)}>
-                  <i className={item.icon}></i><span>{item.label}</span>
-                </NavLink>
-              ))}
-            </>
-          )}
+          {renderNavGroup('management', 'Management', filteredItems.management, 'fa-solid fa-building')}
 
-          <div className="nav-label" style={{ marginTop: 'auto' }}>Account</div>
-          <a className="sidebar-logout" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }} style={{ cursor: 'pointer' }}>
-            <i className="fa-solid fa-right-from-bracket"></i><span>Logout</span>
-          </a>
+          <div className="sidebar-divider"></div>
+
+          {/* Account & Logout */}
+          <div className="sidebar-account-section">
+            <div className="sidebar-account-header">
+              <i className="fa-solid fa-user"></i>
+              <span>Account</span>
+            </div>
+            <a className="sidebar-logout-link" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }}>
+              <i className="fa-solid fa-right-from-bracket"></i>
+              <span>Logout</span>
+            </a>
+          </div>
         </nav>
       </aside>
 
@@ -314,13 +329,9 @@ export default function MainLayout() {
             <NavLink to="/notifications" className="notification-bell" style={{ position: 'relative', marginRight: '8px', color: 'var(--gray-500)', fontSize: '18px' }}>
               <i className="fa-solid fa-bell"></i>
               {notifCount > 0 && (
-                <span style={{
-                  position: 'absolute', top: '-6px', right: '-8px',
-                  background: '#ef4444', color: 'white', borderRadius: '50%',
-                  width: '18px', height: '18px', fontSize: '10px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 600, lineHeight: 1,
-                }}>{notifCount > 99 ? '99+' : notifCount}</span>
+                <span className="notif-badge">
+                  {notifCount > 99 ? '99+' : notifCount}
+                </span>
               )}
             </NavLink>
             <div className="user-info">

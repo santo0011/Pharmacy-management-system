@@ -22,7 +22,7 @@ export default function SaleForm() {
   const [includePreviousDue, setIncludePreviousDue] = useState(false);
   const [selectedDueInvoices, setSelectedDueInvoices] = useState([]);
   const [items, setItems] = useState([]);
-  const [discount, setDiscount] = useState();
+  const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage');
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
