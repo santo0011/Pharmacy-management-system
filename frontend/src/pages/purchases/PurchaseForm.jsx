@@ -278,7 +278,7 @@ export default function PurchaseForm() {
               <div className="purchase-form-grid">
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>Supplier *</label>
-                  <select value={supplier} onChange={(e) => { setSupplier(e.target.value); if (e.target.value) setSupplierName(''); }} className="form-select" style={{ width: '100%' }}>
+                  <select value={supplier} onChange={(e) => { setSupplier(e.target.value); if (e.target.value) { const sel = suppliers?.find(s => s._id === e.target.value); setSupplierName(sel?.supplierName || ''); } }} className="form-select" style={{ width: '100%' }}>
                     <option value="">Select Supplier</option>
                     {suppliers?.map(s => (
                       <option key={s._id} value={s._id}>

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import AnimatedCounter from '../../components/common/AnimatedCounter';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { fetchSales } from '../../redux/slices/saleSlice';
+import { fetchSales, fetchSaleStats } from '../../redux/slices/saleSlice';
 
 export default function Sales() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { items, total, loading } = useSelector((state) => state.sales);
+  const { items, total, loading, stats } = useSelector((state) => state.sales);
 
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,6 +34,7 @@ export default function Sales() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setCurrentPage(1); }, [search, filters]);
+  useEffect(() => { dispatch(fetchSaleStats()); }, [dispatch]);
 
   const totalPages = Math.ceil(total / 10);
 
@@ -122,6 +124,30 @@ export default function Sales() {
           <button className="btn btn-success" onClick={() => navigate('/sales/new')}>
             <i className="fa-solid fa-cash-register"></i> New Sale
           </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="dashboard-summary-grid" style={{ marginBottom: '20px' }}>
+        <div className="summary-item summary-item-blue">
+          <div className="summary-label">Total Sales</div>
+          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalAmount || 0} decimals={2} /></div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalSales || 0} invoices</div>
+        </div>
+        <div className="summary-item summary-item-green">
+          <div className="summary-label">Total Paid</div>
+          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalPaid || 0} decimals={2} /></div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>This month: ₹{(stats?.monthlyAmount || 0).toFixed(2)}</div>
+        </div>
+        <div className="summary-item summary-item-red">
+          <div className="summary-label">Outstanding Due</div>
+          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalDue || 0} decimals={2} /></div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalSales || 0} total invoices</div>
+        </div>
+        <div className="summary-item summary-item-gray">
+          <div className="summary-label">Yearly Sales</div>
+          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.yearlyAmount || 0} decimals={2} /></div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.yearlySales || 0} sales this year</div>
         </div>
       </div>
 

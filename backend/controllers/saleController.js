@@ -675,10 +675,10 @@ export const getSaleStats = async (req, res, next) => {
       { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 }, profit: { $sum: { $subtract: ['$grandTotal', { $sum: '$items.purchasePrice' }] } } } },
     ];
 
-    const [totalSale, monthlySale, todaySale, weeklySale, dailySales, monthlyRevenue, monthlyPurchaseVsSale, paymentMethodStats] = await Promise.all([
+    const [totalSale, monthlySale, todaySale, weeklySale, yearlySale, dailySales, monthlyRevenue, monthlyPurchaseVsSale, paymentMethodStats] = await Promise.all([
       Sale.aggregate([
         { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: activeStatus } },
-        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 }, totalPaid: { $sum: '$paidAmount' }, totalDue: { $sum: '$dueAmount' } } },
       ]),
       Sale.aggregate(pipeline(startOfMonth)),
       Sale.aggregate([
@@ -686,6 +686,10 @@ export const getSaleStats = async (req, res, next) => {
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
       ]),
       Sale.aggregate(pipeline(last7Days)),
+      Sale.aggregate([
+        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: startOfYear }, status: activeStatus } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
+      ]),
       // Daily sales trend (last 30 days)
       Sale.aggregate([
         { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, saleDate: { $gte: last30Days }, status: activeStatus } },
@@ -742,6 +746,8 @@ export const getSaleStats = async (req, res, next) => {
     return ApiResponse.success(res, {
       totalAmount: totalSale[0]?.total || 0,
       totalSales: totalSale[0]?.count || 0,
+      totalPaid: totalSale[0]?.totalPaid || 0,
+      totalDue: totalSale[0]?.totalDue || 0,
       monthlyAmount: monthlySale[0]?.total || 0,
       monthlySales: monthlySale[0]?.count || 0,
       monthlyProfit: monthlySale[0]?.profit || 0,
@@ -750,6 +756,8 @@ export const getSaleStats = async (req, res, next) => {
       weeklyAmount: weeklySale[0]?.total || 0,
       weeklySales: weeklySale[0]?.count || 0,
       weeklyProfit: weeklySale[0]?.profit || 0,
+      yearlyAmount: yearlySale[0]?.total || 0,
+      yearlySales: yearlySale[0]?.count || 0,
       dailySales: dailySales.map(d => ({ date: d._id, amount: d.total, count: d.count })),
       monthlyRevenue: monthlyRevenue.map(m => ({ month: m._id, amount: m.total, count: m.count })),
       monthlyPurchaseVsSale,

@@ -137,6 +137,20 @@ export const getPurchases = async (req, res, next) => {
         { invoiceNumber: { $regex: search, $options: 'i' } },
         { supplierName: { $regex: search, $options: 'i' } },
       ];
+
+      // Also find suppliers matching the search term and include purchases from those suppliers
+      const matchingSuppliers = await Supplier.find({
+        pharmacyId: req.pharmacyId,
+        $or: [
+          { supplierName: { $regex: search, $options: 'i' } },
+          { companyName: { $regex: search, $options: 'i' } },
+        ],
+      }).select('_id').lean();
+
+      if (matchingSuppliers.length > 0) {
+        const supplierIds = matchingSuppliers.map(s => s._id);
+        query.$or.push({ supplier: { $in: supplierIds } });
+      }
     }
     if (startDate) query.purchaseDate = { ...query.purchaseDate, $gte: new Date(startDate) };
     if (endDate) query.purchaseDate = { ...query.purchaseDate, $lte: new Date(endDate) };
@@ -695,30 +709,47 @@ export const getPurchaseStats = async (req, res, next) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfTodayEnd = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
 
-    const [totalPurchase, monthlyPurchase, yearlyPurchase, dueStats, recentPurchases] = await Promise.all([
+    const pharmacyObjId = new mongoose.Types.ObjectId(pharmacyId);
+
+    const [totalPurchase, monthlyPurchase, yearlyPurchase, dueStats, todayPurchase, suppliersDue, recentPurchases] = await Promise.all([
       Purchase.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: pharmacyObjId, isDeleted: false, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 }, totalPaid: { $sum: '$paidAmount' }, totalDue: { $sum: '$dueAmount' } } },
       ]),
       Purchase.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, purchaseDate: { $gte: startOfMonth }, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: pharmacyObjId, isDeleted: false, purchaseDate: { $gte: startOfMonth }, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
       ]),
       Purchase.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, purchaseDate: { $gte: startOfYear }, status: { $ne: 'cancelled' } } },
+        { $match: { pharmacyId: pharmacyObjId, isDeleted: false, purchaseDate: { $gte: startOfYear }, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
       ]),
       Purchase.aggregate([
-        { $match: { pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $nin: ['cancelled', 'returned'] } } },
+        { $match: { pharmacyId: pharmacyObjId, isDeleted: false, status: { $nin: ['cancelled', 'returned'] } } },
         { $group: { _id: null, totalDue: { $sum: '$dueAmount' }, totalOutstanding: { $sum: '$grandTotal' } } },
+      ]),
+      Purchase.aggregate([
+        { $match: { pharmacyId: pharmacyObjId, isDeleted: false, purchaseDate: { $gte: startOfToday, $lt: startOfTodayEnd }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
+      ]),
+      Purchase.aggregate([
+        { $match: { pharmacyId: pharmacyObjId, isDeleted: false, status: { $nin: ['cancelled', 'returned'] }, dueAmount: { $gt: 0 } } },
+        { $group: { _id: '$supplier' } },
+        { $count: 'count' },
       ]),
       Purchase.find({ pharmacyId, isDeleted: false }).sort({ createdAt: -1 }).limit(5).populate('supplier', 'supplierName').select('invoiceNumber supplierName grandTotal paidAmount dueAmount purchaseDate status paymentStatus'),
     ]);
 
+    const totalCount = totalPurchase[0]?.count || 0;
+    const totalAmount = totalPurchase[0]?.total || 0;
+    const avgPurchaseValue = totalCount > 0 ? totalAmount / totalCount : 0;
+
     return ApiResponse.success(res, {
-      totalAmount: totalPurchase[0]?.total || 0,
-      totalPurchases: totalPurchase[0]?.count || 0,
+      totalAmount,
+      totalPurchases: totalCount,
       totalPaid: totalPurchase[0]?.totalPaid || 0,
       totalDue: totalPurchase[0]?.totalDue || 0,
       monthlyAmount: monthlyPurchase[0]?.total || 0,
@@ -727,6 +758,10 @@ export const getPurchaseStats = async (req, res, next) => {
       yearlyPurchases: yearlyPurchase[0]?.count || 0,
       outstandingDue: dueStats[0]?.totalDue || 0,
       outstandingTotal: dueStats[0]?.totalOutstanding || 0,
+      todayAmount: todayPurchase[0]?.total || 0,
+      todayPurchases: todayPurchase[0]?.count || 0,
+      suppliersDue: suppliersDue[0]?.count || 0,
+      avgPurchaseValue,
       recentPurchases,
     });
   } catch (error) {
