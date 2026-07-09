@@ -126,6 +126,22 @@ export const deleteBrand = async (req, res, next) => {
       return ApiResponse.error(res, 'Brand not found', 404);
     }
 
+    // Check if any medicines are linked to this brand
+    const Medicine = (await import('../models/Medicine.js')).default;
+    const medicineCount = await Medicine.countDocuments({
+      brand: brand._id,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    });
+
+    if (medicineCount > 0) {
+      return ApiResponse.error(
+        res,
+        `This brand is associated with ${medicineCount} medicine(s) and cannot be deleted. Remove or reassign the medicines first.`,
+        400
+      );
+    }
+
     if (brand.logo) {
       const logoPath = path.join(__dirname, '..', brand.logo);
       try {

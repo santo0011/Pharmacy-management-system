@@ -37,6 +37,18 @@ export const updatePharmacy = createAsyncThunk(
   }
 );
 
+export const togglePharmacyStatus = createAsyncThunk(
+  'pharmacies/toggleStatus',
+  async ({ id, status }, { rejectWithValue }) => {
+    try {
+      const { data } = await pharmacyService.toggleStatus(id, status);
+      return data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update pharmacy status');
+    }
+  }
+);
+
 export const deletePharmacy = createAsyncThunk(
   'pharmacies/delete',
   async (id, { rejectWithValue }) => {
@@ -82,6 +94,12 @@ const pharmacySlice = createSlice({
         state.total += 1;
       })
       .addCase(updatePharmacy.fulfilled, (state, action) => {
+        const index = state.items.findIndex((item) => item._id === action.payload._id);
+        if (index !== -1) {
+          state.items[index] = action.payload;
+        }
+      })
+      .addCase(togglePharmacyStatus.fulfilled, (state, action) => {
         const index = state.items.findIndex((item) => item._id === action.payload._id);
         if (index !== -1) {
           state.items[index] = action.payload;

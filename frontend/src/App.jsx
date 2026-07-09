@@ -3,45 +3,59 @@ import { useAuth } from './hooks/useAuth';
 import SuperAdminLayout from './layouts/SuperAdminLayout';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/auth/Login';
-import Dashboard from './pages/dashboard/Dashboard';
+import Dashboard from './pages/dashboard/EnhancedDashboard';
 import Categories from './pages/categories/Categories';
 import Brands from './pages/brands/Brands';
 import Suppliers from './pages/suppliers/Suppliers';
-import Users from './pages/users/Users';
 import Pharmacies from './pages/pharmacies/Pharmacies';
-
-function PrivateRoute({ children }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/login" />;
-}
+import Staff from './pages/staff/Staff';
+import Medicines from './pages/medicines/Medicines';
+import MedicineForm from './pages/medicines/MedicineForm';
+import MedicineDetail from './pages/medicines/MedicineDetail';
+import Purchases from './pages/purchases/Purchases';
+import PurchaseForm from './pages/purchases/PurchaseForm';
+import PurchaseDetail from './pages/purchases/PurchaseDetail';
+import Sales from './pages/sales/Sales';
+import SaleForm from './pages/sales/SaleForm';
+import SaleDetail from './pages/sales/SaleDetail';
+import Invoice from './pages/sales/Invoice';
+import Customers from './pages/customers/Customers';
+import Reports from './pages/reports/Reports';
+import Subscriptions from './pages/subscriptions/Subscriptions';
+import Payments from './pages/payments/Payments';
+import Settings from './pages/settings/Settings';
+import Profile from './pages/profile/Profile';
+import NotificationCenter from './pages/notifications/NotificationCenter';
+import ActivityLogs from './pages/activity-logs/ActivityLogs';
+import BackupRestore from './pages/backup/BackupRestore';
+import BulkImport from './pages/medicines/BulkImport';
+import AdvancedAnalytics from './pages/super-admin/AdvancedAnalytics';
+import SystemHealth from './pages/super-admin/SystemHealth';
 
 function PublicRoute({ children }) {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <Navigate to="/" /> : children;
 }
 
-function SuperAdminRoute({ children }) {
+function AppLayout() {
   const { isAuthenticated, isSuperAdmin } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" />;
-  if (!isSuperAdmin) return <Navigate to="/" />;
-  return children;
-}
 
-function PharmacyRoute({ children }) {
-  const { isAuthenticated, isSuperAdmin } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" />;
-  if (isSuperAdmin) return <Navigate to="/" />;
-  return children;
+
+  // Super Admin uses SuperAdminLayout
+  if (isSuperAdmin) {
+    return (
+      <SuperAdminLayout />
+    );
+  }
+
+  // Pharmacy users (admin, pharmacist, cashier) use MainLayout
+  return (
+    <MainLayout />
+  );
 }
 
 export default function App() {
-  const { isSuperAdmin } = useAuth();
-
-  const getHomePath = () => {
-    if (isSuperAdmin) return '/';
-    return '/';
-  };
-
   return (
     <Routes>
       <Route
@@ -53,47 +67,47 @@ export default function App() {
         }
       />
 
-      {/* Super Admin Routes */}
-      <Route
-        path="/"
-        element={
-          <SuperAdminRoute>
-            <SuperAdminLayout />
-          </SuperAdminRoute>
-        }
-      >
+      {/* All authenticated routes under one path, layout switches by role */}
+      <Route path="/" element={<AppLayout />}>
+        {/* Common routes */}
         <Route index element={<Dashboard />} />
-        <Route path="pharmacies" element={<Pharmacies />} />
-        <Route path="subscriptions" element={<Dashboard />} />
-        <Route path="payments" element={<Dashboard />} />
-        <Route path="users" element={<Users />} />
-        <Route path="settings" element={<Dashboard />} />
-        <Route path="profile" element={<Dashboard />} />
-      </Route>
 
-      {/* Pharmacy User Routes (Admin, Pharmacist, Cashier) */}
-      <Route
-        path="/pharmacy"
-        element={
-          <PharmacyRoute>
-            <MainLayout />
-          </PharmacyRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
+        {/* Super Admin routes */}
+        <Route path="pharmacies" element={<Pharmacies />} />
+        <Route path="payments" element={<Payments />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="analytics" element={<AdvancedAnalytics />} />
+        <Route path="system-health" element={<SystemHealth />} />
+
+        {/* Pharmacy User routes */}
+        <Route path="subscriptions" element={<Subscriptions />} />
         <Route path="categories" element={<Categories />} />
         <Route path="brands" element={<Brands />} />
         <Route path="suppliers" element={<Suppliers />} />
-        <Route path="medicines" element={<Dashboard />} />
-        <Route path="purchases" element={<Dashboard />} />
-        <Route path="sales" element={<Dashboard />} />
-        <Route path="customers" element={<Dashboard />} />
-        <Route path="reports" element={<Dashboard />} />
-        <Route path="staff" element={<Dashboard />} />
-        <Route path="settings" element={<Dashboard />} />
+        <Route path="customers" element={<Customers />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="medicines" element={<Medicines />} />
+        <Route path="medicines/new" element={<MedicineForm />} />
+        <Route path="medicines/bulk-import" element={<BulkImport />} />
+        <Route path="medicines/:id" element={<MedicineDetail />} />
+        <Route path="medicines/:id/edit" element={<MedicineForm />} />
+        <Route path="purchases" element={<Purchases />} />
+        <Route path="purchases/new" element={<PurchaseForm />} />
+        <Route path="purchases/:id" element={<PurchaseDetail />} />
+        <Route path="purchases/:id/edit" element={<PurchaseForm />} />
+        <Route path="sales" element={<Sales />} />
+        <Route path="sales/new" element={<SaleForm />} />
+        <Route path="sales/:id" element={<SaleDetail />} />
+        <Route path="sales/:id/edit" element={<SaleForm />} />
+        <Route path="sales/:id/invoice" element={<Invoice />} />
+        <Route path="staff" element={<Staff />} />
+        <Route path="notifications" element={<NotificationCenter />} />
+        <Route path="activity-logs" element={<ActivityLogs />} />
+        <Route path="backup" element={<BackupRestore />} />
       </Route>
 
-      <Route path="*" element={<Navigate to={getHomePath()} />} />
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }

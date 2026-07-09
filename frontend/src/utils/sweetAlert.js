@@ -16,9 +16,6 @@ export const showSuccess = (message) => {
   return Toast.fire({
     icon: 'success',
     title: message,
-    background: '#1f2937',
-    color: '#fff',
-    iconColor: '#22c55e',
   });
 };
 
@@ -26,9 +23,6 @@ export const showError = (message) => {
   return Toast.fire({
     icon: 'error',
     title: message,
-    background: '#1f2937',
-    color: '#fff',
-    iconColor: '#ef4444',
   });
 };
 
@@ -83,6 +77,24 @@ export const confirmAction = async (title, text, confirmText = 'Confirm') => {
     background: '#1f2937',
     color: '#fff',
     iconColor: '#f59e0b',
+    reverseButtons: true,
+  });
+  return result.isConfirmed;
+};
+
+export const showConfirm = async (title, text, icon = 'question') => {
+  const result = await Swal.fire({
+    title,
+    text,
+    icon,
+    showCancelButton: true,
+    confirmButtonColor: icon === 'warning' ? '#ef4444' : '#3b82f6',
+    cancelButtonColor: '#64748b',
+    confirmButtonText: 'Yes',
+    cancelButtonText: 'Cancel',
+    background: '#1f2937',
+    color: '#fff',
+    iconColor: icon === 'warning' ? '#f59e0b' : '#0ea5e9',
     reverseButtons: true,
   });
   return result.isConfirmed;

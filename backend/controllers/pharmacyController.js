@@ -1,19 +1,54 @@
 import Pharmacy from '../models/Pharmacy.js';
 import User from '../models/User.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
+import SubscriptionHistory from '../models/SubscriptionHistory.js';
+import Medicine from '../models/Medicine.js';
+import Category from '../models/Category.js';
+import Brand from '../models/Brand.js';
+import Supplier from '../models/Supplier.js';
 import ApiResponse from '../utils/apiResponse.js';
 
-// @desc    Create a new pharmacy
+// Helper to resolve subscription plan: if it's an ObjectId, look up plan name
+const resolveSubscriptionPlan = async (subscriptionPlan) => {
+  if (!subscriptionPlan) {
+    return { planName: 'free', planId: null };
+  }
+  // Check if it's a valid ObjectId (24 hex chars)
+  if (/^[0-9a-fA-F]{24}$/.test(subscriptionPlan)) {
+    const plan = await SubscriptionPlan.findById(subscriptionPlan);
+    if (plan) {
+      return { planName: plan.planName, planId: plan._id };
+    }
+  }
+  return { planName: subscriptionPlan, planId: null };
+};
+
+// @desc    Create a new pharmacy with admin account and subscription
 // @route   POST /api/pharmacies
 // @access  Private/SuperAdmin
 export const createPharmacy = async (req, res, next) => {
   try {
-    const { pharmacyName, ownerName, email, phone, address, licenseNumber } = req.body;
+    const {
+      pharmacyName, ownerName, email, phone, address, licenseNumber,
+      adminName, adminEmail, adminPassword, adminPhone,
+      subscriptionPlan, subscriptionStartDate, subscriptionEndDate
+    } = req.body;
 
     const existingPharmacy = await Pharmacy.findOne({ email });
     if (existingPharmacy) {
       return ApiResponse.error(res, 'Pharmacy with this email already exists', 400);
     }
 
+    // Check if admin email is already taken
+    const existingAdmin = await User.findOne({ email: adminEmail });
+    if (existingAdmin) {
+      return ApiResponse.error(res, 'Admin email already registered', 400);
+    }
+
+    // Resolve subscription plan name from ObjectId if needed
+    const resolved = await resolveSubscriptionPlan(subscriptionPlan);
+
+    // 1. Create Pharmacy
     const pharmacy = await Pharmacy.create({
       pharmacyName,
       ownerName,
@@ -21,10 +56,33 @@ export const createPharmacy = async (req, res, next) => {
       phone,
       address,
       licenseNumber,
+      subscriptionPlan: resolved.planName,
+      subscriptionPlanId: resolved.planId,
+      subscriptionStartDate: subscriptionStartDate || Date.now(),
+      subscriptionEndDate: subscriptionEndDate || null,
       createdBy: req.user._id,
     });
 
-    return ApiResponse.success(res, pharmacy, 'Pharmacy created successfully', 201);
+    // 2. Create Pharmacy Admin user linked to the pharmacy
+    const adminUser = await User.create({
+      name: adminName,
+      email: adminEmail,
+      password: adminPassword,
+      role: 'admin',
+      phone: adminPhone || '',
+      pharmacyId: pharmacy._id,
+      isActive: true,
+    });
+
+    return ApiResponse.success(
+      res,
+      {
+        pharmacy,
+        admin: adminUser,
+      },
+      'Pharmacy created with Admin account successfully',
+      201
+    );
   } catch (error) {
     next(error);
   }
@@ -61,7 +119,7 @@ export const getPharmacies = async (req, res, next) => {
   }
 };
 
-// @desc    Get single pharmacy
+// @desc    Get single pharmacy with admin details
 // @route   GET /api/pharmacies/:id
 // @access  Private/SuperAdmin
 export const getPharmacy = async (req, res, next) => {
@@ -70,7 +128,14 @@ export const getPharmacy = async (req, res, next) => {
     if (!pharmacy) {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
-    return ApiResponse.success(res, pharmacy);
+
+    // Find the admin user for this pharmacy
+    const adminUser = await User.findOne({ pharmacyId: pharmacy._id, role: 'admin' }).select('name email phone');
+
+    const pharmacyData = pharmacy.toObject();
+    pharmacyData.pharmacyAdmin = adminUser || null;
+
+    return ApiResponse.success(res, pharmacyData);
   } catch (error) {
     next(error);
   }
@@ -110,7 +175,7 @@ export const updatePharmacy = async (req, res, next) => {
   }
 };
 
-// @desc    Delete pharmacy
+// @desc    Delete pharmacy with related data check
 // @route   DELETE /api/pharmacies/:id
 // @access  Private/SuperAdmin
 export const deletePharmacy = async (req, res, next) => {
@@ -120,11 +185,25 @@ export const deletePharmacy = async (req, res, next) => {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
 
-    // Deactivate all users under this pharmacy
-    await User.updateMany(
-      { pharmacyId: pharmacy._id },
-      { isActive: false }
-    );
+    // Check for related data before allowing deletion
+    const relatedChecks = await Promise.all([
+      User.countDocuments({ pharmacyId: pharmacy._id }),
+      Medicine.countDocuments({ pharmacyId: pharmacy._id, isDeleted: false }),
+      Category.countDocuments({ pharmacyId: pharmacy._id }),
+      Brand.countDocuments({ pharmacyId: pharmacy._id }),
+      Supplier.countDocuments({ pharmacyId: pharmacy._id }),
+    ]);
+
+    const [userCount, medicineCount, categoryCount, brandCount, supplierCount] = relatedChecks;
+    const totalRelated = userCount + medicineCount + categoryCount + brandCount + supplierCount;
+
+    if (totalRelated > 0) {
+      return ApiResponse.error(
+        res,
+        'Cannot delete this pharmacy because it contains related data. Please deactivate it instead.',
+        400
+      );
+    }
 
     await pharmacy.deleteOne();
     return ApiResponse.success(res, null, 'Pharmacy deleted successfully');
@@ -180,8 +259,8 @@ export const togglePharmacyStatus = async (req, res, next) => {
 
     pharmacy.status = status;
 
-    // If suspending, deactivate all pharmacy users
-    if (status === 'suspended') {
+    // If deactivating or suspending, deactivate all pharmacy users
+    if (status === 'inactive' || status === 'suspended') {
       await User.updateMany(
         { pharmacyId: pharmacy._id },
         { isActive: false }
@@ -203,7 +282,56 @@ export const togglePharmacyStatus = async (req, res, next) => {
   }
 };
 
-// @desc    Update pharmacy subscription
+// @desc    Get pharmacy invoice settings (for admin users)
+// @route   GET /api/pharmacies/my/invoice-settings
+// @access  Private/Admin
+export const getMyInvoiceSettings = async (req, res, next) => {
+  try {
+    const pharmacy = await Pharmacy.findById(req.pharmacyId).select('invoiceSettings');
+    if (!pharmacy) {
+      return ApiResponse.error(res, 'Pharmacy not found', 404);
+    }
+    return ApiResponse.success(res, {
+      invoiceTemplate: pharmacy.invoiceSettings?.invoiceTemplate || 'classic',
+      printFormat: pharmacy.invoiceSettings?.printFormat || 'a4',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update pharmacy invoice settings (for admin users)
+// @route   PUT /api/pharmacies/my/invoice-settings
+// @access  Private/Admin
+export const updateMyInvoiceSettings = async (req, res, next) => {
+  try {
+    const { invoiceTemplate, printFormat } = req.body;
+
+    const pharmacy = await Pharmacy.findById(req.pharmacyId);
+    if (!pharmacy) {
+      return ApiResponse.error(res, 'Pharmacy not found', 404);
+    }
+
+    if (invoiceTemplate && !['classic', 'modern', 'minimal'].includes(invoiceTemplate)) {
+      return ApiResponse.error(res, 'Invalid invoice template', 400);
+    }
+    if (printFormat && !['a4', '58mm', '80mm'].includes(printFormat)) {
+      return ApiResponse.error(res, 'Invalid print format', 400);
+    }
+
+    pharmacy.invoiceSettings = {
+      invoiceTemplate: invoiceTemplate || pharmacy.invoiceSettings?.invoiceTemplate || 'classic',
+      printFormat: printFormat || pharmacy.invoiceSettings?.printFormat || 'a4',
+    };
+
+    await pharmacy.save();
+    return ApiResponse.success(res, pharmacy.invoiceSettings, 'Invoice settings updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update pharmacy subscription (with overlapping logic + history)
 // @route   PUT /api/pharmacies/:id/subscription
 // @access  Private/SuperAdmin
 export const updateSubscription = async (req, res, next) => {
@@ -213,21 +341,92 @@ export const updateSubscription = async (req, res, next) => {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
 
-    const { subscriptionPlan, subscriptionStartDate, subscriptionEndDate } = req.body;
+    const { subscriptionPlan, subscriptionPlanId, subscriptionStartDate, subscriptionEndDate, notes } = req.body;
 
-    if (subscriptionPlan) {
-      const validPlans = ['free', 'basic', 'premium', 'enterprise'];
-      if (!validPlans.includes(subscriptionPlan)) {
-        return ApiResponse.error(res, 'Invalid subscription plan', 400);
-      }
-      pharmacy.subscriptionPlan = subscriptionPlan;
+    if (!subscriptionPlanId) {
+      return ApiResponse.error(res, 'A valid subscription plan ID is required', 400);
     }
 
-    pharmacy.subscriptionStartDate = subscriptionStartDate || pharmacy.subscriptionStartDate;
-    pharmacy.subscriptionEndDate = subscriptionEndDate || pharmacy.subscriptionEndDate;
+    const plan = await SubscriptionPlan.findOne({ _id: subscriptionPlanId, isDeleted: false, isActive: true });
+    if (!plan) {
+      return ApiResponse.error(res, 'Invalid or inactive subscription plan', 400);
+    }
+
+    // Determine the actual start date for the new subscription
+    const now = new Date();
+    const currentEndDate = pharmacy.subscriptionEndDate ? new Date(pharmacy.subscriptionEndDate) : null;
+    let newStartDate;
+
+    if (subscriptionStartDate) {
+      // Use the provided start date if given
+      newStartDate = new Date(subscriptionStartDate);
+    } else if (currentEndDate && currentEndDate > now) {
+      // Current subscription is still active — new one starts after it ends
+      newStartDate = new Date(currentEndDate);
+      newStartDate.setDate(newStartDate.getDate() + 1);
+    } else {
+      // Current subscription is expired or doesn't exist — start today
+      newStartDate = new Date();
+    }
+
+    // Calculate end date based on plan duration
+    let newEndDate;
+    if (subscriptionEndDate) {
+      newEndDate = new Date(subscriptionEndDate);
+    } else {
+      newEndDate = new Date(newStartDate);
+      if (plan.durationUnit === 'days') {
+        newEndDate.setDate(newEndDate.getDate() + plan.duration);
+      } else if (plan.durationUnit === 'months') {
+        newEndDate.setMonth(newEndDate.getMonth() + plan.duration);
+      } else if (plan.durationUnit === 'years') {
+        newEndDate.setFullYear(newEndDate.getFullYear() + plan.duration);
+      }
+    }
+
+    // Determine status for the new history record
+    const isUpcoming = currentEndDate && currentEndDate > now && newStartDate > now;
+    const historyStatus = isUpcoming ? 'upcoming' : 'active';
+
+    // Create subscription history record
+    const historyRecord = await SubscriptionHistory.create({
+      pharmacy: pharmacy._id,
+      pharmacyName: pharmacy.pharmacyName,
+      planId: plan._id,
+      planName: plan.planName,
+      startDate: newStartDate,
+      endDate: newEndDate,
+      duration: plan.duration,
+      durationUnit: plan.durationUnit,
+      amount: plan.price,
+      paymentMethod: 'manual',
+      renewalDate: new Date(),
+      status: historyStatus,
+      notes: notes || '',
+      createdBy: req.user._id,
+      createdByName: req.user.name || '',
+    });
+
+    // ALWAYS update the pharmacy record with the latest subscription info.
+    // This ensures the pharmacy's end date reflects the furthest expiry date,
+    // preventing premature access lockout even when the new sub is "upcoming".
+    pharmacy.subscriptionPlan = plan.planName;
+    pharmacy.subscriptionPlanId = plan._id;
+    pharmacy.subscriptionStartDate = newStartDate;
+    pharmacy.subscriptionEndDate = newEndDate;
 
     await pharmacy.save();
-    return ApiResponse.success(res, pharmacy, 'Subscription updated successfully');
+
+    return ApiResponse.success(
+      res,
+      {
+        pharmacy,
+        history: historyRecord,
+      },
+      isUpcoming
+        ? `Subscription renewed successfully! New plan starts on ${newStartDate.toLocaleDateString()} after current subscription ends.`
+        : 'Subscription renewed successfully!'
+    );
   } catch (error) {
     next(error);
   }

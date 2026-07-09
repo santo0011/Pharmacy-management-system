@@ -1,4 +1,6 @@
+import mongoose from 'mongoose';
 import Supplier from '../models/Supplier.js';
+import Purchase from '../models/Purchase.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 // @desc    Get all suppliers
@@ -122,6 +124,22 @@ export const deleteSupplier = async (req, res, next) => {
       return ApiResponse.error(res, 'Supplier not found', 404);
     }
 
+    // Check if any medicines are linked to this supplier
+    const Medicine = (await import('../models/Medicine.js')).default;
+    const medicineCount = await Medicine.countDocuments({
+      supplier: supplier._id,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    });
+
+    if (medicineCount > 0) {
+      return ApiResponse.error(
+        res,
+        `This supplier is associated with ${medicineCount} medicine(s) and cannot be deleted. Remove or reassign the medicines first.`,
+        400
+      );
+    }
+
     await supplier.deleteOne();
 
     return ApiResponse.success(res, null, 'Supplier deleted');
@@ -133,6 +151,93 @@ export const deleteSupplier = async (req, res, next) => {
 // @desc    Toggle supplier status
 // @route   PATCH /api/suppliers/:id/status
 // @access  Private
+// @desc    Get all suppliers with outstanding dues (from purchase records)
+// @route   GET /api/suppliers/dues
+// @access  Private
+export const getSupplierDues = async (req, res, next) => {
+  try {
+    const pharmacyId = req.pharmacyId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    const matchStage = {
+      pharmacyId: new mongoose.Types.ObjectId(pharmacyId),
+      isDeleted: false,
+      dueAmount: { $gt: 0 },
+      status: { $nin: ['cancelled', 'returned'] },
+    };
+
+    if (search) {
+      matchStage.$or = [
+        { supplierName: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $group: {
+          _id: { supplier: '$supplier', name: '$supplierName' },
+          totalPurchases: { $sum: 1 },
+          totalAmount: { $sum: '$grandTotal' },
+          totalPaid: { $sum: '$paidAmount' },
+          totalDue: { $sum: '$dueAmount' },
+          lastPurchaseDate: { $max: '$purchaseDate' },
+          invoices: { $push: { invoiceNumber: '$invoiceNumber', dueAmount: '$dueAmount', grandTotal: '$grandTotal', _id: '$_id' } },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          supplierId: '$_id.supplier',
+          supplierName: '$_id.name',
+          totalPurchases: 1,
+          totalAmount: { $round: ['$totalAmount', 2] },
+          totalPaid: { $round: ['$totalPaid', 2] },
+          totalDue: { $round: ['$totalDue', 2] },
+          lastPurchaseDate: 1,
+          invoices: 1,
+        },
+      },
+      { $sort: { totalDue: -1 } },
+    ];
+
+    const countResult = await Purchase.aggregate([...pipeline, { $count: 'total' }]);
+    const total = countResult[0]?.total || 0;
+
+    pipeline.push({ $skip: skip }, { $limit: limit });
+    const suppliers = await Purchase.aggregate(pipeline);
+
+    // Grand totals
+    const totalsResult = await Purchase.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          totalDueAmount: { $sum: '$dueAmount' },
+          totalOutstanding: { $sum: '$grandTotal' },
+          totalSuppliers: { $addToSet: { name: '$supplierName', id: '$supplier' } },
+        },
+      },
+    ]);
+
+    const totals = totalsResult[0] || { totalDueAmount: 0, totalOutstanding: 0, totalSuppliers: 0 };
+
+    return ApiResponse.paginated(res, {
+      suppliers,
+      totals: {
+        totalDueAmount: totals.totalDueAmount || 0,
+        totalOutstanding: totals.totalOutstanding || 0,
+        totalSuppliers: totals.totalSuppliers?.length || 0,
+      },
+    }, total, page, limit);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const toggleSupplierStatus = async (req, res, next) => {
   try {
     const supplier = await Supplier.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId });

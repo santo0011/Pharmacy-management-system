@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import API from '../../services/api';
+import { authService } from '../../services/authService';
 
 export const loginUser = createAsyncThunk(
   'auth/login',
@@ -24,6 +25,25 @@ export const getProfile = createAsyncThunk(
       return data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch profile');
+    }
+  }
+);
+
+export const updateProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async (profileData, { rejectWithValue }) => {
+    try {
+      const { data } = await authService.updateProfile(profileData);
+      const updatedUser = data.data;
+      // Update localStorage with new user data (preserve token)
+      const existingUser = JSON.parse(localStorage.getItem('user') || 'null');
+      if (existingUser) {
+        const newUserData = { ...existingUser, ...updatedUser };
+        localStorage.setItem('user', JSON.stringify(newUserData));
+      }
+      return updatedUser;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update profile');
     }
   }
 );
@@ -61,6 +81,9 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
       .addCase(getProfile.fulfilled, (state, action) => {
+        state.user = { ...state.user, ...action.payload };
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
         state.user = { ...state.user, ...action.payload };
       });
   },

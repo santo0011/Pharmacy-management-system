@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Pharmacy from '../models/Pharmacy.js';
 import ApiResponse from '../utils/apiResponse.js';
 
 const generateToken = (id) => {
@@ -48,12 +49,12 @@ export const login = async (req, res, next) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return ApiResponse.error(res, 'Invalid credentials', 401);
+      return ApiResponse.error(res, 'Invalid email or password.', 401);
     }
 
     const isPasswordMatch = await user.matchPassword(password);
     if (!isPasswordMatch) {
-      return ApiResponse.error(res, 'Invalid credentials', 401);
+      return ApiResponse.error(res, 'Invalid email or password.', 401);
     }
 
     if (!user.isActive) {
@@ -62,10 +63,19 @@ export const login = async (req, res, next) => {
 
     const token = generateToken(user._id);
 
+    // Populate pharmacy name for pharmacy users
+    let userData = user.toObject();
+    if (userData.pharmacyId) {
+      const pharmacy = await Pharmacy.findById(userData.pharmacyId).select('pharmacyName');
+      if (pharmacy) {
+        userData.pharmacy = { pharmacyName: pharmacy.pharmacyName };
+      }
+    }
+
     return ApiResponse.success(
       res,
       {
-        user,
+        user: userData,
         token,
       },
       'Login successful'
@@ -80,7 +90,36 @@ export const login = async (req, res, next) => {
 // @access  Private
 export const getMe = async (req, res, next) => {
   try {
-    return ApiResponse.success(res, req.user, 'Profile fetched');
+    let userData = req.user.toObject();
+    if (userData.pharmacyId) {
+      const pharmacy = await Pharmacy.findById(userData.pharmacyId).select('pharmacyName');
+      if (pharmacy) {
+        userData.pharmacy = { pharmacyName: pharmacy.pharmacyName };
+      }
+    }
+    return ApiResponse.success(res, userData, 'Profile fetched');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update current user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+export const updateProfile = async (req, res, next) => {
+  try {
+    const { name, phone } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return ApiResponse.error(res, 'User not found', 404);
+    }
+
+    if (name) user.name = name;
+    if (phone !== undefined) user.phone = phone;
+
+    const updatedUser = await user.save();
+    return ApiResponse.success(res, updatedUser, 'Profile updated successfully');
   } catch (error) {
     next(error);
   }

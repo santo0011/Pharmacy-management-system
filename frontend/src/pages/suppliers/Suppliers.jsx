@@ -8,6 +8,7 @@ import {
   toggleSupplierStatus,
 } from '../../redux/slices/supplierSlice';
 import Drawer from '../../components/common/Drawer';
+import BulkImportSimple from '../../components/common/BulkImportSimple';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 const initialFormState = {
@@ -32,6 +33,18 @@ export default function Suppliers() {
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(initialFormState);
   const [submitting, setSubmitting] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const toggleRow = (rowIdx) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [rowIdx]: !prev[rowIdx],
+    }));
+  };
+
+  const isRowExpanded = (rowIdx) => {
+    return !!expandedRows[rowIdx];
+  };
 
   const loadSuppliers = useCallback(() => {
     const params = { page: currentPage, limit: 10 };
@@ -135,6 +148,61 @@ export default function Suppliers() {
     </>
   );
 
+  // Mobile expandable row
+  const renderMobileRow = (supplier, idx) => {
+    const expanded = isRowExpanded(idx);
+    return (
+      <tbody key={supplier._id || idx}>
+        <tr className="customer-mobile-row" onClick={() => toggleRow(idx)}>
+          <td>
+            <span style={{ fontWeight: 500, fontSize: '13px' }}>{supplier.supplierName}</span>
+          </td>
+          <td>
+            <span className={`badge ${supplier.status ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '11px' }}>
+              {supplier.status ? 'Active' : 'Inactive'}
+            </span>
+          </td>
+          <td className="customer-expand-cell">
+            <button className="customer-expand-btn">
+              <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
+            </button>
+          </td>
+        </tr>
+        <tr className={`customer-detail-row ${expanded ? 'customer-detail-row-open' : ''}`}>
+          <td colSpan={3} className="customer-detail-cell">
+            <div className="customer-detail-inner">
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Company</span>
+                <span className="customer-detail-value">{supplier.companyName}</span>
+              </div>
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Contact</span>
+                <span className="customer-detail-value">{supplier.email}<br />{supplier.phone}</span>
+              </div>
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">GST</span>
+                <span className="customer-detail-value">{supplier.gstNumber || '-'}</span>
+              </div>
+              <div className="customer-detail-item">
+                <span className="customer-detail-label">Actions</span>
+                <span className="customer-detail-value">
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); openEditDrawer(supplier); }}>
+                      <i className="fa-solid fa-edit"></i>
+                    </button>
+                    <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(supplier._id); }}>
+                      <i className="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                </span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -142,9 +210,25 @@ export default function Suppliers() {
           <h2>Suppliers</h2>
           <p>Manage product suppliers</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreateDrawer}>
-          <i className="fa-solid fa-plus"></i> Add Supplier
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <BulkImportSimple
+            title="Bulk Import Suppliers"
+            entityName="suppliers"
+            endpoint="/suppliers/bulk-import"
+            sampleFormat="Supplier Name, Company Name, Phone, Email, GST Number\nABC Pharma, ABC Pharmaceuticals, 9876543210, abc@pharma.com, 27AABC1234D1Z5\nXYZ Medicos, XYZ Medical Supplies, 9876543211, info@xyzmed.com, 27XYZ1234D1Z5"
+            fields={[
+              { key: 'supplierName', label: 'Supplier Name', required: true, sample: 'ABC Pharma' },
+              { key: 'companyName', label: 'Company Name', required: false, sample: 'ABC Pharmaceuticals' },
+              { key: 'phone', label: 'Phone', required: false, sample: '9876543210' },
+              { key: 'email', label: 'Email', required: false, sample: 'abc@pharma.com' },
+              { key: 'gstNumber', label: 'GST Number', required: false, sample: '27AABC1234D1Z5' },
+            ]}
+            onComplete={() => loadSuppliers()}
+          />
+          <button className="btn btn-primary" onClick={openCreateDrawer}>
+            <i className="fa-solid fa-plus"></i> Add Supplier
+          </button>
+        </div>
       </div>
 
       <div className="card">
@@ -164,49 +248,66 @@ export default function Suppliers() {
             <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
           ) : items?.length > 0 ? (
             <>
-              <div className="table-container">
+              {/* Desktop table */}
+              <div className="customer-desktop-table">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Supplier</th>
+                        <th>Company</th>
+                        <th>Contact</th>
+                        <th>GST</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((supplier) => (
+                        <tr key={supplier._id}>
+                          <td style={{ fontWeight: 500 }}>{supplier.supplierName}</td>
+                          <td>{supplier.companyName}</td>
+                          <td>
+                            <div style={{ fontSize: '13px' }}>
+                              <div>{supplier.email}</div>
+                              <div style={{ color: 'var(--gray-500)' }}>{supplier.phone}</div>
+                            </div>
+                          </td>
+                          <td>{supplier.gstNumber || '-'}</td>
+                          <td>
+                            <label className="status-toggle">
+                              <input type="checkbox" checked={supplier.status} onChange={() => handleToggleStatus(supplier._id)} />
+                              <span className="slider"></span>
+                            </label>
+                          </td>
+                          <td>
+                            <div className="action-buttons">
+                              <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(supplier)}>
+                                <i className="fa-solid fa-edit"></i>
+                              </button>
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(supplier._id)}>
+                                <i className="fa-solid fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile table */}
+              <div className="customer-mobile-table">
                 <table>
                   <thead>
                     <tr>
-                      <th>Supplier</th>
-                      <th>Company</th>
-                      <th>Contact</th>
-                      <th>GST</th>
+                      <th>Name</th>
                       <th>Status</th>
-                      <th>Actions</th>
+                      <th className="customer-expand-th"></th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {items.map((supplier) => (
-                      <tr key={supplier._id}>
-                        <td style={{ fontWeight: 500 }}>{supplier.supplierName}</td>
-                        <td>{supplier.companyName}</td>
-                        <td>
-                          <div style={{ fontSize: '13px' }}>
-                            <div>{supplier.email}</div>
-                            <div style={{ color: 'var(--gray-500)' }}>{supplier.phone}</div>
-                          </div>
-                        </td>
-                        <td>{supplier.gstNumber || '-'}</td>
-                        <td>
-                          <label className="status-toggle">
-                            <input type="checkbox" checked={supplier.status} onChange={() => handleToggleStatus(supplier._id)} />
-                            <span className="slider"></span>
-                          </label>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(supplier)}>
-                              <i className="fa-solid fa-edit"></i>
-                            </button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(supplier._id)}>
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {items.map((supplier, idx) => renderMobileRow(supplier, idx))}
                 </table>
               </div>
 

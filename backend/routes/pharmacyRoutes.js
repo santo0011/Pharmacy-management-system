@@ -8,14 +8,22 @@ import {
   assignPharmacyAdmin,
   togglePharmacyStatus,
   updateSubscription,
+  getMyInvoiceSettings,
+  updateMyInvoiceSettings,
 } from '../controllers/pharmacyController.js';
 import { protect, authorize } from '../middleware/auth.js';
-import { superAdminOnly } from '../middleware/pharmacyAccess.js';
+import { superAdminOnly, pharmacyScope } from '../middleware/pharmacyAccess.js';
 
 const router = express.Router();
 
-// All pharmacy routes are Super Admin only
+// Protected routes - require authentication
 router.use(protect);
+
+// Admin self-service routes (no super_admin restriction)
+router.get('/my/invoice-settings', pharmacyScope, getMyInvoiceSettings);
+router.put('/my/invoice-settings', pharmacyScope, updateMyInvoiceSettings);
+
+// Super Admin only routes below
 router.use(authorize('super_admin'));
 
 router.route('/')

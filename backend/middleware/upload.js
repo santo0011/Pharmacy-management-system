@@ -44,6 +44,7 @@ export const uploadCategoryImage = createUploader('categories');
 export const uploadBrandLogo = createUploader('brands');
 export const uploadSupplierImage = createUploader('suppliers');
 export const uploadUserAvatar = createUploader('users');
+export const uploadMedicineImage = createUploader('medicines');
 
 export const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {

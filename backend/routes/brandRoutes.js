@@ -7,6 +7,7 @@ import {
   deleteBrand,
   toggleBrandStatus,
 } from '../controllers/brandController.js';
+import { bulkImportBrands } from '../controllers/bulkBrandController.js';
 import { protect } from '../middleware/auth.js';
 import { pharmacyScope, pharmacyOnly } from '../middleware/pharmacyAccess.js';
 import { uploadBrandLogo, handleUploadError } from '../middleware/upload.js';
@@ -25,6 +26,8 @@ router.route('/:id')
   .get(getBrand)
   .put(uploadBrandLogo.single('logo'), handleUploadError, updateBrand)
   .delete(deleteBrand);
+
+router.post('/bulk-import', bulkImportBrands);
 
 router.patch('/:id/status', toggleBrandStatus);
 

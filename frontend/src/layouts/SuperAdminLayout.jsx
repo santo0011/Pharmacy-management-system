@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { confirmAction } from '../utils/sweetAlert';
 
 export default function SuperAdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -12,7 +13,6 @@ export default function SuperAdminLayout() {
     const titles = {
       '/': 'Dashboard',
       '/pharmacies': 'Pharmacy Management',
-      '/users': 'User Management',
       '/subscriptions': 'Subscription Management',
       '/payments': 'Payment Management',
       '/settings': 'Platform Settings',
@@ -23,10 +23,12 @@ export default function SuperAdminLayout() {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: 'fa-solid fa-chart-pie' },
+    { path: '/analytics', label: 'Analytics', icon: 'fa-solid fa-chart-simple' },
+    { path: '/system-health', label: 'System Health', icon: 'fa-solid fa-heart-pulse' },
     { path: '/pharmacies', label: 'Pharmacies', icon: 'fa-solid fa-hospital' },
     { path: '/subscriptions', label: 'Subscriptions', icon: 'fa-solid fa-credit-card' },
     { path: '/payments', label: 'Payments', icon: 'fa-solid fa-money-bill-wave' },
-    { path: '/users', label: 'Users', icon: 'fa-solid fa-users-gear' },
+    { path: '/activity-logs', label: 'Activity Logs', icon: 'fa-solid fa-clock-rotate-left' },
     { path: '/settings', label: 'Settings', icon: 'fa-solid fa-gear' },
   ];
 
@@ -39,6 +41,9 @@ export default function SuperAdminLayout() {
             <h3>Super Admin</h3>
             <span>Platform Management</span>
           </div>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
+            <i className="fa-solid fa-xmark"></i>
+          </button>
         </div>
         <nav className="sidebar-nav">
           <div className="nav-label">Main Menu</div>
@@ -63,7 +68,7 @@ export default function SuperAdminLayout() {
             <i className="fa-solid fa-user"></i>
             <span>Profile</span>
           </NavLink>
-          <a className="sidebar-logout" onClick={logout} style={{ cursor: 'pointer' }}>
+          <a className="sidebar-logout" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }} style={{ cursor: 'pointer' }}>
             <i className="fa-solid fa-right-from-bracket"></i>
             <span>Logout</span>
           </a>
@@ -76,7 +81,9 @@ export default function SuperAdminLayout() {
             <button className="toggle-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <i className="fa-solid fa-bars"></i>
             </button>
-            <h4>{getPageTitle()}</h4>
+            <h4 className="header-title">
+              {user?.pharmacy?.pharmacyName || getPageTitle()}
+            </h4>
           </div>
           <div className="header-right">
             <div className="user-info">
@@ -100,9 +107,8 @@ export default function SuperAdminLayout() {
 
       {sidebarOpen && (
         <div
-          className="modal-overlay"
+          className="sidebar-backdrop"
           onClick={() => setSidebarOpen(false)}
-          style={{ zIndex: 99 }}
         />
       )}
     </div>

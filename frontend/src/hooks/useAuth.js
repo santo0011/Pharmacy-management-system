@@ -1,9 +1,15 @@
 import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../redux/slices/authSlice';
+import { logout as logoutAction } from '../redux/slices/authSlice';
+import { showSuccess } from '../utils/sweetAlert';
 
 export const useAuth = () => {
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
+
+  const logout = () => {
+    dispatch(logoutAction());
+    showSuccess('Logged out successfully.');
+  };
 
   return {
     user,
@@ -26,6 +32,6 @@ export const useAuth = () => {
     canViewCustomers: user?.role === 'admin' || user?.role === 'pharmacist' || user?.role === 'cashier',
     canViewReports: user?.role === 'admin',
     canAccessSettings: user?.role === 'admin' || user?.role === 'super_admin',
-    logout: () => dispatch(logout()),
+    logout,
   };
 };

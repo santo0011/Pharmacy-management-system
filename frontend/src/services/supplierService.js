@@ -7,4 +7,5 @@ export const supplierService = {
   update: (id, data) => API.put(`/suppliers/${id}`, data),
   delete: (id) => API.delete(`/suppliers/${id}`),
   toggleStatus: (id) => API.patch(`/suppliers/${id}/status`),
+  getSupplierDues: (params) => API.get('/suppliers/dues', { params }),
 };

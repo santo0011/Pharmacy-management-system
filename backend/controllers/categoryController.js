@@ -128,6 +128,22 @@ export const deleteCategory = async (req, res, next) => {
       return ApiResponse.error(res, 'Category not found', 404);
     }
 
+    // Check if any medicines are linked to this category
+    const Medicine = (await import('../models/Medicine.js')).default;
+    const medicineCount = await Medicine.countDocuments({
+      category: category._id,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+    });
+
+    if (medicineCount > 0) {
+      return ApiResponse.error(
+        res,
+        `This category is associated with ${medicineCount} medicine(s) and cannot be deleted. Remove or reassign the medicines first.`,
+        400
+      );
+    }
+
     // Delete image file
     if (category.image) {
       const imagePath = path.join(__dirname, '..', category.image);

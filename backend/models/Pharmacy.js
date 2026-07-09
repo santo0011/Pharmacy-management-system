@@ -37,10 +37,18 @@ const pharmacySchema = mongoose.Schema(
       default: '',
       trim: true,
     },
+    invoiceSettings: {
+      invoiceTemplate: { type: String, enum: ['classic', 'modern', 'minimal'], default: 'classic' },
+      printFormat: { type: String, enum: ['a4', '58mm', '80mm'], default: 'a4' },
+    },
     subscriptionPlan: {
       type: String,
-      enum: ['free', 'basic', 'premium', 'enterprise'],
       default: 'free',
+    },
+    subscriptionPlanId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SubscriptionPlan',
+      default: null,
     },
     subscriptionStartDate: {
       type: Date,
