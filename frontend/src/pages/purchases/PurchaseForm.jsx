@@ -18,7 +18,7 @@ export default function PurchaseForm() {
   const [supplier, setSupplier] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
-  const [items, setItems] = useState([{ medicineId: '', medicineName: '', batchNumber: '', quantity: 1, purchasePrice: 0, sellingPrice: 0, mrp: 0, expiryDate: '', gst: 0, barcode: '' }]);
+  const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage');
   const [shippingCost, setShippingCost] = useState(0);
@@ -379,6 +379,12 @@ export default function PurchaseForm() {
                       </div>
                     ))}
                   </div>
+                  {selectedDueInvoices.length > 0 && (
+                    <div className="due-invoices-total">
+                      <span>Selected Due Total ({selectedDueInvoices.length} invoice{selectedDueInvoices.length > 1 ? 's' : ''}):</span>
+                      <span className="due-invoices-total-amount">₹{previousDue.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -404,11 +410,17 @@ export default function PurchaseForm() {
                           className="search-dropdown-item">
                           <div>
                             <div className="item-name">{med.medicineName}</div>
-                            <div className="item-details">{med.genericName} | {med.barcode}</div>
+                            <div className="item-details">{med.genericName} | Batch: {med.batchNumber} | {med.barcode}</div>
+                            <div className="item-batch-info">
+                              <span className={`batches-badge ${med.currentStock <= 10 ? 'low' : 'in-stock'}`}>Stock: {med.currentStock}</span>
+                              {med.expiryDate && (
+                                <span className="item-expiry">Exp: {new Date(med.expiryDate).toLocaleDateString()}</span>
+                              )}
+                            </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div className="item-price">₹{med.sellingPrice}</div>
-                            <div className={`item-stock ${med.currentStock <= 10 ? 'low' : ''}`}>Stock: {med.currentStock}</div>
+                            <div className="item-price">₹{med.purchasePrice}</div>
+                            <div className="item-details">MRP: ₹{med.sellingPrice}</div>
                           </div>
                         </div>
                       ))}
@@ -416,7 +428,7 @@ export default function PurchaseForm() {
                     </div>
                   )}
                 </div>
-                <button type="button" className="btn btn-secondary" onClick={addItem} style={{ height: '46px', whiteSpace: 'nowrap' }}>
+                <button type="button" className="btn-add-item" onClick={addItem}>
                   <i className="fa-solid fa-plus"></i> Add Item
                 </button>
               </div>
@@ -454,7 +466,7 @@ export default function PurchaseForm() {
                           <td><input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} className="input-sm" style={{ width: '50px' }} /></td>
                           <td style={{ fontWeight: 600, whiteSpace: 'nowrap', fontSize: '13px' }}>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</td>
                           <td>
-                            <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} disabled={items.length === 1} style={{ padding: '4px 8px' }}>
+                            <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} style={{ padding: '4px 8px' }}>
                               <i className="fa-solid fa-times"></i>
                             </button>
                           </td>
@@ -483,7 +495,6 @@ export default function PurchaseForm() {
                         type="button"
                         className="btn btn-danger btn-sm purchase-item-card-remove"
                         onClick={() => removeItem(index)}
-                        disabled={items.length === 1}
                       >
                         <i className="fa-solid fa-times"></i>
                       </button>
@@ -624,7 +635,7 @@ export default function PurchaseForm() {
                 style={{ marginTop: '12px', padding: '10px', fontSize: '15px', fontWeight: 700 }}
               >
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-                {submitting ? ' Processing...' : ` ₹${gt.toFixed(2)} • ${isEditing ? 'Update Purchase' : 'Create Purchase'}`}
+                {submitting ? ' Processing...' : ` ₹${(previousDue > 0 && !isEditing ? totalPayable : gt).toFixed(2)} • ${isEditing ? 'Update Purchase' : 'Create Purchase'}`}
               </button>
             </div>
           </div>
