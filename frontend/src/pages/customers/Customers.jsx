@@ -577,7 +577,7 @@ export default function Customers() {
             <i className="fa-solid fa-user"></i> {selectedCustomer?.customerName || 'Customer Details'}
           </span>
         }
-        width="900px"
+        width="1100px"
         className="customer-detail-drawer"
       >
         {detailLoading ? (
