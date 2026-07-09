@@ -342,19 +342,21 @@ export default function Customers() {
                     { label: 'Phone', render: (c) => c.customerPhone || '-' },
                     { label: 'Total Purchases', render: (c) => c.totalPurchases },
                     { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
-                    { label: 'Actions', render: (c) => (
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
-                          <i className="fa-solid fa-eye"></i>
-                        </button>
-                        <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }} title="Edit Customer">
-                          <i className="fa-solid fa-edit"></i>
-                        </button>
-                        <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleViewHistory(c); }} title="Edit History">
-                          <i className="fa-solid fa-history"></i>
-                        </button>
-                      </div>
-                    )},
+                    {
+                      label: 'Actions', render: (c) => (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
+                            <i className="fa-solid fa-eye"></i>
+                          </button>
+                          <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }} title="Edit Customer">
+                            <i className="fa-solid fa-edit"></i>
+                          </button>
+                          <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleViewHistory(c); }} title="Edit History">
+                            <i className="fa-solid fa-history"></i>
+                          </button>
+                        </div>
+                      )
+                    },
                   ];
                   return renderExpandableRow(customer, idx, 'all', expanded, () => toggleRow('all', idx), mainCols, detailRows);
                 })}
@@ -384,7 +386,7 @@ export default function Customers() {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <input
             type="text"
-            placeholder="Search by name, phone or invoice #..."
+            placeholder="Search by name or phone..."
             value={dueSearch}
             onChange={(e) => { setDueSearch(e.target.value); setDuePage(1); }}
             className="form-select"
@@ -397,11 +399,11 @@ export default function Customers() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', padding: '16px' }}>
           <div style={{ background: '#fff7ed', borderRadius: '10px', padding: '14px', border: '1px solid #fed7aa' }}>
             <div style={{ fontSize: '12px', color: '#9a3412', fontWeight: 500 }}>Total Due Amount</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#c2410c', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalDueAmount} decimals={2} /></div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#c2410c', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalDueAmount} decimals={2} compact /></div>
           </div>
           <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
             <div style={{ fontSize: '12px', color: '#166534', fontWeight: 500 }}>Total Outstanding</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalOutstanding} decimals={2} /></div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalOutstanding} decimals={2} compact /></div>
           </div>
           <div style={{ background: '#eff6ff', borderRadius: '10px', padding: '14px', border: '1px solid #bfdbfe' }}>
             <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: 500 }}>Customers with Due</div>
@@ -493,32 +495,36 @@ export default function Customers() {
                   const expanded = isRowExpanded('due', idx);
                   const mainCols = [
                     { render: (c) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{c.customerName}</span> },
-                    { render: (c) => (
-                      <span style={{ fontWeight: 700, color: c.totalDue > 0 ? '#dc2626' : '#16a34a' }}>
-                        ₹{Number(c.totalDue).toFixed(2)}
-                      </span>
-                    )},
+                    {
+                      render: (c) => (
+                        <span style={{ fontWeight: 700, color: c.totalDue > 0 ? '#dc2626' : '#16a34a' }}>
+                          ₹{Number(c.totalDue).toFixed(2)}
+                        </span>
+                      )
+                    },
                   ];
                   const detailRows = [
                     { label: 'Phone', render: (c) => c.customerPhone || '-' },
                     { label: 'Total Sales', render: (c) => c.totalPurchases },
                     { label: 'Total Paid', render: (c) => <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(c.totalPaid).toFixed(2)}</span> },
                     { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
-                    { label: 'Actions', render: (c) => (
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
-                          <i className="fa-solid fa-eye"></i>
-                        </button>
-                        <button
-                          className="btn btn-success btn-sm"
-                          onClick={(e) => { e.stopPropagation(); setPaymentCustomer(c); setPaymentDrawerOpen(true); }}
-                          disabled={c.totalDue <= 0}
-                          title="Collect Payment"
-                        >
-                          <i className="fa-solid fa-indian-rupee-sign"></i>
-                        </button>
-                      </div>
-                    )},
+                    {
+                      label: 'Actions', render: (c) => (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
+                            <i className="fa-solid fa-eye"></i>
+                          </button>
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={(e) => { e.stopPropagation(); setPaymentCustomer(c); setPaymentDrawerOpen(true); }}
+                            disabled={c.totalDue <= 0}
+                            title="Collect Payment"
+                          >
+                            <i className="fa-solid fa-indian-rupee-sign"></i>
+                          </button>
+                        </div>
+                      )
+                    },
                   ];
                   return renderExpandableRow(customer, idx, 'due', expanded, () => toggleRow('due', idx), mainCols, detailRows);
                 })}
@@ -741,16 +747,20 @@ export default function Customers() {
                           ];
                           const detailRows = [
                             { label: 'Invoice', render: (p) => p.sale?.invoiceNumber || '-' },
-                            { label: 'Method', render: (p) => (
-                              <span className={`badge ${p.paymentMethod === 'cash' ? 'badge-success' : p.paymentMethod === 'card' ? 'badge-info' : p.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`} style={{ fontSize: '11px' }}>
-                                {p.paymentMethod ? p.paymentMethod.replace('_', ' ') : 'Cash'}
-                              </span>
-                            )},
-                            { label: 'Remaining Due', render: (p) => (
-                              <span style={{ fontWeight: 600, color: Number(p.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>
-                                ₹{Number(p.remainingDue).toFixed(2)}
-                              </span>
-                            )},
+                            {
+                              label: 'Method', render: (p) => (
+                                <span className={`badge ${p.paymentMethod === 'cash' ? 'badge-success' : p.paymentMethod === 'card' ? 'badge-info' : p.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`} style={{ fontSize: '11px' }}>
+                                  {p.paymentMethod ? p.paymentMethod.replace('_', ' ') : 'Cash'}
+                                </span>
+                              )
+                            },
+                            {
+                              label: 'Remaining Due', render: (p) => (
+                                <span style={{ fontWeight: 600, color: Number(p.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>
+                                  ₹{Number(p.remainingDue).toFixed(2)}
+                                </span>
+                              )
+                            },
                             { label: 'Collected By', render: (p) => p.createdBy?.name || 'Unknown' },
                           ];
                           return renderPaymentExpandableRow(payment, `pay-${idx}`, expanded, () => toggleRow('pay', idx), mainCols, detailRows);

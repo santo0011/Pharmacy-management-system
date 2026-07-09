@@ -622,12 +622,16 @@ export const getCustomerDues = async (req, res, next) => {
       ];
     }
 
-    // Add search filter for customerRef path - only for name/phone search, not invoice search
+    // Add search filter for customerRef path - only for name/phone search when NOT searching by invoice number
     if (search && hasCustomerRefs) {
-      // Check if search looks like an invoice number (contains letters/numbers in invoice format)
-      const isInvoiceSearch = /^\d+$|^INV-|^INV/i.test(search) || /invoice/i.test(search);
+      // Check if the search term could match an invoice number pattern.
+      // Invoice formats include: INV-XXXX, SALE-XXXX, PUR-XXXX, or any search containing a hyphen/digit pattern
+      const hasInvoiceInMatch = matchStage.$or &&
+        matchStage.$or.some(cond => cond.invoiceNumber !== undefined);
       
-      if (!isInvoiceSearch) {
+      // Only add name/phone post-group filter when NOT matching by invoice number.
+      // The initial $match stage already handles invoiceNumber search correctly.
+      if (!hasInvoiceInMatch) {
         pipeline.splice(4, 0, {
           $match: {
             $or: [

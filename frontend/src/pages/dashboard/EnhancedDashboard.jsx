@@ -328,7 +328,7 @@ export default function EnhancedDashboard() {
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
           <div className="stat-icon green"><i className="fa-solid fa-coins"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={totalRevenue} decimals={2} /></h3><p>Total Revenue</p></div>
+          <div className="stat-info"><h3>₹<AnimatedCounter value={totalRevenue} decimals={2} compact /></h3><p>Total Revenue</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-receipt"></i></div>
@@ -336,11 +336,11 @@ export default function EnhancedDashboard() {
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
           <div className="stat-icon green"><i className="fa-solid fa-indian-rupee-sign"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={todayAmount} decimals={2} /></h3><p>Today's Sales ({todaySales})</p></div>
+          <div className="stat-info"><h3>₹<AnimatedCounter value={todayAmount} decimals={2} compact /></h3><p>Today's Sales ({todaySales})</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
           <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-chart-line"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={monthlyAmount} decimals={2} /></h3><p>Monthly Revenue</p></div>
+          <div className="stat-info"><h3>₹<AnimatedCounter value={monthlyAmount} decimals={2} compact /></h3><p>Monthly Revenue</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-triangle-exclamation"></i></div>

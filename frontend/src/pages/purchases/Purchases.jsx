@@ -146,22 +146,22 @@ export default function Purchases() {
       <div className="dashboard-summary-grid" style={{ marginBottom: '20px' }}>
         <div className="summary-item summary-item-blue">
           <div className="summary-label">Total Purchases</div>
-          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalAmount || 0} decimals={2} /></div>
+          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalAmount || 0} decimals={2} compact /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalPurchases || 0} invoices</div>
         </div>
         <div className="summary-item summary-item-green">
           <div className="summary-label">Total Paid</div>
-          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalPaid || 0} decimals={2} /></div>
+          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalPaid || 0} decimals={2} compact /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>This month: ₹{(stats?.monthlyAmount || 0).toFixed(2)}</div>
         </div>
         <div className="summary-item summary-item-red">
           <div className="summary-label">Outstanding Due</div>
-          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalDue || 0} decimals={2} /></div>
+          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalDue || 0} decimals={2} compact /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalPurchases || 0} total invoices</div>
         </div>
         <div className="summary-item summary-item-gray">
           <div className="summary-label">Yearly Purchases</div>
-          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.yearlyAmount || 0} decimals={2} /></div>
+          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.yearlyAmount || 0} decimals={2} compact /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.yearlyPurchases || 0} purchases this year</div>
         </div>
       </div>
