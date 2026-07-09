@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import AnimatedCounter from '../../components/common/AnimatedCounter';
 import { customerService } from '../../services/customerService';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import PaymentDrawer from '../../components/common/PaymentDrawer';
@@ -396,15 +397,15 @@ export default function Customers() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', padding: '16px' }}>
           <div style={{ background: '#fff7ed', borderRadius: '10px', padding: '14px', border: '1px solid #fed7aa' }}>
             <div style={{ fontSize: '12px', color: '#9a3412', fontWeight: 500 }}>Total Due Amount</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#c2410c', marginTop: '4px' }}>₹{Number(dueTotals.totalDueAmount).toFixed(2)}</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#c2410c', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalDueAmount} decimals={2} /></div>
           </div>
           <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
             <div style={{ fontSize: '12px', color: '#166534', fontWeight: 500 }}>Total Outstanding</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>₹{Number(dueTotals.totalOutstanding).toFixed(2)}</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalOutstanding} decimals={2} /></div>
           </div>
           <div style={{ background: '#eff6ff', borderRadius: '10px', padding: '14px', border: '1px solid #bfdbfe' }}>
             <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: 500 }}>Customers with Due</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>{dueTotals.totalCustomers}</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}><AnimatedCounter value={dueTotals.totalCustomers} /></div>
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import AnimatedCounter from '../../components/common/AnimatedCounter';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -148,19 +149,19 @@ export default function Dashboard() {
         <div className="stats-grid">
           <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
             <div className="stat-icon blue"><i className="fa-solid fa-hospital"></i></div>
-            <div className="stat-info"><h3>{total}</h3><p>Total Pharmacies</p></div>
+            <div className="stat-info"><h3><AnimatedCounter value={total} /></h3><p>Total Pharmacies</p></div>
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="stat-icon green"><i className="fa-solid fa-check-circle"></i></div>
-            <div className="stat-info"><h3>{active}</h3><p>Active Pharmacies</p></div>
+            <div className="stat-info"><h3><AnimatedCounter value={active} /></h3><p>Active Pharmacies</p></div>
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="stat-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><i className="fa-solid fa-ban"></i></div>
-            <div className="stat-info"><h3>{deactivated}</h3><p>Deactivated</p></div>
+            <div className="stat-info"><h3><AnimatedCounter value={deactivated} /></h3><p>Deactivated</p></div>
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
             <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-users"></i></div>
-            <div className="stat-info"><h3>{users}</h3><p>Total Users</p></div>
+            <div className="stat-info"><h3><AnimatedCounter value={users} /></h3><p>Total Users</p></div>
           </div>
         </div>
 
@@ -222,25 +223,25 @@ export default function Dashboard() {
                 <div className="summary-item summary-item-green">
                   <div className="summary-label">Active Rate</div>
                   <div className="summary-value summary-value-green">
-                    {total > 0 ? ((active / total) * 100).toFixed(1) : 0}%
+                    <AnimatedCounter value={total > 0 ? ((active / total) * 100).toFixed(1) : 0} decimals={1} suffix="%" />
                   </div>
                 </div>
                 <div className="summary-item summary-item-red">
                   <div className="summary-label">Deactivated Rate</div>
                   <div className="summary-value summary-value-red">
-                    {total > 0 ? ((deactivated / total) * 100).toFixed(1) : 0}%
+                    <AnimatedCounter value={total > 0 ? ((deactivated / total) * 100).toFixed(1) : 0} decimals={1} suffix="%" />
                   </div>
                 </div>
                 <div className="summary-item summary-item-gray">
                   <div className="summary-label">Avg Users/Pharmacy</div>
                   <div className="summary-value summary-value-dark">
-                    {total > 0 ? (users / total).toFixed(1) : 0}
+                    <AnimatedCounter value={total > 0 ? (users / total).toFixed(1) : 0} decimals={1} />
                   </div>
                 </div>
                 <div className="summary-item summary-item-blue">
                   <div className="summary-label">Inactive</div>
                   <div className="summary-value summary-value-blue">
-                    {inactive}
+                    <AnimatedCounter value={inactive} />
                   </div>
                 </div>
               </div>
@@ -372,19 +373,19 @@ export default function Dashboard() {
       <div className="stats-grid">
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-pills"></i></div>
-          <div className="stat-info"><h3>{totalMedicines}</h3><p>Total Products</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={totalMedicines} /></h3><p>Total Products</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
           <div className="stat-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><i className="fa-solid fa-calendar-xmark"></i></div>
-          <div className="stat-info"><h3>{expiredCount}</h3><p>Expired</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={expiredCount} /></h3><p>Expired</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-clock"></i></div>
-          <div className="stat-info"><h3>{nearExpiryCount}</h3><p>Upcoming Expiry</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={nearExpiryCount} /></h3><p>Upcoming Expiry</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-triangle-exclamation"></i></div>
-          <div className="stat-info"><h3>{lowStockCount}</h3><p>Low Stock</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={lowStockCount} /></h3><p>Low Stock</p></div>
         </div>
       </div>
 

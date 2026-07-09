@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AnimatedCounter from '../../components/common/AnimatedCounter';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSuperAdminDashboard } from '../../redux/slices/dashboardSlice';
 import {
@@ -137,19 +138,19 @@ export default function AdvancedAnalytics() {
       <div className="stats-grid">
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6', background: '#eff6ff' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-chart-line"></i></div>
-          <div className="stat-info"><h3>{activeRate}%</h3><p>Active Rate</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={activeRate} suffix="%" decimals={1} /></h3><p>Active Rate</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6', background: '#f5f3ff' }}>
           <div className="stat-icon" style={{ background: '#ede9fe', color: '#8b5cf6' }}><i className="fa-solid fa-users"></i></div>
-          <div className="stat-info"><h3>{avgUsersPerPharmacy}</h3><p>Avg Users / Pharmacy</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={avgUsersPerPharmacy} decimals={1} /></h3><p>Avg Users / Pharmacy</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e', background: '#f0fdf4' }}>
           <div className="stat-icon green"><i className="fa-solid fa-calendar-plus"></i></div>
-          <div className="stat-info"><h3>{avgMonthlyRegistrations}</h3><p>Avg Monthly Signups</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={avgMonthlyRegistrations} decimals={1} /></h3><p>Avg Monthly Signups</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b', background: '#fffbeb' }}>
           <div className="stat-icon" style={{ background: '#fef3c7', color: '#f59e0b' }}><i className="fa-solid fa-crown"></i></div>
-          <div className="stat-info"><h3>{planDistribution.premium || 0}</h3><p>Premium Pharmacies</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={planDistribution.premium || 0} /></h3><p>Premium Pharmacies</p></div>
         </div>
       </div>
 
@@ -319,19 +320,19 @@ export default function AdvancedAnalytics() {
             <div className="dashboard-summary-grid">
               <div className="summary-item summary-item-green">
                 <div className="summary-label">Active Rate</div>
-                <div className="summary-value summary-value-green">{activeRate}%</div>
+                <div className="summary-value summary-value-green"><AnimatedCounter value={activeRate} suffix="%" decimals={1} /></div>
               </div>
               <div className="summary-item summary-item-red">
                 <div className="summary-label">Deactivated Rate</div>
-                <div className="summary-value summary-value-red">{deactivatedRate}%</div>
+                <div className="summary-value summary-value-red"><AnimatedCounter value={deactivatedRate} suffix="%" decimals={1} /></div>
               </div>
               <div className="summary-item summary-item-blue">
                 <div className="summary-label">Avg Users/Pharmacy</div>
-                <div className="summary-value summary-value-blue">{avgUsersPerPharmacy}</div>
+                <div className="summary-value summary-value-blue"><AnimatedCounter value={avgUsersPerPharmacy} decimals={1} /></div>
               </div>
               <div className="summary-item summary-item-gray">
                 <div className="summary-label">Total Registrations</div>
-                <div className="summary-value summary-value-dark">{totalRegistrations}</div>
+                <div className="summary-value summary-value-dark"><AnimatedCounter value={totalRegistrations} /></div>
               </div>
             </div>
           </div>

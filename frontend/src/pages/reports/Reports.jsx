@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AnimatedCounter from '../../components/common/AnimatedCounter';
 import { reportService } from '../../services/reportService';
 import { showError } from '../../utils/sweetAlert';
 
@@ -102,12 +103,12 @@ export default function Reports() {
   const renderSummaryCards = (summary) => {
     if (!summary) return null;
     const cards = [
-      { label: 'Total Sales', value: summary.totalSales || 0, color: 'var(--primary)', icon: 'fa-solid fa-shopping-cart' },
-      { label: 'Total Revenue', value: `₹${Number(summary.totalRevenue || 0).toFixed(2)}`, color: '#22c55e', icon: 'fa-solid fa-indian-rupee-sign' },
-      { label: 'Total Discount', value: `₹${Number(summary.totalDiscount || 0).toFixed(2)}`, color: '#f59e0b', icon: 'fa-solid fa-tags' },
-      { label: 'Total Tax', value: `₹${Number(summary.totalTax || 0).toFixed(2)}`, color: '#3b82f6', icon: 'fa-solid fa-receipt' },
-      { label: 'Total Paid', value: `₹${Number(summary.totalPaid || 0).toFixed(2)}`, color: '#22c55e', icon: 'fa-solid fa-check-circle' },
-      { label: 'Total Due', value: `₹${Number(summary.totalDue || 0).toFixed(2)}`, color: '#ef4444', icon: 'fa-solid fa-exclamation-circle' },
+      { label: 'Total Sales', value: summary.totalSales || 0, color: 'var(--primary)', icon: 'fa-solid fa-shopping-cart', isCurrency: false },
+      { label: 'Total Revenue', value: summary.totalRevenue || 0, color: '#22c55e', icon: 'fa-solid fa-indian-rupee-sign', isCurrency: true },
+      { label: 'Total Discount', value: summary.totalDiscount || 0, color: '#f59e0b', icon: 'fa-solid fa-tags', isCurrency: true },
+      { label: 'Total Tax', value: summary.totalTax || 0, color: '#3b82f6', icon: 'fa-solid fa-receipt', isCurrency: true },
+      { label: 'Total Paid', value: summary.totalPaid || 0, color: '#22c55e', icon: 'fa-solid fa-check-circle', isCurrency: true },
+      { label: 'Total Due', value: summary.totalDue || 0, color: '#ef4444', icon: 'fa-solid fa-exclamation-circle', isCurrency: true },
     ];
     return (
       <div className="report-summary-grid">
@@ -118,7 +119,9 @@ export default function Reports() {
                 <i className={`${card.icon} report-card-icon`} style={{ color: card.color }}></i>
                 <div className="report-card-text">
                   <div className="report-card-label">{card.label}</div>
-                  <div className="report-card-value" style={{ color: card.color }}>{card.value}</div>
+                  <div className="report-card-value" style={{ color: card.color }}>
+                    {card.isCurrency ? '₹' : ''}<AnimatedCounter value={card.value} decimals={2} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -225,19 +228,19 @@ export default function Reports() {
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #3b82f6' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Purchases</div>
-              <div className="report-stat-value">{summary?.totalPurchases || 0}</div>
+              <div className="report-stat-value"><AnimatedCounter value={summary?.totalPurchases || 0} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Cost</div>
-              <div className="report-stat-value" style={{ color: '#22c55e' }}>₹{Number(summary?.totalCost || 0).toFixed(2)}</div>
+              <div className="report-stat-value" style={{ color: '#22c55e' }}>₹<AnimatedCounter value={summary?.totalCost || 0} decimals={2} /></div>
             </div>
           </div>
           <div className="card report-summary-card report-purchase-due-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Purchase Due</div>
-              <div className="report-stat-value" style={{ color: '#ef4444' }}>₹{Number(summary?.totalDue || 0).toFixed(2)}</div>
+              <div className="report-stat-value" style={{ color: '#ef4444' }}>₹<AnimatedCounter value={summary?.totalDue || 0} decimals={2} /></div>
             </div>
           </div>
         </div>
@@ -289,25 +292,25 @@ export default function Reports() {
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Revenue</div>
-              <div className="report-card-value" style={{ color: '#22c55e' }}>₹{Number(totals?.totalRevenue || 0).toFixed(2)}</div>
+              <div className="report-card-value" style={{ color: '#22c55e' }}>₹<AnimatedCounter value={totals?.totalRevenue || 0} decimals={2} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Cost</div>
-              <div className="report-card-value" style={{ color: '#ef4444' }}>₹{Number(totals?.totalCost || 0).toFixed(2)}</div>
+              <div className="report-card-value" style={{ color: '#ef4444' }}>₹<AnimatedCounter value={totals?.totalCost || 0} decimals={2} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: `4px solid ${totals?.totalProfit >= 0 ? '#22c55e' : '#ef4444'}` }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Profit</div>
-              <div className="report-card-value" style={{ color: totals?.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>₹{Number(totals?.totalProfit || 0).toFixed(2)}</div>
+              <div className="report-card-value" style={{ color: totals?.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>₹<AnimatedCounter value={totals?.totalProfit || 0} decimals={2} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #f59e0b' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Discount</div>
-              <div className="report-card-value" style={{ color: '#f59e0b' }}>₹{Number(totals?.totalDiscount || 0).toFixed(2)}</div>
+              <div className="report-card-value" style={{ color: '#f59e0b' }}>₹<AnimatedCounter value={totals?.totalDiscount || 0} decimals={2} /></div>
             </div>
           </div>
         </div>
@@ -418,19 +421,19 @@ export default function Reports() {
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #3b82f6' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Items</div>
-              <div className="report-stat-value">{summary?.totalItems || 0}</div>
+              <div className="report-stat-value"><AnimatedCounter value={summary?.totalItems || 0} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Stock Value</div>
-              <div className="report-stat-value" style={{ color: '#22c55e' }}>₹{Number(summary?.totalStockValue || 0).toFixed(2)}</div>
+              <div className="report-stat-value" style={{ color: '#22c55e' }}>₹<AnimatedCounter value={summary?.totalStockValue || 0} decimals={2} /></div>
             </div>
           </div>
           <div className="card report-summary-card report-stock-last-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Low Stock Items</div>
-              <div className="report-stat-value" style={{ color: '#ef4444' }}>{summary?.lowStockItems || 0}</div>
+              <div className="report-stat-value" style={{ color: '#ef4444' }}><AnimatedCounter value={summary?.lowStockItems || 0} /></div>
             </div>
           </div>
         </div>

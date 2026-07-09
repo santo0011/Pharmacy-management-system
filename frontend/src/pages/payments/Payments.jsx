@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import AnimatedCounter from '../../components/common/AnimatedCounter';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchPharmacies } from '../../redux/slices/pharmacySlice';
 import { fetchActivePlans } from '../../redux/slices/subscriptionPlanSlice';
@@ -260,15 +261,15 @@ export default function Payments() {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon green"><i className="fa-solid fa-indian-rupee-sign"></i></div>
-          <div className="stat-info"><h3>₹{totalRevenue.toLocaleString()}</h3><p>Estimated Revenue</p></div>
+          <div className="stat-info"><h3>₹<AnimatedCounter value={totalRevenue} /></h3><p>Estimated Revenue</p></div>
         </div>
         <div className="stat-card">
           <div className="stat-icon blue"><i className="fa-solid fa-building-columns"></i></div>
-          <div className="stat-info"><h3>{items.filter((p) => p.subscriptionPlan !== 'free' && getPriceForPlan(p.subscriptionPlan) > 0).length}</h3><p>Paid Subscriptions</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={items.filter((p) => p.subscriptionPlan !== 'free' && getPriceForPlan(p.subscriptionPlan) > 0).length} /></h3><p>Paid Subscriptions</p></div>
         </div>
         <div className="stat-card">
           <div className="stat-icon purple"><i className="fa-solid fa-credit-card"></i></div>
-          <div className="stat-info"><h3>{items.length}</h3><p>Total Pharmacies</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={items.length} /></h3><p>Total Pharmacies</p></div>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import AnimatedCounter from '../../components/common/AnimatedCounter';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -135,20 +136,20 @@ export default function EnhancedDashboard() {
         <div className="stats-grid">
           <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
             <div className="stat-icon blue"><i className="fa-solid fa-hospital"></i></div>
-            <div className="stat-info"><h3>{total}</h3><p>Total Pharmacies</p></div>
+            <div className="stat-info"><h3><AnimatedCounter value={total} /></h3><p>Total Pharmacies</p></div>
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="stat-icon green"><i className="fa-solid fa-check-circle"></i></div>
-            <div className="stat-info"><h3>{active}</h3><p>Active Pharmacies</p></div>
+            <div className="stat-info"><h3><AnimatedCounter value={active} /></h3><p>Active Pharmacies</p></div>
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="stat-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><i className="fa-solid fa-ban"></i></div>
-            <div className="stat-info"><h3>{deactivated}</h3><p>Deactivated</p></div>
+            <div className="stat-info"><h3><AnimatedCounter value={deactivated} /></h3><p>Deactivated</p></div>
           </div>
-          <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+          {/* <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
             <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-users"></i></div>
-            <div className="stat-info"><h3>{users}</h3><p>Total Users</p></div>
-          </div>
+            <div className="stat-info"><h3><AnimatedCounter value={users} /></h3><p>Total Users</p></div>
+          </div> */}
         </div>
 
         <div className="dashboard-charts-row">
@@ -323,27 +324,27 @@ export default function EnhancedDashboard() {
       <div className="stats-grid" style={{ marginBottom: '24px' }}>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-pills"></i></div>
-          <div className="stat-info"><h3>{totalMedicines}</h3><p>Total Products</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={totalMedicines} /></h3><p>Total Products</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
           <div className="stat-icon green"><i className="fa-solid fa-coins"></i></div>
-          <div className="stat-info"><h3>₹{totalRevenue.toFixed(2)}</h3><p>Total Revenue</p></div>
+          <div className="stat-info"><h3>₹<AnimatedCounter value={totalRevenue} decimals={2} /></h3><p>Total Revenue</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-receipt"></i></div>
-          <div className="stat-info"><h3>{totalSales}</h3><p>Total Sales Count</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={totalSales} /></h3><p>Total Sales Count</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
           <div className="stat-icon green"><i className="fa-solid fa-indian-rupee-sign"></i></div>
-          <div className="stat-info"><h3>₹{todayAmount.toFixed(2)}</h3><p>Today's Sales ({todaySales})</p></div>
+          <div className="stat-info"><h3>₹<AnimatedCounter value={todayAmount} decimals={2} /></h3><p>Today's Sales ({todaySales})</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
           <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-chart-line"></i></div>
-          <div className="stat-info"><h3>₹{monthlyAmount.toFixed(2)}</h3><p>Monthly Revenue</p></div>
+          <div className="stat-info"><h3>₹<AnimatedCounter value={monthlyAmount} decimals={2} /></h3><p>Monthly Revenue</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-triangle-exclamation"></i></div>
-          <div className="stat-info"><h3>{lowStockCount}</h3><p>Low Stock Items</p></div>
+          <div className="stat-info"><h3><AnimatedCounter value={lowStockCount} /></h3><p>Low Stock Items</p></div>
         </div>
       </div>
 
