@@ -28,6 +28,11 @@ const pharmacySchema = mongoose.Schema(
       type: String,
       default: '',
     },
+    country: {
+      type: String,
+      default: 'IN',
+      trim: true,
+    },
     logo: {
       type: String,
       default: '',

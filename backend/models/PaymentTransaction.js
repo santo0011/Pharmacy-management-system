@@ -21,6 +21,24 @@ const paymentTransactionSchema = mongoose.Schema({
     required: true,
     min: 0,
   },
+  // Original payment currency (e.g., USD, EUR)
+  originalCurrency: {
+    type: String,
+    default: 'INR',
+    enum: ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'],
+  },
+  // Original amount paid in the user's local currency
+  originalAmount: {
+    type: Number,
+    default: function() {
+      return this.amount;
+    },
+  },
+  // Exchange rate used for conversion (1 INR = X foreign currency)
+  exchangeRate: {
+    type: Number,
+    default: 1,
+  },
   previousDue: {
     type: Number,
     default: 0,

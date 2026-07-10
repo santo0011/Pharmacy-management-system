@@ -29,6 +29,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import activityLogRoutes from './routes/activityLogRoutes.js';
 import enhancedDashboardRoutes from './routes/enhancedDashboardRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
+import countryRoutes from './routes/countryRoutes.js';
 
 dotenv.config();
 
@@ -73,6 +74,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/dashboard/enhanced', enhancedDashboardRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/countries', countryRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

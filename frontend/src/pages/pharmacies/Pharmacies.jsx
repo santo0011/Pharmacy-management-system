@@ -10,6 +10,7 @@ import {
 import { fetchActivePlans } from '../../redux/slices/subscriptionPlanSlice';
 import Drawer from '../../components/common/Drawer';
 import { pharmacyService } from '../../services/pharmacyService';
+import { countryService } from '../../services/countryService';
 import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/sweetAlert';
 
 const initialFormState = {
@@ -24,6 +25,26 @@ const initialFormState = {
   adminPassword: '',
   adminPhone: '',
   subscriptionPlan: '',
+  country: 'IN',
+};
+
+// Country data for auto-filling localization info
+const COUNTRY_LOCALE_MAP = {
+  IN: { currency: 'INR (₹)', timezone: 'Asia/Kolkata (IST, UTC+5:30)', dateFormat: 'DD/MM/YYYY' },
+  US: { currency: 'USD ($)', timezone: 'America/New_York (EST, UTC-5:00)', dateFormat: 'MM/DD/YYYY' },
+  GB: { currency: 'GBP (£)', timezone: 'Europe/London (GMT, UTC+0:00)', dateFormat: 'DD/MM/YYYY' },
+  AE: { currency: 'AED (د.إ)', timezone: 'Asia/Dubai (GST, UTC+4:00)', dateFormat: 'DD/MM/YYYY' },
+  SA: { currency: 'SAR (﷼)', timezone: 'Asia/Riyadh (AST, UTC+3:00)', dateFormat: 'DD/MM/YYYY' },
+  EU: { currency: 'EUR (€)', timezone: 'Europe/Berlin (CET, UTC+1:00)', dateFormat: 'DD/MM/YYYY' },
+  PK: { currency: 'PKR (₨)', timezone: 'Asia/Karachi (PKT, UTC+5:00)', dateFormat: 'DD/MM/YYYY' },
+  BD: { currency: 'BDT (৳)', timezone: 'Asia/Dhaka (BST, UTC+6:00)', dateFormat: 'DD/MM/YYYY' },
+  LK: { currency: 'LKR (₨)', timezone: 'Asia/Colombo (IST, UTC+5:30)', dateFormat: 'DD/MM/YYYY' },
+  NP: { currency: 'NPR (₨)', timezone: 'Asia/Kathmandu (NPT, UTC+5:45)', dateFormat: 'DD/MM/YYYY' },
+  PH: { currency: 'PHP (₱)', timezone: 'Asia/Manila (PST, UTC+8:00)', dateFormat: 'MM/DD/YYYY' },
+  MY: { currency: 'MYR (RM)', timezone: 'Asia/Kuala_Lumpur (MYT, UTC+8:00)', dateFormat: 'DD/MM/YYYY' },
+  SG: { currency: 'SGD (S$)', timezone: 'Asia/Singapore (SGT, UTC+8:00)', dateFormat: 'DD/MM/YYYY' },
+  AU: { currency: 'AUD (A$)', timezone: 'Australia/Sydney (AEST, UTC+10:00)', dateFormat: 'DD/MM/YYYY' },
+  CA: { currency: 'CAD (C$)', timezone: 'America/Toronto (EST, UTC-5:00)', dateFormat: 'YYYY-MM-DD' },
 };
 
 export default function Pharmacies() {
@@ -42,6 +63,8 @@ export default function Pharmacies() {
   const [localActivePlans, setLocalActivePlans] = useState([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState({});
+  const [countries, setCountries] = useState([]);
+  const [countriesLoading, setCountriesLoading] = useState(true);
 
   const toggleRow = (tableKey, rowIdx) => {
     const key = `${tableKey}-${rowIdx}`;
@@ -107,6 +130,19 @@ export default function Pharmacies() {
       setPlansLoading(false);
     });
   }, [dispatch]);
+
+  // Load countries for dropdown
+  useEffect(() => {
+    setCountriesLoading(true);
+    countryService.getCountries().then((res) => {
+      if (res.data?.data) {
+        setCountries(res.data.data);
+      }
+      setCountriesLoading(false);
+    }).catch(() => {
+      setCountriesLoading(false);
+    });
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -456,6 +492,95 @@ export default function Pharmacies() {
             <label>License Number</label>
             <input type="text" name="licenseNumber" value={formData.licenseNumber} onChange={handleChange} placeholder="Enter license number" />
           </div>
+
+          {/* Country Selection */}
+          {!editing && (
+            <>
+              <hr style={{ margin: '20px 0', borderColor: 'var(--gray-200)' }} />
+              <h4 style={{ color: 'var(--primary-color)', marginBottom: '16px' }}>
+                <i className="fa-solid fa-globe"></i> Location & Localization
+              </h4>
+              <div className="form-group">
+                <label>Country *</label>
+                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '8px' }}>
+                  Select the country where this pharmacy operates. Currency, timezone, and date format will be automatically configured based on your selection.
+                </p>
+                <select
+                  name="country"
+                  value={formData.country}
+                  onChange={handleChange}
+                  required
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--gray-300)' }}
+                >
+                  {countriesLoading ? (
+                    <option value="">Loading countries...</option>
+                  ) : countries.length > 0 ? (
+                    countries.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="">-- Select Country --</option>
+                      {Object.entries(COUNTRY_LOCALE_MAP).map(([code, data]) => (
+                        <option key={code} value={code}>
+                          {code === 'IN' ? 'India' :
+                           code === 'US' ? 'United States' :
+                           code === 'GB' ? 'United Kingdom' :
+                           code === 'AE' ? 'United Arab Emirates' :
+                           code === 'SA' ? 'Saudi Arabia' :
+                           code === 'EU' ? 'European Union' :
+                           code === 'PK' ? 'Pakistan' :
+                           code === 'BD' ? 'Bangladesh' :
+                           code === 'LK' ? 'Sri Lanka' :
+                           code === 'NP' ? 'Nepal' :
+                           code === 'PH' ? 'Philippines' :
+                           code === 'MY' ? 'Malaysia' :
+                           code === 'SG' ? 'Singapore' :
+                           code === 'AU' ? 'Australia' :
+                           code === 'CA' ? 'Canada' : code}
+                          ({data.currency})
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {/* Localization Preview */}
+              {COUNTRY_LOCALE_MAP[formData.country] && (
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                  border: '1px solid #bae6fd',
+                  marginTop: '12px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '8px',
+                      background: '#3b82f6', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <i className="fa-solid fa-coins" style={{ color: '#fff', fontSize: '16px' }}></i>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e40af', marginBottom: '6px' }}>
+                        Auto-Configured Localization
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#3b82f6', lineHeight: 1.8 }}>
+                        <div><strong>Currency:</strong> {COUNTRY_LOCALE_MAP[formData.country].currency}</div>
+                        <div><strong>Timezone:</strong> {COUNTRY_LOCALE_MAP[formData.country].timezone}</div>
+                        <div><strong>Date Format:</strong> {COUNTRY_LOCALE_MAP[formData.country].dateFormat}</div>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#60a5fa', marginTop: '6px', fontStyle: 'italic' }}>
+                        These values can be modified later by the platform administrator.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           {localActivePlans.length === 0 && !plansLoading ? (
             noPlansMessage

@@ -7,6 +7,7 @@ import Category from '../models/Category.js';
 import Brand from '../models/Brand.js';
 import Supplier from '../models/Supplier.js';
 import ApiResponse from '../utils/apiResponse.js';
+import { getCountryByCode, getAllCountries, getCountryOptions } from '../utils/countryData.js';
 
 // Helper to resolve subscription plan: if it's an ObjectId, look up plan name
 const resolveSubscriptionPlan = async (subscriptionPlan) => {
@@ -31,7 +32,8 @@ export const createPharmacy = async (req, res, next) => {
     const {
       pharmacyName, ownerName, email, phone, address, licenseNumber,
       adminName, adminEmail, adminPassword, adminPhone,
-      subscriptionPlan, subscriptionStartDate, subscriptionEndDate
+      subscriptionPlan, subscriptionStartDate, subscriptionEndDate,
+      country
     } = req.body;
 
     const existingPharmacy = await Pharmacy.findOne({ email });
@@ -48,6 +50,13 @@ export const createPharmacy = async (req, res, next) => {
     // Resolve subscription plan name from ObjectId if needed
     const resolved = await resolveSubscriptionPlan(subscriptionPlan);
 
+    // Determine country - default to 'IN' if not provided
+    const pharmacyCountry = country || 'IN';
+    const countryData = getCountryByCode(pharmacyCountry);
+    if (!countryData) {
+      return ApiResponse.error(res, `Invalid country code: ${pharmacyCountry}`, 400);
+    }
+
     // 1. Create Pharmacy
     const pharmacy = await Pharmacy.create({
       pharmacyName,
@@ -56,6 +65,7 @@ export const createPharmacy = async (req, res, next) => {
       phone,
       address,
       licenseNumber,
+      country: pharmacyCountry,
       subscriptionPlan: resolved.planName,
       subscriptionPlanId: resolved.planId,
       subscriptionStartDate: subscriptionStartDate || Date.now(),
@@ -151,12 +161,20 @@ export const updatePharmacy = async (req, res, next) => {
       return ApiResponse.error(res, 'Pharmacy not found', 404);
     }
 
-    const { pharmacyName, ownerName, email, phone, address, licenseNumber, status } = req.body;
+    const { pharmacyName, ownerName, email, phone, address, licenseNumber, status, country } = req.body;
 
     if (email && email !== pharmacy.email) {
       const existingPharmacy = await Pharmacy.findOne({ email });
       if (existingPharmacy) {
         return ApiResponse.error(res, 'Email already in use by another pharmacy', 400);
+      }
+    }
+
+    // Validate country if provided
+    if (country) {
+      const countryData = getCountryByCode(country);
+      if (!countryData) {
+        return ApiResponse.error(res, `Invalid country code: ${country}`, 400);
       }
     }
 
@@ -166,6 +184,7 @@ export const updatePharmacy = async (req, res, next) => {
     pharmacy.phone = phone || pharmacy.phone;
     pharmacy.address = address !== undefined ? address : pharmacy.address;
     pharmacy.licenseNumber = licenseNumber !== undefined ? licenseNumber : pharmacy.licenseNumber;
+    pharmacy.country = country || pharmacy.country;
     pharmacy.status = status || pharmacy.status;
 
     const updatedPharmacy = await pharmacy.save();
@@ -389,6 +408,7 @@ export const updateSubscription = async (req, res, next) => {
     const historyStatus = isUpcoming ? 'upcoming' : 'active';
 
     // Create subscription history record
+    // All amounts stored in INR (base currency) for consistent reporting
     const historyRecord = await SubscriptionHistory.create({
       pharmacy: pharmacy._id,
       pharmacyName: pharmacy.pharmacyName,
@@ -398,7 +418,10 @@ export const updateSubscription = async (req, res, next) => {
       endDate: newEndDate,
       duration: plan.duration,
       durationUnit: plan.durationUnit,
-      amount: plan.price,
+      amount: plan.priceInINR || plan.price,
+      originalCurrency: plan.priceCurrency || 'INR',
+      originalAmount: plan.price,
+      exchangeRate: plan.priceInINR && plan.price ? (plan.priceInINR / plan.price).toFixed(4) : 1,
       paymentMethod: 'manual',
       renewalDate: new Date(),
       status: historyStatus,

@@ -5,17 +5,86 @@ import { invoiceSettingService } from '../../services/invoiceSettingService';
 import { INVOICE_TEMPLATES, PRINT_FORMATS } from '../../utils/invoiceTemplates';
 import { useAuth } from '../../hooks/useAuth';
 
+/**
+ * Settings groups configuration for Super Admin.
+ * Only functional, meaningful settings are included:
+ * - General: Platform name, support email
+ * - Localization: Timezone, date format, currency
+ * - Invoice: Prefix, GST toggle, GST rate
+ */
+const SETTINGS_GROUPS = [
+  {
+    id: 'general',
+    label: 'General',
+    icon: 'fa-cog',
+    description: 'Platform branding and support contact information.',
+    settings: ['platformName', 'supportEmail'],
+  },
+  {
+    id: 'localization',
+    label: 'Localization',
+    icon: 'fa-globe',
+    description: 'Timezone, date format, and currency settings for the platform.',
+    settings: ['currency', 'timezone', 'dateFormat'],
+  },
+  {
+    id: 'invoice',
+    label: 'Invoice',
+    icon: 'fa-file-invoice',
+    description: 'Invoice prefix, GST calculation, and default tax rates.',
+    settings: ['invoicePrefix', 'enableGst', 'gstRate'],
+  },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: 'INR', label: 'INR (₹) - Indian Rupee', symbol: '₹' },
+  { value: 'USD', label: 'USD ($) - US Dollar', symbol: '$' },
+  { value: 'EUR', label: 'EUR (€) - Euro', symbol: '€' },
+  { value: 'GBP', label: 'GBP (£) - British Pound', symbol: '£' },
+  { value: 'AED', label: 'AED (د.إ) - UAE Dirham', symbol: 'د.إ' },
+  { value: 'SAR', label: 'SAR (﷼) - Saudi Riyal', symbol: '﷼' },
+  { value: 'PKR', label: 'PKR (₨) - Pakistani Rupee', symbol: '₨' },
+  { value: 'BDT', label: 'BDT (৳) - Bangladeshi Taka', symbol: '৳' },
+  { value: 'LKR', label: 'LKR (₨) - Sri Lankan Rupee', symbol: '₨' },
+  { value: 'NPR', label: 'NPR (₨) - Nepalese Rupee', symbol: '₨' },
+  { value: 'PHP', label: 'PHP (₱) - Philippine Peso', symbol: '₱' },
+  { value: 'MYR', label: 'MYR (RM) - Malaysian Ringgit', symbol: 'RM' },
+  { value: 'SGD', label: 'SGD (S$) - Singapore Dollar', symbol: 'S$' },
+  { value: 'AUD', label: 'AUD (A$) - Australian Dollar', symbol: 'A$' },
+  { value: 'CAD', label: 'CAD (C$) - Canadian Dollar', symbol: 'C$' },
+];
+
+const TIMEZONE_OPTIONS = [
+  { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST, UTC+5:30)' },
+  { value: 'Asia/Dubai', label: 'Asia/Dubai (GST, UTC+4:00)' },
+  { value: 'Asia/Riyadh', label: 'Asia/Riyadh (AST, UTC+3:00)' },
+  { value: 'Asia/Karachi', label: 'Asia/Karachi (PKT, UTC+5:00)' },
+  { value: 'Asia/Dhaka', label: 'Asia/Dhaka (BST, UTC+6:00)' },
+  { value: 'Asia/Colombo', label: 'Asia/Colombo (IST, UTC+5:30)' },
+  { value: 'Asia/Kathmandu', label: 'Asia/Kathmandu (NPT, UTC+5:45)' },
+  { value: 'Asia/Manila', label: 'Asia/Manila (PST, UTC+8:00)' },
+  { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (MYT, UTC+8:00)' },
+  { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT, UTC+8:00)' },
+  { value: 'Australia/Sydney', label: 'Australia/Sydney (AEST, UTC+10:00)' },
+  { value: 'America/New_York', label: 'America/New_York (EST, UTC-5:00)' },
+  { value: 'America/Toronto', label: 'America/Toronto (EST, UTC-5:00)' },
+  { value: 'Europe/London', label: 'Europe/London (GMT, UTC+0:00)' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin (CET, UTC+1:00)' },
+  { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+];
+
+const DATE_FORMAT_OPTIONS = [
+  { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (31/12/2024)' },
+  { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (12/31/2024)' },
+  { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2024-12-31)' },
+];
+
 export default function Settings() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
 
-  const [formData, setFormData] = useState({
-    platformName: 'Pharmacy Management System',
-    supportEmail: 'support@pharmacy.com',
-    currency: 'INR',
-    timezone: 'Asia/Kolkata',
-    dateFormat: 'DD/MM/YYYY',
-  });
+  const [formData, setFormData] = useState({});
+  const [metaData, setMetaData] = useState({});
   const [invoiceSettings, setInvoiceSettings] = useState({
     invoiceTemplate: 'classic',
     printFormat: 'a4',
@@ -26,20 +95,26 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('general');
 
   useEffect(() => {
-    const fetchSettings = async () => {
+    const fetchData = async () => {
       try {
+        // Try to initialize defaults first (only Super Admin can do this)
+        if (isSuperAdmin) {
+          try {
+            await settingService.initDefaults();
+          } catch (e) {
+            // Settings already initialized, ignore
+          }
+        }
+
         const { data } = await settingService.getSettings();
         if (data.data) {
-          setFormData({
-            platformName: data.data.platformName || 'Pharmacy Management System',
-            supportEmail: data.data.supportEmail || 'support@pharmacy.com',
-            currency: data.data.currency || 'INR',
-            timezone: data.data.timezone || 'Asia/Kolkata',
-            dateFormat: data.data.dateFormat || 'DD/MM/YYYY',
-          });
+          const values = data.data.values || {};
+          const metadata = data.data.metadata || {};
+          setFormData(values);
+          setMetaData(metadata);
         }
       } catch (error) {
-        // Settings not saved yet, use defaults
+        console.error('Failed to load settings:', error);
       } finally {
         setLoading(false);
       }
@@ -60,9 +135,13 @@ export default function Settings() {
       }
     };
 
-    fetchSettings();
+    fetchData();
     fetchInvoiceSettings();
   }, [isSuperAdmin]);
+
+  const handleChange = (key, value) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -70,13 +149,12 @@ export default function Settings() {
     try {
       const { data } = await settingService.updateSettings(formData);
       if (data.data) {
-        setFormData({
-          platformName: data.data.platformName || 'Pharmacy Management System',
-          supportEmail: data.data.supportEmail || 'support@pharmacy.com',
-          currency: data.data.currency || 'INR',
-          timezone: data.data.timezone || 'Asia/Kolkata',
-          dateFormat: data.data.dateFormat || 'DD/MM/YYYY',
-        });
+        const newValues = data.data.values || {};
+        const newMetadata = data.data.metadata || {};
+        setFormData(prev => ({ ...prev, ...newValues }));
+        if (Object.keys(newMetadata).length > 0) {
+          setMetaData(prev => ({ ...prev, ...newMetadata }));
+        }
       }
       showSuccess('Settings saved successfully');
     } catch (error) {
@@ -105,6 +183,12 @@ export default function Settings() {
     }
   };
 
+  const getField = (key) => {
+    const meta = metaData[key] || {};
+    const value = formData[key];
+    return { meta, value };
+  };
+
   if (loading) {
     return (
       <div className="loading-spinner">
@@ -113,93 +197,154 @@ export default function Settings() {
     );
   }
 
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h2>Platform Settings</h2>
-          <p>Configure platform-wide settings</p>
-        </div>
-      </div>
+  const renderSettingField = (key) => {
+    const { meta, value } = getField(key);
 
-      {/* Tabs - only show Invoice tab for non-super-admin users */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '2px solid var(--gray-200)', paddingBottom: '8px' }}>
-        <button
-          className={`btn ${activeTab === 'general' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ border: 'none', borderRadius: '8px 8px 0 0' }}
-          onClick={() => setActiveTab('general')}
-        >
-          <i className="fa-solid fa-cog"></i> General
-        </button>
-        {!isSuperAdmin && (
-          <button
-            className={`btn ${activeTab === 'invoice' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ border: 'none', borderRadius: '8px 8px 0 0' }}
-            onClick={() => setActiveTab('invoice')}
-          >
-            <i className="fa-solid fa-print"></i> Invoice Print
-          </button>
+    const commonProps = {
+      id: `setting-${key}`,
+      className: 'form-control',
+      value: value !== undefined && value !== null ? value : '',
+      onChange: (e) => {
+        const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        handleChange(key, val);
+      },
+    };
+
+    const renderInput = () => {
+      switch (key) {
+        case 'currency':
+          return (
+            <select {...commonProps}>
+              {CURRENCY_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          );
+        case 'timezone':
+          return (
+            <select {...commonProps}>
+              {TIMEZONE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          );
+        case 'dateFormat':
+          return (
+            <select {...commonProps}>
+              {DATE_FORMAT_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          );
+        case 'enableGst':
+          return (
+            <label className="toggle-switch" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!!value}
+                onChange={(e) => handleChange(key, e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '14px', color: 'var(--gray-600)' }}>
+                {value ? 'Enabled' : 'Disabled'}
+              </span>
+            </label>
+          );
+        case 'gstRate':
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="number"
+                {...commonProps}
+                min="0"
+                max="100"
+                step="0.1"
+                style={{ width: '120px' }}
+              />
+              <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>%</span>
+            </div>
+          );
+        default:
+          return <input type={key === 'supportEmail' ? 'email' : 'text'} {...commonProps} />;
+      }
+    };
+
+    return (
+      <div className="form-group" key={key} style={{ marginBottom: '20px' }}>
+        <label htmlFor={`setting-${key}`} style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
+          {meta.label || key}
+        </label>
+        {meta.description && (
+          <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '8px', lineHeight: 1.5 }}>
+            {meta.description}
+          </p>
         )}
+        {renderInput()}
       </div>
+    );
+  };
 
-      {/* General Settings Tab */}
-      {activeTab === 'general' && (
-        <div className="card">
-          <div className="card-header"><h5>General Settings</h5></div>
-          <div className="card-body">
-            <form onSubmit={handleSave}>
-              <div className="form-group">
-                <label>Platform Name</label>
-                <input type="text" value={formData.platformName} onChange={(e) => setFormData({ ...formData, platformName: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>Support Email</label>
-                <input type="email" value={formData.supportEmail} onChange={(e) => setFormData({ ...formData, supportEmail: e.target.value })} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div className="form-group">
-                  <label>Currency</label>
-                  <select value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value })}>
-                    <option value="INR">INR (₹)</option>
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Timezone</label>
-                  <select value={formData.timezone} onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}>
-                    <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">America/New_York</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Date Format</label>
-                  <select value={formData.dateFormat} onChange={(e) => setFormData({ ...formData, dateFormat: e.target.value })}>
-                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                  </select>
-                </div>
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ marginTop: '16px' }} disabled={saving}>
-                {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>} Save Settings
-              </button>
-            </form>
+  // Currency info banner displayed in localization tab
+  const renderCurrencyInfo = () => {
+    const { value: currency } = getField('currency');
+    const currencyMeta = CURRENCY_OPTIONS.find(c => c.value === currency);
+
+    return (
+      <div style={{
+        padding: '16px',
+        borderRadius: '10px',
+        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+        border: '1px solid #bae6fd',
+        marginBottom: '24px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '10px',
+            background: '#3b82f6', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', flexShrink: 0,
+          }}>
+            <i className="fa-solid fa-coins" style={{ color: '#fff', fontSize: '18px' }}></i>
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e40af', marginBottom: '4px' }}>
+              Base Currency: INR (₹)
+            </div>
+            <div style={{ fontSize: '13px', color: '#3b82f6', lineHeight: 1.5 }}>
+              All financial calculations — total revenue, profit, dashboard cards, reports, and analytics — are stored and calculated in <strong>Indian Rupees (INR)</strong> regardless of the display currency selected below.
+              {currency !== 'INR' && currencyMeta && (
+                <span> The <strong>{currencyMeta.label.split(' - ')[0]}</strong> is used for <strong>display purposes only</strong> when showing prices on the user-facing interface.</span>
+              )}
+            </div>
           </div>
         </div>
-      )}
+      </div>
+    );
+  };
 
-      {/* Invoice Print Settings Tab - Admin only */}
-      {activeTab === 'invoice' && !isSuperAdmin && (
-        <div className="card">
-          <div className="card-header"><h5>Invoice Print Settings</h5></div>
+  // ===== ADMIN VIEW: Simple invoice print settings only =====
+  if (!isSuperAdmin) {
+    return (
+      <div>
+        <div className="page-header">
+          <div>
+            <h2><i className="fa-solid fa-sliders" style={{ marginRight: '10px', color: 'var(--primary)' }}></i>Settings</h2>
+            <p>Manage your pharmacy invoice preferences</p>
+          </div>
+        </div>
+
+        {/* Invoice Print Settings */}
+        <div className="card" style={{ maxWidth: '900px' }}>
+          <div className="card-header">
+            <h5><i className="fa-solid fa-print" style={{ marginRight: '8px', color: 'var(--primary)' }}></i>Invoice Print Settings</h5>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Configure your invoice template and paper size</span>
+          </div>
           <div className="card-body">
             <form onSubmit={handleSaveInvoiceSettings}>
-              {/* Template Selection */}
               <div className="form-group">
-                <label>Invoice Template / Theme</label>
-                <p style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '12px' }}>
+                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
+                  Invoice Template / Theme
+                </label>
+                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
                   Select the visual style used when printing invoices from the Sales page.
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
@@ -225,10 +370,11 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Print Format Selection */}
               <div className="form-group" style={{ marginTop: '24px' }}>
-                <label>Print Format / Paper Size</label>
-                <p style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '12px' }}>
+                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
+                  Print Format / Paper Size
+                </label>
+                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
                   Choose the paper format for printing invoices. Supports A4 printers and 58mm/80mm thermal printers.
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
@@ -254,8 +400,10 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Preview hint */}
-              <div style={{ marginTop: '20px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{
+                marginTop: '20px', padding: '14px', background: '#f8fafc',
+                borderRadius: '8px', border: '1px solid var(--gray-200)',
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--gray-600)', fontSize: '13px' }}>
                   <i className="fa-solid fa-info-circle" style={{ color: 'var(--primary)' }}></i>
                   <span>
@@ -265,13 +413,92 @@ export default function Settings() {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ marginTop: '16px' }} disabled={invoiceSaving}>
-                {invoiceSaving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>} Save Settings
+              <button type="submit" className="btn btn-primary" style={{ marginTop: '20px' }} disabled={invoiceSaving}>
+                {invoiceSaving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
+                {' '}{invoiceSaving ? 'Saving...' : 'Save Invoice Settings'}
               </button>
             </form>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  // ===== SUPER ADMIN VIEW: Full settings management =====
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h2><i className="fa-solid fa-sliders" style={{ marginRight: '10px', color: 'var(--primary)' }}></i>Platform Settings</h2>
+          <p>Configure platform-wide settings, localization, and invoice preferences</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{
+        display: 'flex', gap: '0', marginBottom: '24px',
+        borderBottom: '2px solid var(--gray-200)', overflowX: 'auto',
+      }}>
+        {SETTINGS_GROUPS.map((group) => (
+          <button
+            key={group.id}
+            className={`tab-btn ${activeTab === group.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(group.id)}
+            style={{
+              padding: '12px 20px', border: 'none', background: 'none', cursor: 'pointer',
+              fontWeight: activeTab === group.id ? '600' : '400',
+              color: activeTab === group.id ? 'var(--primary)' : 'var(--gray-500)',
+              borderBottom: activeTab === group.id ? '2px solid var(--primary)' : '2px solid transparent',
+              marginBottom: '-2px', fontSize: '14px', whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'all 0.2s',
+            }}
+            title={group.description}
+          >
+            <i className={`fa-solid ${group.icon}`}></i>
+            {group.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Settings Content */}
+      <div className="card" style={{ maxWidth: '900px' }}>
+        <div className="card-header">
+          <h5>
+            <i className={`fa-solid ${SETTINGS_GROUPS.find(g => g.id === activeTab)?.icon || 'fa-cog'}`}
+              style={{ marginRight: '8px', color: 'var(--primary)' }}>
+            </i>
+            {SETTINGS_GROUPS.find(g => g.id === activeTab)?.label || 'Settings'}
+          </h5>
+          <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+            {SETTINGS_GROUPS.find(g => g.id === activeTab)?.description || ''}
+          </span>
+        </div>
+        <div className="card-body">
+          {/* Currency info banner only in localization tab */}
+          {activeTab === 'localization' && renderCurrencyInfo()}
+
+          <form onSubmit={handleSave}>
+            {SETTINGS_GROUPS.find(g => g.id === activeTab)?.settings.map(key => renderSettingField(key))}
+
+            <div style={{
+              marginTop: '24px', padding: '16px 20px',
+              background: '#f8fafc', borderRadius: '10px',
+              border: '1px solid var(--gray-200)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                <i className="fa-solid fa-info-circle" style={{ marginRight: '6px', color: 'var(--primary)' }}></i>
+                Changes are saved immediately for all platform users.
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
+                {' '}{saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

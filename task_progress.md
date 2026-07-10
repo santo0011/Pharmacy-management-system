@@ -1,20 +1,23 @@
-# Task Progress ✓ ALL COMPLETE
+# Settings System Redesign - Completed
 
-## All Changes Made
+## All Tasks Complete ✅
 
-### 1. Backend - Subscription Delete Route
-- **`subscriptionHistoryController.js`**: Added `deleteSubscriptionHistory` - only allows deleting "upcoming" records
-- **`subscriptionHistoryRoutes.js`**: Added `DELETE /:id` route (Super Admin only)
+### Backend Changes:
+- ✅ Created `backend/utils/countryData.js` - 15 countries with currency/timezone/dateFormat mapping
+- ✅ Updated `backend/models/Pharmacy.js` - Added country field (default: 'IN')
+- ✅ Updated `backend/models/PlatformSetting.js` - Removed unused groups (notifications, backup, stock), only general/localization/invoice remain
+- ✅ Updated `backend/controllers/settingController.js` - Removed non-functional settings: lowStockThreshold, enableNotificationSounds, autoBackupEnabled, backupFrequency, retentionDays
+- ✅ Updated `backend/controllers/pharmacyController.js` - Added country support in create and update
+- ✅ Created `backend/controllers/countryController.js` - Countries, currencies, timezones API endpoints
+- ✅ Created `backend/routes/countryRoutes.js` - Country routes
+- ✅ Updated `backend/server.js` - Added /api/countries route
 
-### 2. Frontend Service
-- **`subscriptionHistoryService.js`**: Added `deleteRecord(id)` method
-
-### 3. Subscription History Mobile Responsive
-- **`index.css`**: Added `.sub-history-desktop-table` / `.sub-history-mobile-table` responsive classes with expandable rows
-- **`Subscriptions.jsx`**: Admin's history table now has desktop/mobile views with expandable rows like Customers table
-
-### 4. Super Admin Subscriptions Tab - Renew & History Buttons
-- **`Subscriptions.jsx`**: Added Renew (🔄) and History (⏱) buttons with full drawer UIs in the Subscriptions tab
-
-### 5. Payments Page - Remove Renew Button
-- **`Payments.jsx`**: Removed the Renew button from the pharmacy view drawer (only History remains)
+### Frontend Changes:
+- ✅ Created `frontend/src/services/countryService.js` - Country API service
+- ✅ Redesigned `frontend/src/pages/settings/Settings.jsx`:
+  - Super Admin: 3 tabs (General, Localization, Invoice) - only functional settings
+  - Admin: Only invoice print settings (template + paper size) - removed read-only platform info clutter
+- ✅ Updated `frontend/src/pages/pharmacies/Pharmacies.jsx`:
+  - Added country dropdown with live localization preview
+  - Country selection auto-configures currency, timezone, date format
+  - Clean professional UI with info cards
