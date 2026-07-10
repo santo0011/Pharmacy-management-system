@@ -130,6 +130,7 @@ export const getMedicine = async (req, res, next) => {
       .populate('category', 'name')
       .populate('brand', 'name')
       .populate('supplier', 'supplierName companyName phone email address gstNumber')
+      .populate('substituteMedicines', 'medicineName genericName sellingPrice currentStock unit barcode status')
       .populate('createdBy', 'name email');
 
     if (!medicine) {
@@ -434,6 +435,193 @@ export const toggleMedicineStatus = async (req, res, next) => {
     await medicine.save();
 
     return ApiResponse.success(res, medicine, 'Status updated');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Manage substitute medicines for a medicine
+// @route   PUT /api/medicines/:id/substitutes
+// @access  Private (Pharmacy Admin, Pharmacist)
+export const updateSubstitutes = async (req, res, next) => {
+  try {
+    const { substituteIds } = req.body;
+    const medicine = await Medicine.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId, isDeleted: false });
+    if (!medicine) {
+      return ApiResponse.error(res, 'Medicine not found', 404);
+    }
+
+    // Validate that all substitute IDs exist and belong to the same pharmacy
+    if (substituteIds && Array.isArray(substituteIds) && substituteIds.length > 0) {
+      const validSubstitutes = await Medicine.find({
+        _id: { $in: substituteIds },
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        status: true,
+      }).select('_id');
+
+      const validIds = validSubstitutes.map(s => s._id.toString());
+      const invalidIds = substituteIds.filter(id => !validIds.includes(id));
+
+      if (invalidIds.length > 0) {
+        return ApiResponse.error(res, `Some substitute medicines are invalid or not found: ${invalidIds.join(', ')}`, 400);
+      }
+
+      // Prevent self-reference
+      if (validIds.includes(req.params.id)) {
+        return ApiResponse.error(res, 'A medicine cannot be a substitute for itself', 400);
+      }
+
+      medicine.substituteMedicines = validIds;
+    } else {
+      medicine.substituteMedicines = [];
+    }
+
+    medicine.updatedBy = req.user._id;
+    await medicine.save();
+
+    // Populate and return
+    const updated = await Medicine.findById(medicine._id)
+      .populate('substituteMedicines', 'medicineName genericName sellingPrice currentStock unit barcode status');
+
+    return ApiResponse.success(res, updated, 'Substitutes updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get substitute suggestions for a medicine (stock-aware)
+// @route   GET /api/medicines/:id/substitutes
+// @access  Private
+export const getSubstitutes = async (req, res, next) => {
+  try {
+    const medicine = await Medicine.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId, isDeleted: false })
+      .populate({
+        path: 'substituteMedicines',
+        match: { status: true, isDeleted: false },
+        select: 'medicineName genericName sellingPrice currentStock unit barcode status',
+      });
+
+    if (!medicine) {
+      return ApiResponse.error(res, 'Medicine not found', 404);
+    }
+
+    // Filter substitutes that are in stock and not expired
+    const now = new Date();
+    const availableSubstitutes = (medicine.substituteMedicines || []).filter(sub => {
+      return sub && sub.status && sub.currentStock > 0;
+    });
+
+    // Also find potential substitutes by same generic name if no explicit substitutes set
+    let genericSubstitutes = [];
+    if ((!availableSubstitutes || availableSubstitutes.length === 0) && medicine.genericName) {
+      genericSubstitutes = await Medicine.find({
+        _id: { $ne: medicine._id },
+        genericName: medicine.genericName,
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        status: true,
+        currentStock: { $gt: 0 },
+        expiryDate: { $gt: now },
+      })
+        .select('medicineName genericName sellingPrice currentStock unit barcode')
+        .limit(10);
+    }
+
+    return ApiResponse.success(res, {
+      medicine: {
+        _id: medicine._id,
+        medicineName: medicine.medicineName,
+        genericName: medicine.genericName,
+      },
+      explicitSubstitutes: availableSubstitutes,
+      genericSubstitutes: genericSubstitutes,
+      hasSubstitutes: availableSubstitutes.length > 0 || genericSubstitutes.length > 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get substitute suggestions for insufficient stock during billing
+// @route   GET /api/medicines/substitute-suggestions/:medicineId
+// @access  Private
+export const getSubstituteSuggestions = async (req, res, next) => {
+  try {
+    const { medicineId } = req.params;
+    const { requiredQty } = req.query;
+
+    const medicine = await Medicine.findOne({ _id: medicineId, pharmacyId: req.pharmacyId, isDeleted: false });
+    if (!medicine) {
+      return ApiResponse.error(res, 'Medicine not found', 404);
+    }
+
+    const neededQty = parseInt(requiredQty) || 1;
+    const now = new Date();
+
+    // 1. First check explicit substitutes
+    const explicitSubs = await Medicine.find({
+      _id: { $in: medicine.substituteMedicines || [] },
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+      status: true,
+      currentStock: { $gte: neededQty },
+      expiryDate: { $gt: now },
+    })
+      .populate('category', 'name')
+      .populate('brand', 'name')
+      .select('medicineName genericName sellingPrice currentStock unit barcode purchasePrice gst category brand')
+      .limit(10);
+
+    // 2. Then find by same generic name (auto-suggest)
+    let genericSubs = [];
+    if (medicine.genericName) {
+      genericSubs = await Medicine.find({
+        _id: { $ne: medicine._id, $nin: medicine.substituteMedicines || [] },
+        genericName: medicine.genericName,
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        status: true,
+        currentStock: { $gte: neededQty },
+        expiryDate: { $gt: now },
+      })
+        .populate('category', 'name')
+        .populate('brand', 'name')
+        .select('medicineName genericName sellingPrice currentStock unit barcode purchasePrice gst category brand')
+        .limit(10);
+    }
+
+    // 3. Finally find by same category (fallback)
+    let categorySubs = [];
+    if (explicitSubs.length === 0 && genericSubs.length === 0) {
+      categorySubs = await Medicine.find({
+        _id: { $ne: medicine._id },
+        category: medicine.category,
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        status: true,
+        currentStock: { $gte: neededQty },
+        expiryDate: { $gt: now },
+      })
+        .populate('category', 'name')
+        .populate('brand', 'name')
+        .select('medicineName genericName sellingPrice currentStock unit barcode purchasePrice gst category brand')
+        .limit(10);
+    }
+
+    const allSuggestions = [...explicitSubs, ...genericSubs, ...categorySubs];
+
+    return ApiResponse.success(res, {
+      originalMedicine: {
+        _id: medicine._id,
+        medicineName: medicine.medicineName,
+        genericName: medicine.genericName,
+        currentStock: medicine.currentStock,
+        requiredQty: neededQty,
+      },
+      suggestions: allSuggestions,
+      suggestionCount: allSuggestions.length,
+    });
   } catch (error) {
     next(error);
   }

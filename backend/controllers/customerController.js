@@ -121,22 +121,108 @@ export const getCustomers = async (req, res, next) => {
     }
 
     const total = await Customer.countDocuments(query);
-    const customerDocs = await Customer.find(query)
+    let customerDocs = await Customer.find(query)
       .select('-__v')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    // Get aggregated sales stats for all customers in this page
-    const customerIds = customerDocs.map(c => c._id);
-    
-    // First try to get stats by customer ref (newer sales)
+    // --- DEDUPLICATE customers by phone number ---
+    // If multiple customer records share the same real phone number,
+    // merge them into a single entry to avoid duplicate rows in the listing.
+    const phoneGroups = new Map(); // phone -> { customers: [], merged: {} }
+    const noPhoneCustomers = [];
+
+    customerDocs.forEach(c => {
+      const phone = (c.phone || '').trim();
+      // Only group real phone numbers. Skip empty and auto-generated CUST-NP-* placeholders.
+      if (phone && !phone.startsWith('CUST-NP-')) {
+        if (!phoneGroups.has(phone)) {
+          phoneGroups.set(phone, { customers: [] });
+        }
+        phoneGroups.get(phone).customers.push(c);
+      } else {
+        // No real phone - keep each record separate (but also group CUST-NP- by name if they match)
+        noPhoneCustomers.push(c);
+      }
+    });
+
+    // Also group CUST-NP- customers by name to catch duplicates without phone
+    const nameGroups = new Map(); // name -> { customers: [] }
+    noPhoneCustomers.forEach(c => {
+      const nameKey = (c.name || '').trim().toLowerCase();
+      if (nameKey) {
+        if (!nameGroups.has(nameKey)) {
+          nameGroups.set(nameKey, { customers: [] });
+        }
+        nameGroups.get(nameKey).customers.push(c);
+      }
+    });
+
+    // Build final deduplicated list
+    const deduplicatedCustomers = [];
+
+    // 1. Merge phone-grouped customers (keep the most recently created one, merge all)
+    for (const [phone, group] of phoneGroups) {
+      const customersInGroup = group.customers;
+      // Sort by createdAt descending to keep the latest one as primary
+      customersInGroup.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const primary = customersInGroup[0];
+      const allIds = customersInGroup.map(c => c._id);
+      
+      deduplicatedCustomers.push({
+        _id: primary._id,
+        mergedIds: allIds,
+        customerId: primary.customerId,
+        customerName: primary.name,
+        customerPhone: primary.phone,
+        mergedCount: customersInGroup.length,
+      });
+    }
+
+    // 2. Add name-grouped CUST-NP- customers (merge by name)
+    for (const [nameKey, group] of nameGroups) {
+      const customersInGroup = group.customers;
+      // Sort by createdAt descending
+      customersInGroup.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const primary = customersInGroup[0];
+      const allIds = customersInGroup.map(c => c._id);
+      
+      deduplicatedCustomers.push({
+        _id: primary._id,
+        mergedIds: allIds,
+        customerId: primary.customerId,
+        customerName: primary.name,
+        customerPhone: primary.phone,
+        mergedCount: customersInGroup.length > 1 ? customersInGroup.length : 1,
+      });
+    }
+
+    // Recalculate pagination based on deduplicated count
+    // Sort deduplicated list by createdAt of primary
+    deduplicatedCustomers.sort((a, b) => {
+      const aDoc = customerDocs.find(c => c._id.toString() === a._id.toString());
+      const bDoc = customerDocs.find(c => c._id.toString() === b._id.toString());
+      return (new Date(bDoc?.createdAt || 0)) - (new Date(aDoc?.createdAt || 0));
+    });
+
+    const dedupTotal = deduplicatedCustomers.length;
+    // Apply pagination on deduplicated list
+    const pagedDedup = deduplicatedCustomers.slice(0, limit);
+
+    // Collect all customer IDs from deduplicated entries for stats calculation
+    const allMergedIds = [];
+    pagedDedup.forEach(d => {
+      d.mergedIds.forEach(id => allMergedIds.push(id));
+    });
+
+    // Get aggregated sales stats for all customer IDs (merged or not)
     const salesStatsByRef = await Sale.aggregate([
       {
         $match: {
           pharmacyId: req.pharmacyId,
           isDeleted: false,
-          customer: { $in: customerIds },
+          customer: { $in: allMergedIds },
           status: { $nin: ['cancelled', 'returned'] },
         },
       },
@@ -152,88 +238,106 @@ export const getCustomers = async (req, res, next) => {
       },
     ]);
 
-    // Build stats map from ref-based results
+    // Build stats map from ref-based results (by customer _id)
     const statsMap = {};
     salesStatsByRef.forEach(stat => {
       statsMap[stat._id.toString()] = stat;
     });
 
-    // For customers with 0 stats from ref-based queries, check by phone for older sales
-    const customersMissingStats = customerDocs.filter(c => !statsMap[c._id.toString()]);
+    // Also get stats by phone for older sales that may not have customer ref
+    const phonesToCheck = pagedDedup
+      .filter(d => d.customerPhone && !d.customerPhone.startsWith('CUST-NP-'))
+      .map(d => d.customerPhone);
 
-    if (customersMissingStats.length > 0) {
-      // Build legacy match conditions for each missing customer
-      const legacyConditions = [];
-      customersMissingStats.forEach(c => {
-        if (c.phone && c.phone.trim()) {
-          legacyConditions.push({ customerPhone: c.phone });
-        }
-        // For auto-generated phone customers, also match by name (they're unique)
-        if (c.phone && c.phone.startsWith('CUST-NP-') && c.name && c.name.trim()) {
-          legacyConditions.push({ customerName: c.name.trim() });
-        }
+    const phoneStatsMap = {};
+    if (phonesToCheck.length > 0) {
+      const phoneStats = await Sale.aggregate([
+        {
+          $match: {
+            pharmacyId: req.pharmacyId,
+            isDeleted: false,
+            customerPhone: { $in: phonesToCheck },
+            status: { $nin: ['cancelled', 'returned'] },
+            $or: [
+              { customer: null },
+              { customer: { $exists: false } },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: '$customerPhone',
+            totalPurchases: { $sum: 1 },
+            totalSpent: { $sum: '$grandTotal' },
+            totalPaid: { $sum: '$paidAmount' },
+            totalDue: { $sum: '$dueAmount' },
+            lastPurchaseDate: { $max: '$saleDate' },
+          },
+        },
+      ]);
+
+      phoneStats.forEach(stat => {
+        phoneStatsMap[stat._id] = stat;
       });
-
-      if (legacyConditions.length > 0) {
-        const legacyAggQuery = [
-          {
-            $match: {
-              pharmacyId: req.pharmacyId,
-              isDeleted: false,
-              $or: legacyConditions,
-              status: { $nin: ['cancelled', 'returned'] },
-            },
-          },
-          {
-            $group: {
-              _id: '$customerPhone',
-              totalPurchases: { $sum: 1 },
-              totalSpent: { $sum: '$grandTotal' },
-              totalPaid: { $sum: '$paidAmount' },
-              totalDue: { $sum: '$dueAmount' },
-              lastPurchaseDate: { $max: '$saleDate' },
-            },
-          },
-        ];
-
-        const legacyStats = await Sale.aggregate(legacyAggQuery);
-        
-        // Map legacy stats by phone
-        const legacyStatsByPhone = {};
-        legacyStats.forEach(stat => {
-          legacyStatsByPhone[stat._id] = stat;
-        });
-
-        // Merge legacy stats into statsMap
-        customersMissingStats.forEach(c => {
-          if (!statsMap[c._id.toString()]) {
-            const legacyStat = legacyStatsByPhone[c.phone];
-            if (legacyStat) {
-              statsMap[c._id.toString()] = legacyStat;
-            }
-          }
-        });
-      }
     }
 
     // Map to backward-compatible format with real aggregated data
-    const customers = customerDocs.map(c => {
-      const stats = statsMap[c._id.toString()] || {};
+    const customers = pagedDedup.map(d => {
+      // Aggregate stats across all merged customer IDs
+      let mergedStats = {
+        totalPurchases: 0,
+        totalSpent: 0,
+        totalPaid: 0,
+        totalDue: 0,
+        lastPurchaseDate: null,
+      };
+
+      // 1. Sum stats from all merged customer refs
+      d.mergedIds.forEach(id => {
+        const stats = statsMap[id.toString()];
+        if (stats) {
+          mergedStats.totalPurchases += stats.totalPurchases || 0;
+          mergedStats.totalSpent += stats.totalSpent || 0;
+          mergedStats.totalPaid += stats.totalPaid || 0;
+          mergedStats.totalDue += stats.totalDue || 0;
+          if (stats.lastPurchaseDate && (!mergedStats.lastPurchaseDate || new Date(stats.lastPurchaseDate) > new Date(mergedStats.lastPurchaseDate))) {
+            mergedStats.lastPurchaseDate = stats.lastPurchaseDate;
+          }
+        }
+      });
+
+      // 2. Also merge legacy phone-based stats (older sales without customer ref)
+      if (d.customerPhone && !d.customerPhone.startsWith('CUST-NP-')) {
+        const phoneStat = phoneStatsMap[d.customerPhone];
+        if (phoneStat) {
+          mergedStats.totalPurchases += phoneStat.totalPurchases || 0;
+          mergedStats.totalSpent += phoneStat.totalSpent || 0;
+          mergedStats.totalPaid += phoneStat.totalPaid || 0;
+          mergedStats.totalDue += phoneStat.totalDue || 0;
+          if (phoneStat.lastPurchaseDate && (!mergedStats.lastPurchaseDate || new Date(phoneStat.lastPurchaseDate) > new Date(mergedStats.lastPurchaseDate))) {
+            mergedStats.lastPurchaseDate = phoneStat.lastPurchaseDate;
+          }
+        }
+      }
+
+      const primaryDoc = customerDocs.find(c => c._id.toString() === d._id.toString());
+
       return {
-        customerName: c.name,
-        customerPhone: c.phone || '',
-        customerId: c.customerId,
-        totalPurchases: stats.totalPurchases || 0,
-        totalSpent: stats.totalSpent || 0,
-        totalPaid: stats.totalPaid || 0,
-        totalDue: stats.totalDue || 0,
-        lastPurchaseDate: stats.lastPurchaseDate || null,
-        firstPurchaseDate: c.createdAt,
-        _id: c._id,
+        customerName: d.customerName,
+        customerPhone: d.customerPhone || '',
+        customerId: d.customerId,
+        totalPurchases: mergedStats.totalPurchases || 0,
+        totalSpent: mergedStats.totalSpent || 0,
+        totalPaid: mergedStats.totalPaid || 0,
+        totalDue: mergedStats.totalDue || 0,
+        lastPurchaseDate: mergedStats.lastPurchaseDate || null,
+        firstPurchaseDate: primaryDoc?.createdAt || null,
+        _id: d._id,
+        mergedCount: d.mergedCount,
       };
     });
 
-    return ApiResponse.paginated(res, customers, total, page, limit);
+    return ApiResponse.paginated(res, customers, dedupTotal, page, limit);
   } catch (error) {
     next(error);
   }

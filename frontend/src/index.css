@@ -2288,28 +2288,6 @@ input[type="number"]:focus {
   }
 }
 
-/* ===== Dashboard Recent Sales Table ===== */
-.recent-sales-table {
-  display: block;
-  width: 100%;
-}
-
-/* Desktop: make Recent Sales table fill full card width */
-@media (min-width: 769px) {
-  .dashboard-recent-sales-body {
-    padding: 4px 20px !important;
-  }
-
-  .dashboard-recent-sales-body .table-container {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .dashboard-recent-sales-body .dashboard-table {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-}
 
 /* ===== Customer Mobile Expandable Table ===== */
 .customer-desktop-table {
@@ -2544,12 +2522,79 @@ input[type="number"]:focus {
   word-break: break-word;
 }
 
-.recent-sales-table {
-  display: table;
+/* ===== Dashboard Recent Sales Responsive ===== */
+/* Desktop: show table, hide mobile cards */
+.dashboard-recent-sales-body .recent-sales-table {
+  display: block;
 }
 
-.recent-sales-mobile {
+.dashboard-recent-sales-body .recent-sales-mobile {
   display: none;
+}
+
+/* Enhanced Dashboard - Desktop: hide mobile expandable table */
+.dashboard-recent-sales-mobile {
+  display: none !important;
+}
+
+/* Mobile: show cards, hide table */
+@media (max-width: 768px) {
+  .dashboard-recent-sales-body .recent-sales-table,
+  .recent-sales-table {
+    display: none !important;
+  }
+  
+  .dashboard-recent-sales-body .recent-sales-mobile {
+    display: block !important;
+  }
+
+  /* Enhanced Dashboard - Mobile: show mobile expandable table */
+  .dashboard-recent-sales-mobile {
+    display: block !important;
+  }
+  .dashboard-recent-sales-mobile .dashboard-recent-sales-mobile-table {
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-item {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 12px 14px;
+    transition: all 0.2s ease;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-item:last-child {
+    margin-bottom: 0;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-customer {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gray-800);
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-amount {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--primary);
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .view-details-btn {
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
 }
 
 .sale-card-item {

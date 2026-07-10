@@ -85,6 +85,10 @@ const medicineSchema = mongoose.Schema(
       default: '',
       trim: true,
     },
+    substituteMedicines: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Medicine',
+    }],
     description: {
       type: String,
       default: '',

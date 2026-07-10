@@ -9,6 +9,9 @@ import {
   toggleMedicineStatus,
   checkBarcode,
   lookupBarcode,
+  updateSubstitutes,
+  getSubstitutes,
+  getSubstituteSuggestions,
 } from '../controllers/medicineController.js';
 import { bulkImportMedicines } from '../controllers/bulkImportController.js';
 import { protect, authorize } from '../middleware/auth.js';
@@ -56,5 +59,10 @@ router.route('/:id')
   .delete(authorize('admin'), deleteMedicine);
 
 router.patch('/:id/status', authorize('admin', 'pharmacist'), toggleMedicineStatus);
+
+// Substitute management routes
+router.put('/:id/substitutes', authorize('admin', 'pharmacist'), updateSubstitutes);
+router.get('/:id/substitutes', getSubstitutes);
+router.get('/substitute-suggestions/:medicineId', getSubstituteSuggestions);
 
 export default router;

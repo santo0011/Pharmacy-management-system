@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createSale, updateSale, fetchSale, clearSelectedSale } from '../../redux/slices/saleSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
+import { medicineService } from '../../services/medicineService';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { customerService } from '../../services/customerService';
 import PortalDropdown from '../../components/common/PortalDropdown';
@@ -31,6 +32,10 @@ export default function SaleForm() {
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [scanning, setScanning] = useState(false);
+
+  // Substitute suggestion states
+  const [substituteModal, setSubstituteModal] = useState(null); // { originalItem, suggestions, index }
+  const [loadingSubstitutes, setLoadingSubstitutes] = useState(false);
 
   // Customer search states
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -159,9 +164,12 @@ export default function SaleForm() {
   useEffect(() => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const now = new Date();
       const results = medicines?.filter(m =>
         (m.medicineName?.toLowerCase().includes(q) || m.barcode?.includes(q) || m.genericName?.toLowerCase().includes(q)) &&
-        m.currentStock > 0
+        m.currentStock > 0 &&
+        // Exclude expired medicines
+        m.expiryDate && new Date(m.expiryDate) > now
       ) || [];
       setSearchResults(results.slice(0, 10));
       setShowDropdown(true);
@@ -748,15 +756,23 @@ export default function SaleForm() {
                         <th style={{ width: '90px' }}>Price</th>
                         <th style={{ width: '60px' }}>Disc</th>
                         <th style={{ width: '90px' }}>Total</th>
+                        <th style={{ width: '30px' }}></th>
                         <th style={{ width: '40px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((item, idx) => (
-                        <tr key={idx}>
+                        <tr key={idx} className={item.quantity > item.currentStock ? 'stock-warning-row' : ''}>
                           <td>
                             <div style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</div>
-                            <div className="gst-label">Stock: {item.currentStock}</div>
+                            <div className={`gst-label ${item.quantity > item.currentStock ? 'text-danger' : ''}`}>
+                              Stock: {item.currentStock}
+                              {item.quantity > item.currentStock && (
+                                <span style={{ color: 'var(--danger)', fontWeight: 600, marginLeft: '4px' }}>
+                                  <i className="fa-solid fa-exclamation-triangle"></i> Insufficient
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td>
                             <input type="number" min="1" max={item.currentStock} value={item.quantity}
@@ -774,6 +790,30 @@ export default function SaleForm() {
                             {item.gst > 0 && <div>GST: {item.gst}%</div>}
                           </td>
                           <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{calcItemTotal(item).toFixed(2)}</td>
+                          <td>
+                            <button className="btn btn-sm btn-outline-info" 
+                              onClick={async () => {
+                                setLoadingSubstitutes(true);
+                                try {
+                                  const qty = Number(item.quantity) || 1;
+                                  const { data } = await medicineService.getSubstituteSuggestions(item.medicineId, qty);
+                                  if (data.data && data.data.suggestions && data.data.suggestions.length > 0) {
+                                    setSubstituteModal({ originalItem: item, suggestions: data.data.suggestions, index: idx });
+                                  } else {
+                                    showError('No substitute suggestions found for this medicine');
+                                  }
+                                } catch (err) {
+                                  showError('Failed to fetch substitute suggestions');
+                                } finally {
+                                  setLoadingSubstitutes(false);
+                                }
+                              }}
+                              disabled={loadingSubstitutes}
+                              title="Find substitutes"
+                              style={{ padding: '4px 6px', fontSize: '11px' }}>
+                              <i className="fa-solid fa-exchange-alt"></i>
+                            </button>
+                          </td>
                           <td>
                             <button className="btn btn-danger btn-sm" onClick={() => removeItem(idx)} style={{ padding: '4px 8px' }}>
                               <i className="fa-solid fa-times"></i>
@@ -901,6 +941,102 @@ export default function SaleForm() {
           </div>
         </div>
       </div>
+      {/* Substitute Suggestions Modal */}
+      {substituteModal && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 5000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px',
+        }} onClick={() => setSubstituteModal(null)}>
+          <div className="substitute-modal" style={{
+            background: '#fff', borderRadius: '12px', maxWidth: '600px',
+            width: '100%', maxHeight: '80vh', overflow: 'auto',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div className="substitute-modal-header" style={{
+              padding: '16px 20px', borderBottom: '1px solid var(--gray-200)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <h5 style={{ margin: 0 }}>
+                <i className="fa-solid fa-exchange-alt" style={{ color: 'var(--info)' }}></i>
+                {' '}Substitute Suggestions
+              </h5>
+              <button className="btn btn-sm btn-light" onClick={() => setSubstituteModal(null)}
+                style={{ border: 'none', fontSize: '18px', cursor: 'pointer' }}>
+                <i className="fa-solid fa-times"></i>
+              </button>
+            </div>
+            <div className="substitute-modal-body" style={{ padding: '16px 20px' }}>
+              <div style={{ marginBottom: '12px', fontSize: '13px', color: '#666' }}>
+                <strong>Original:</strong> {substituteModal.originalItem.medicineName}
+                {' '}× {substituteModal.originalItem.quantity}
+                <span style={{ marginLeft: '8px', color: 'var(--danger)' }}>
+                  (Stock: {substituteModal.originalItem.currentStock})
+                </span>
+              </div>
+              <p style={{ fontSize: '13px', color: '#888', marginBottom: '12px' }}>
+                Select a substitute medicine below. It will replace the original item in the bill.
+              </p>
+              <div className="suggestion-list">
+                {substituteModal.suggestions.map((suggestion, si) => (
+                  <div key={suggestion._id} className="suggestion-item" style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '12px 14px', marginBottom: '8px',
+                    border: '1px solid var(--gray-200)', borderRadius: '8px',
+                    background: '#fafafa',
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{suggestion.medicineName}</div>
+                      <div style={{ fontSize: '12px', color: '#888' }}>
+                        {suggestion.genericName && <span>{suggestion.genericName} | </span>}
+                        {suggestion.brand?.name && <span>{suggestion.brand.name} | </span>}
+                        {suggestion.category?.name && <span>{suggestion.category.name}</span>}
+                      </div>
+                      <div style={{ fontSize: '12px', marginTop: '2px' }}>
+                        <span style={{ color: 'var(--success)', fontWeight: 500 }}>
+                          Stock: {suggestion.currentStock} {suggestion.unit}
+                        </span>
+                        {' | '}
+                        <span style={{ fontWeight: 500 }}>₹{suggestion.sellingPrice?.toFixed(2)}</span>
+                        {suggestion.gst > 0 && <span> (GST: {suggestion.gst}%)</span>}
+                      </div>
+                    </div>
+                    <button className="btn btn-sm btn-primary" onClick={() => {
+                      // Replace the original item with the substitute
+                      const newItems = [...items];
+                      newItems[substituteModal.index] = {
+                        medicineId: suggestion._id,
+                        medicineName: suggestion.medicineName,
+                        batchNumber: suggestion.batchNumber || '',
+                        quantity: Number(substituteModal.originalItem.quantity),
+                        sellingPrice: suggestion.sellingPrice || 0,
+                        purchasePrice: suggestion.purchasePrice || 0,
+                        gst: suggestion.gst || 0,
+                        discount: 0,
+                        discountType: 'fixed',
+                        currentStock: suggestion.currentStock || 0,
+                      };
+                      setItems(newItems);
+                      setSubstituteModal(null);
+                    }} style={{ whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                      <i className="fa-solid fa-check"></i> Use This
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="substitute-modal-footer" style={{
+              padding: '12px 20px', borderTop: '1px solid var(--gray-200)',
+              display: 'flex', justifyContent: 'flex-end', gap: '8px',
+            }}>
+              <button className="btn btn-secondary" onClick={() => setSubstituteModal(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

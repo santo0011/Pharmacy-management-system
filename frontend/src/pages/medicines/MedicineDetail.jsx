@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchMedicine, clearSelectedMedicine } from '../../redux/slices/medicineSlice';
+import { medicineService } from '../../services/medicineService';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function MedicineDetail() {
@@ -10,6 +11,8 @@ export default function MedicineDetail() {
   const navigate = useNavigate();
   const { selectedMedicine: medicine, loading } = useSelector((state) => state.medicines);
   const { isCashier } = useAuth();
+  const [substituteInfo, setSubstituteInfo] = useState(null);
+  const [loadingSubs, setLoadingSubs] = useState(false);
 
   useEffect(() => {
     dispatch(fetchMedicine(id));
@@ -17,6 +20,26 @@ export default function MedicineDetail() {
       dispatch(clearSelectedMedicine());
     };
   }, [dispatch, id]);
+
+  useEffect(() => {
+    if (id && medicine) {
+      loadSubstitutes();
+    }
+  }, [id, medicine?._id]);
+
+  const loadSubstitutes = async () => {
+    setLoadingSubs(true);
+    try {
+      const { data } = await medicineService.getSubstitutes(id);
+      if (data.data) {
+        setSubstituteInfo(data.data);
+      }
+    } catch (err) {
+      // Silently fail
+    } finally {
+      setLoadingSubs(false);
+    }
+  };
 
   if (loading || !medicine) {
     return (
@@ -150,6 +173,94 @@ export default function MedicineDetail() {
               <MedicineInfoRow label="Created By" value={medicine.createdBy?.name} />
               <MedicineInfoRow label="Created At" value={new Date(medicine.createdAt).toLocaleString()} />
               <MedicineInfoRow label="Updated At" value={new Date(medicine.updatedAt).toLocaleString()} />
+            </div>
+          </div>
+
+          {/* Substitute Medicines Section */}
+          <div className="card medicine-detail-card">
+            <div className="card-header">
+              <h5><i className="fa-solid fa-exchange-alt"></i> Substitute Medicines</h5>
+              {!isCashier && (
+                <button className="btn btn-sm btn-outline-primary" onClick={() => navigate(`/medicines/${id}/edit`)}>
+                  <i className="fa-solid fa-pen"></i> Manage
+                </button>
+              )}
+            </div>
+            <div className="card-body medicine-detail-card-body">
+              {loadingSubs ? (
+                <div style={{ textAlign: 'center', padding: '12px', color: '#888' }}>
+                  <i className="fa-solid fa-spinner fa-spin"></i> Loading substitutes...
+                </div>
+              ) : substituteInfo && substituteInfo.hasSubstitutes ? (
+                <>
+                  {substituteInfo.explicitSubstitutes && substituteInfo.explicitSubstitutes.length > 0 && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 500 }}>
+                        <i className="fa-solid fa-link"></i> Linked Substitutes
+                      </div>
+                      {substituteInfo.explicitSubstitutes.map(sub => (
+                        <div key={sub._id} className="substitute-item" style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '6px 0', borderBottom: '1px solid var(--gray-100)',
+                        }}>
+                          <div>
+                            <a href={`/medicines/${sub._id}`} style={{ fontWeight: 500, color: 'var(--primary)', textDecoration: 'none' }}
+                              onClick={(e) => { e.preventDefault(); navigate(`/medicines/${sub._id}`); }}>
+                              {sub.medicineName}
+                            </a>
+                            {sub.genericName && <div style={{ fontSize: '11px', color: '#888' }}>{sub.genericName}</div>}
+                          </div>
+                          <div style={{ textAlign: 'right', fontSize: '12px' }}>
+                            <div style={{ fontWeight: 600 }}>₹{sub.sellingPrice?.toFixed(2)}</div>
+                            <div style={{ color: sub.currentStock > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                              Stock: {sub.currentStock} {sub.unit}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {substituteInfo.genericSubstitutes && substituteInfo.genericSubstitutes.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 500 }}>
+                        <i className="fa-solid fa-flask"></i> Same Generic Name (Auto-suggested)
+                      </div>
+                      {substituteInfo.genericSubstitutes.map(sub => (
+                        <div key={sub._id} className="substitute-item" style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '6px 0', borderBottom: '1px solid var(--gray-100)',
+                        }}>
+                          <div>
+                            <a href={`/medicines/${sub._id}`} style={{ fontWeight: 500, color: 'var(--primary)', textDecoration: 'none' }}
+                              onClick={(e) => { e.preventDefault(); navigate(`/medicines/${sub._id}`); }}>
+                              {sub.medicineName}
+                            </a>
+                            {sub.genericName && <div style={{ fontSize: '11px', color: '#888' }}>{sub.genericName}</div>}
+                          </div>
+                          <div style={{ textAlign: 'right', fontSize: '12px' }}>
+                            <div style={{ fontWeight: 600 }}>₹{sub.sellingPrice?.toFixed(2)}</div>
+                            <div style={{ color: sub.currentStock > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                              Stock: {sub.currentStock} {sub.unit}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '12px', color: '#888', fontSize: '13px' }}>
+                  <i className="fa-solid fa-info-circle"></i> No substitute medicines defined
+                  {!isCashier && (
+                    <div style={{ marginTop: '6px' }}>
+                      <button className="btn btn-sm btn-outline-primary"
+                        onClick={() => navigate(`/medicines/${id}/edit`)}>
+                        Add Substitutes
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

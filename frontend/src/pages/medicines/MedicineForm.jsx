@@ -52,6 +52,13 @@ export default function MedicineForm() {
   const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Substitute medicines state
+  const [substituteIds, setSubstituteIds] = useState([]);
+  const [substituteSearchQuery, setSubstituteSearchQuery] = useState('');
+  const [substituteSearchResults, setSubstituteSearchResults] = useState([]);
+  const [showSubstituteDropdown, setShowSubstituteDropdown] = useState(false);
+  const [allMedicines, setAllMedicines] = useState([]);
+
   // Barcode scanner state
   const [showScanner, setShowScanner] = useState(false);
   const [scannerLoading, setScannerLoading] = useState(false);
@@ -79,6 +86,13 @@ export default function MedicineForm() {
     dispatch(fetchCategories({ limit: 100 }));
     dispatch(fetchBrands({ limit: 100 }));
     dispatch(fetchSuppliers({ limit: 100 }));
+
+    // Load all medicines for substitute selection
+    medicineService.getMedicines({ limit: 1000 }).then(res => {
+      if (res.data?.data) {
+        setAllMedicines(res.data.data);
+      }
+    }).catch(() => {});
 
     if (isEditing && id) {
       dispatch(fetchMedicine(id));
@@ -115,6 +129,11 @@ export default function MedicineForm() {
       });
       if (selectedMedicine.medicineImage) {
         setImagePreview(selectedMedicine.medicineImage);
+      }
+      // Load existing substitutes
+      if (selectedMedicine.substituteMedicines && selectedMedicine.substituteMedicines.length > 0) {
+        const ids = selectedMedicine.substituteMedicines.map(s => s._id || s);
+        setSubstituteIds(ids);
       }
     }
   }, [selectedMedicine, isEditing]);
@@ -482,11 +501,29 @@ export default function MedicineForm() {
       });
       if (imageFile) formDataObj.append('medicineImage', imageFile);
 
+      let medicineId = id;
       if (isEditing) {
         await dispatch(updateMedicine({ id, formData: formDataObj })).unwrap();
+        // Save substitutes for existing medicine
+        if (substituteIds.length >= 0) {
+          try {
+            await medicineService.updateSubstitutes(id, substituteIds);
+          } catch (err) {
+            console.error('Failed to save substitutes:', err);
+          }
+        }
         showSuccess('Medicine updated successfully');
       } else {
-        await dispatch(createMedicine(formDataObj)).unwrap();
+        const result = await dispatch(createMedicine(formDataObj)).unwrap();
+        medicineId = result._id || result.data?._id;
+        // Save substitutes for new medicine
+        if (medicineId && substituteIds.length > 0) {
+          try {
+            await medicineService.updateSubstitutes(medicineId, substituteIds);
+          } catch (err) {
+            console.error('Failed to save substitutes:', err);
+          }
+        }
         showSuccess('Medicine created successfully');
       }
       navigate('/medicines');
@@ -692,6 +729,116 @@ export default function MedicineForm() {
                 </div>
               </div>
             </div>
+
+            {/* Substitute Medicines Section */}
+            {allMedicines.length > 0 && (
+              <div className="substitute-medicines-section" style={{ marginTop: '24px' }}>
+                <hr className="medicine-form-divider" />
+                <h4 className="medicine-form-section-title">
+                  <i className="fa-solid fa-exchange-alt"></i> Substitute Medicines
+                </h4>
+                <p style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                  Search and select alternative medicines that can be suggested when this medicine is out of stock.
+                </p>
+                <div className="substitute-search-wrapper" style={{ position: 'relative', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Search medicines to add as substitutes..."
+                    value={substituteSearchQuery}
+                    onChange={(e) => {
+                      const q = e.target.value;
+                      setSubstituteSearchQuery(q);
+                      if (q.trim()) {
+                        const filtered = allMedicines.filter(m =>
+                          m._id !== id &&
+                          !substituteIds.includes(m._id) &&
+                          (m.medicineName?.toLowerCase().includes(q.toLowerCase()) ||
+                           m.genericName?.toLowerCase().includes(q.toLowerCase()) ||
+                           m.barcode?.includes(q))
+                        ).slice(0, 8);
+                        setSubstituteSearchResults(filtered);
+                        setShowSubstituteDropdown(filtered.length > 0);
+                      } else {
+                        setSubstituteSearchResults([]);
+                        setShowSubstituteDropdown(false);
+                      }
+                    }}
+                    style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--gray-300)', width: '100%' }}
+                  />
+                  {showSubstituteDropdown && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0,
+                      background: '#fff', border: '1px solid var(--gray-200)',
+                      borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      zIndex: 100, maxHeight: '250px', overflowY: 'auto',
+                    }}>
+                      {substituteSearchResults.map(m => (
+                        <div key={m._id} onClick={() => {
+                          if (!substituteIds.includes(m._id)) {
+                            setSubstituteIds(prev => [...prev, m._id]);
+                          }
+                          setSubstituteSearchQuery('');
+                          setSubstituteSearchResults([]);
+                          setShowSubstituteDropdown(false);
+                        }} style={{
+                          padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-100)',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = ''}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 500, fontSize: '13px' }}>{m.medicineName}</div>
+                            {m.genericName && <div style={{ fontSize: '11px', color: '#888' }}>{m.genericName}</div>}
+                          </div>
+                          <div style={{ fontSize: '12px', textAlign: 'right' }}>
+                            <div>₹{m.sellingPrice?.toFixed(2)}</div>
+                            <div style={{ color: m.currentStock > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                              Stock: {m.currentStock}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Selected substitutes */}
+                {substituteIds.length > 0 && (
+                  <div className="selected-substitutes" style={{ marginTop: '8px' }}>
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 500 }}>
+                      Selected Substitutes ({substituteIds.length})
+                    </div>
+                    <div className="selected-substitutes-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {substituteIds.map(subId => {
+                        const med = allMedicines.find(m => m._id === subId);
+                        return (
+                          <div key={subId} className="selected-substitute-tag" style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            padding: '4px 10px', borderRadius: '16px',
+                            background: 'var(--primary-light, #e8f5e9)',
+                            border: '1px solid var(--primary, #4caf50)',
+                            fontSize: '12px', fontWeight: 500,
+                          }}>
+                            <span>{med?.medicineName || 'Unknown'}</span>
+                            <button type="button" onClick={() => setSubstituteIds(prev => prev.filter(id => id !== subId))} style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--danger, #dc3545)', fontSize: '14px', padding: '0 2px',
+                            }}>
+                              <i className="fa-solid fa-times"></i>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <button type="button" className="btn btn-sm btn-link" onClick={() => setSubstituteIds([])} style={{
+                      marginTop: '4px', color: 'var(--danger)', fontSize: '12px', padding: 0, border: 'none', background: 'none', cursor: 'pointer',
+                    }}>
+                      <i className="fa-solid fa-trash"></i> Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Form Actions */}
             <div className="medicine-form-actions">
