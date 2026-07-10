@@ -430,91 +430,9 @@ export default function EnhancedDashboard() {
 
       {/* Inventory Alerts Section - Professional 2+1 Layout */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <div style={{ width: '4px', height: '24px', background: 'linear-gradient(180deg, #f59e0b, #ef4444)', borderRadius: '2px' }}></div>
-          <h5 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>
-            <i className="fa-solid fa-bell" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Inventory Alerts
-          </h5>
-        </div>
-
-        <div className="dashboard-tables-row" style={{ marginBottom: '16px' }}>
-          {/* Low Stock Card */}
-          <div className="card" style={{ flex: '1', minWidth: '280px' }}>
-            <div className="card-header" style={{ borderBottom: '2px solid #fef3c7' }}>
-              <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}></span>
-                Low Stock Items
-                {lowStockItems.length > 0 && (
-                  <span className="badge badge-warning" style={{ fontSize: '10px', marginLeft: '4px' }}>{lowStockItems.length}</span>
-                )}
-              </h5>
-              {lowStockItems.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {lowStockItems.length > 0 ? (
-                <div className="table-container dashboard-table-scroll">
-                  <table className="dashboard-table">
-                    <thead><tr><th>Medicine</th><th>Stock</th><th>Price</th></tr></thead>
-                    <tbody>
-                      {lowStockItems.slice(0, 8).map((item) => (
-                        <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
-                          <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
-                          <td><span className="badge badge-danger">{item.currentStock} {item.unit || 'units'}</span></td>
-                          <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{item.sellingPrice?.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="empty-state" style={{ padding: '30px' }}>
-                  <i className="fa-solid fa-check-circle" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
-                  <p style={{ color: '#22c55e', fontWeight: 500 }}>All products are well stocked</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Upcoming Expiry Card */}
-          <div className="card" style={{ flex: '1', minWidth: '280px' }}>
-            <div className="card-header" style={{ borderBottom: '2px solid #fef3c7' }}>
-              <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}></span>
-                Upcoming Expiry (30 days)
-                {expiringSoon.length > 0 && (
-                  <span className="badge badge-warning" style={{ fontSize: '10px', marginLeft: '4px' }}>{expiringSoon.length}</span>
-                )}
-              </h5>
-              {expiringSoon.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {expiringSoon.length > 0 ? (
-                <div className="table-container dashboard-table-scroll">
-                  <table className="dashboard-table">
-                    <thead><tr><th>Medicine</th><th>Expiry</th><th>Stock</th></tr></thead>
-                    <tbody>
-                      {expiringSoon.map((item) => (
-                        <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
-                          <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
-                          <td><span className="badge badge-warning">{new Date(item.expiryDate).toLocaleDateString()}</span></td>
-                          <td style={{ fontWeight: 600 }}>{item.currentStock} {item.unit || 'units'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="empty-state" style={{ padding: '30px' }}>
-                  <i className="fa-solid fa-calendar-check" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
-                  <p style={{ color: '#22c55e', fontWeight: 500 }}>No medicines expiring soon</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
 
         {/* Expired Medicines - Full Width with Summary Widgets */}
-        <div className="card" style={{ border: '1px solid #fecaca', borderTop: '3px solid #ef4444' }}>
+        <div className="card" style={{ border: '1px solid #fecaca', borderTop: '3px solid #ef4444', marginTop: '20px' }}>
           <div className="card-header" style={{ background: '#fef2f2' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
@@ -701,11 +619,89 @@ export default function EnhancedDashboard() {
             )}
           </div>
         </div>
+
+
+        <div className="dashboard-tables-row" style={{ marginBottom: '16px' }}>
+          {/* Low Stock Card */}
+          <div className="card" style={{ flex: '1', minWidth: '280px' }}>
+            <div className="card-header" style={{ borderBottom: '2px solid #fef3c7' }}>
+              <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}></span>
+                Low Stock Items
+                {lowStockItems.length > 0 && (
+                  <span className="badge badge-warning" style={{ fontSize: '10px', marginLeft: '4px' }}>{lowStockItems.length}</span>
+                )}
+              </h5>
+              {lowStockItems.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {lowStockItems.length > 0 ? (
+                <div className="table-container dashboard-table-scroll">
+                  <table className="dashboard-table">
+                    <thead><tr><th>Medicine</th><th>Stock</th><th>Price</th></tr></thead>
+                    <tbody>
+                      {lowStockItems.slice(0, 8).map((item) => (
+                        <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
+                          <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
+                          <td><span className="badge badge-danger">{item.currentStock} {item.unit || 'units'}</span></td>
+                          <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{item.sellingPrice?.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-state" style={{ padding: '30px' }}>
+                  <i className="fa-solid fa-check-circle" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
+                  <p style={{ color: '#22c55e', fontWeight: 500 }}>All products are well stocked</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Upcoming Expiry Card */}
+          <div className="card" style={{ flex: '1', minWidth: '280px' }}>
+            <div className="card-header" style={{ borderBottom: '2px solid #fef3c7' }}>
+              <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}></span>
+                Upcoming Expiry (30 days)
+                {expiringSoon.length > 0 && (
+                  <span className="badge badge-warning" style={{ fontSize: '10px', marginLeft: '4px' }}>{expiringSoon.length}</span>
+                )}
+              </h5>
+              {expiringSoon.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {expiringSoon.length > 0 ? (
+                <div className="table-container dashboard-table-scroll">
+                  <table className="dashboard-table">
+                    <thead><tr><th>Medicine</th><th>Expiry</th><th>Stock</th></tr></thead>
+                    <tbody>
+                      {expiringSoon.map((item) => (
+                        <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
+                          <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
+                          <td><span className="badge badge-warning">{new Date(item.expiryDate).toLocaleDateString()}</span></td>
+                          <td style={{ fontWeight: 600 }}>{item.currentStock} {item.unit || 'units'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-state" style={{ padding: '30px' }}>
+                  <i className="fa-solid fa-calendar-check" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
+                  <p style={{ color: '#22c55e', fontWeight: 500 }}>No medicines expiring soon</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* Recent Sales */}
       {saleStats?.recentSales?.length > 0 && (
-        <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card" style={{ marginTop: '20px', border: '1px solid #c7bcbc', borderTop: '3px solid #a39999' }}>
           <div className="card-header">
             <h5><i className="fa-solid fa-receipt" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Recent Sales</h5>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}><i className="fa-solid fa-arrow-right"></i> View All</button>
