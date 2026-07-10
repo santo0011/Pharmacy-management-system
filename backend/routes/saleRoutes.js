@@ -10,6 +10,12 @@ import {
   getSaleEditHistory,
   getSalePayments,
 } from '../controllers/saleController.js';
+import {
+  returnSaleItems,
+  getSaleReturns,
+  getAllSaleReturns,
+  getCustomerSaleReturns,
+} from '../controllers/saleReturnController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
 
@@ -26,6 +32,10 @@ router.route('/')
   .post(authorize('admin', 'pharmacist', 'cashier'), createSale);
 
 router.post('/:id/return', authorize('admin', 'pharmacist'), returnSale);
+router.post('/:id/return-items', authorize('admin', 'pharmacist'), returnSaleItems);
+router.get('/returns/all', authorize('admin', 'pharmacist'), getAllSaleReturns);
+router.get('/customer/:customerId/returns', getCustomerSaleReturns);
+router.get('/:id/returns', getSaleReturns);
 
 router.route('/:id')
   .get(getSale)

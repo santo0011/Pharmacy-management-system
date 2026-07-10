@@ -1,23 +1,26 @@
-# Settings System Redesign - Completed
+# Task Progress - Modern Features for Pharmacy Management System
 
-## All Tasks Complete ✅
+## All Features Completed ✅
 
-### Backend Changes:
-- ✅ Created `backend/utils/countryData.js` - 15 countries with currency/timezone/dateFormat mapping
-- ✅ Updated `backend/models/Pharmacy.js` - Added country field (default: 'IN')
-- ✅ Updated `backend/models/PlatformSetting.js` - Removed unused groups (notifications, backup, stock), only general/localization/invoice remain
-- ✅ Updated `backend/controllers/settingController.js` - Removed non-functional settings: lowStockThreshold, enableNotificationSounds, autoBackupEnabled, backupFrequency, retentionDays
-- ✅ Updated `backend/controllers/pharmacyController.js` - Added country support in create and update
-- ✅ Created `backend/controllers/countryController.js` - Countries, currencies, timezones API endpoints
-- ✅ Created `backend/routes/countryRoutes.js` - Country routes
-- ✅ Updated `backend/server.js` - Added /api/countries route
+### Phase 1: Customer Ledger ✅
+- [x] Create customer ledger controller (backend) - `backend/controllers/customerLedgerController.js`
+- [x] Add customer ledger route (backend) - `backend/routes/customerRoutes.js`
+- [x] Add customer ledger service (frontend) - `frontend/src/services/ledgerService.js`
+- [x] Create Customer Ledger page with running balance - `frontend/src/pages/customers/CustomerLedger.jsx`
+- [x] Add ledger link in customer detail drawer - `frontend/src/pages/customers/Customers.jsx`
+- [x] Register route in App.jsx
 
-### Frontend Changes:
-- ✅ Created `frontend/src/services/countryService.js` - Country API service
-- ✅ Redesigned `frontend/src/pages/settings/Settings.jsx`:
-  - Super Admin: 3 tabs (General, Localization, Invoice) - only functional settings
-  - Admin: Only invoice print settings (template + paper size) - removed read-only platform info clutter
-- ✅ Updated `frontend/src/pages/pharmacies/Pharmacies.jsx`:
-  - Added country dropdown with live localization preview
-  - Country selection auto-configures currency, timezone, date format
-  - Clean professional UI with info cards
+### Phase 2: Supplier Ledger ✅
+- [x] Create supplier ledger controller (backend) - in `backend/controllers/customerLedgerController.js`
+- [x] Add supplier ledger route (backend) - `backend/routes/supplierRoutes.js`
+- [x] Add supplier ledger service (frontend) - uses `frontend/src/services/ledgerService.js`
+- [x] Create Supplier Ledger page with running balance - `frontend/src/pages/suppliers/SupplierLedger.jsx`
+- [x] Add ledger button in supplier table - `frontend/src/pages/suppliers/Suppliers.jsx`
+- [x] Register route in App.jsx
+
+### Phase 3: Global Search ✅
+- [x] Create global search API endpoint (backend) - `backend/controllers/globalSearchController.js` + `backend/routes/searchRoutes.js`
+- [x] Register global search route in server.js
+- [x] Add global search service (frontend) - `frontend/src/services/searchService.js`
+- [x] Create GlobalSearch component with results dropdown - `frontend/src/components/common/GlobalSearch.jsx`
+- [x] Integrate search bar into MainLayout header - `frontend/src/layouts/MainLayout.jsx`

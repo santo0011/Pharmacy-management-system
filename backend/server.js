@@ -30,6 +30,7 @@ import activityLogRoutes from './routes/activityLogRoutes.js';
 import enhancedDashboardRoutes from './routes/enhancedDashboardRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
 import countryRoutes from './routes/countryRoutes.js';
+import searchRoutes from './routes/searchRoutes.js';
 
 dotenv.config();
 
@@ -75,6 +76,7 @@ app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/dashboard/enhanced', enhancedDashboardRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/countries', countryRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

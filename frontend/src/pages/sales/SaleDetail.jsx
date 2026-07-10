@@ -107,9 +107,14 @@ export default function SaleDetail() {
               <i className="fa-solid fa-edit"></i> Edit
             </button>
           )}
+          {sale.status === 'completed' && (
+            <button className="btn btn-danger" onClick={() => navigate(`/sales/${id}/return`)}>
+              <i className="fa-solid fa-undo"></i> Return Items
+            </button>
+          )}
           {(sale.status === 'completed' || sale.status === 'cancelled') && (
             <button className="btn btn-info" onClick={handleReturn}>
-              <i className="fa-solid fa-undo"></i> {sale.status === 'cancelled' ? 'Re-stock & Close' : 'Return'}
+              <i className="fa-solid fa-undo"></i> {sale.status === 'cancelled' ? 'Re-stock & Close' : 'Full Return'}
             </button>
           )}
           <button className="btn btn-secondary" onClick={() => navigate('/sales')}>

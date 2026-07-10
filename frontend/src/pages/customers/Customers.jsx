@@ -592,7 +592,7 @@ export default function Customers() {
           <>
             <div className="card" style={{ marginBottom: '16px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' }}>
               <div className="card-body">
-                <div className="customer-detail-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div className="customer-detail-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '12px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</label>
                     <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '2px', color: '#0f172a' }}>{customerDetail.customer?.customerName}</div>
@@ -604,6 +604,21 @@ export default function Customers() {
                   <div>
                     <label style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Address</label>
                     <div style={{ fontWeight: 500, marginTop: '2px', fontSize: '13px' }}>{customerDetail.customer?.customerAddress || '-'}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => {
+                        const customerId = customerDetail.customer?._id || selectedCustomer?._id || selectedCustomer?.customerRef;
+                        if (customerId) {
+                          window.location.href = `/customers/${customerId}/ledger`;
+                        }
+                      }}
+                      title="View Full Ledger"
+                      style={{ borderRadius: '8px', whiteSpace: 'nowrap' }}
+                    >
+                      <i className="fa-solid fa-book"></i> Ledger
+                    </button>
                   </div>
                 </div>
                 <div className="customer-detail-stats-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>

@@ -103,6 +103,9 @@ export default function PurchaseDetail() {
           <button className="btn btn-warning" onClick={() => navigate(`/purchases/${id}/edit`)} disabled={purchase.status === 'cancelled' || purchase.status === 'returned'}>
             <i className="fa-solid fa-edit"></i> Edit
           </button>
+          <button className="btn btn-danger" onClick={() => navigate(`/purchases/${id}/return`)} disabled={purchase.status === 'cancelled' || purchase.status === 'returned'}>
+            <i className="fa-solid fa-undo"></i> Return
+          </button>
           <button className="btn btn-secondary" onClick={() => navigate('/purchases')}>
             <i className="fa-solid fa-arrow-left"></i> Back
           </button>

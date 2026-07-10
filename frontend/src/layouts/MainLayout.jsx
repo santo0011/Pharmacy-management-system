@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchSubscriptionStatus } from '../redux/slices/dashboardSlice';
 import { confirmAction } from '../utils/sweetAlert';
 import { notificationService } from '../services/notificationService';
+import GlobalSearch from '../components/common/GlobalSearch';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -325,8 +326,9 @@ export default function MainLayout() {
               {user?.pharmacy?.pharmacyName || (user?.role === 'super_admin' ? 'Super Admin' : getPageTitle())}
             </h4>
           </div>
-          <div className="header-right">
-            <NavLink to="/notifications" className="notification-bell" style={{ position: 'relative', marginRight: '8px', color: 'var(--gray-500)', fontSize: '18px' }}>
+          <div className="header-right" style={{ gap: '12px' }}>
+            <GlobalSearch />
+            <NavLink to="/notifications" className="notification-bell" style={{ position: 'relative', color: 'var(--gray-500)', fontSize: '18px' }}>
               <i className="fa-solid fa-bell"></i>
               {notifCount > 0 && (
                 <span className="notif-badge">

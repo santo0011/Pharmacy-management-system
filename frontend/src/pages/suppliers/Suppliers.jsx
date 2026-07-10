@@ -281,14 +281,17 @@ export default function Suppliers() {
                             </label>
                           </td>
                           <td>
-                            <div className="action-buttons">
-                              <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(supplier)}>
-                                <i className="fa-solid fa-edit"></i>
-                              </button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(supplier._id)}>
-                                <i className="fa-solid fa-trash"></i>
-                              </button>
-                            </div>
+                    <div className="action-buttons">
+                      <button className="btn btn-info btn-sm" onClick={() => window.location.href = `/suppliers/${supplier._id}/ledger`} title="View Ledger">
+                        <i className="fa-solid fa-book"></i>
+                      </button>
+                      <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(supplier)}>
+                        <i className="fa-solid fa-edit"></i>
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(supplier._id)}>
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                    </div>
                           </td>
                         </tr>
                       ))}
