@@ -512,14 +512,14 @@ a {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 20px 10px 44px;
+  padding: 10px 20px;
   color: #94a3b8;
   transition: all 0.2s ease;
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   text-decoration: none;
-  margin: 1px 0;
+  margin: 1px 8px;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -1669,7 +1669,7 @@ input[type="number"]:focus {
 @media (min-width: 1200px) {
   .sale-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 480px;
+    grid-template-columns: minmax(0, 1fr) 400px;
     gap: 24px;
     align-items: start;
   }
@@ -1679,7 +1679,7 @@ input[type="number"]:focus {
 @media (min-width: 992px) and (max-width: 1199px) {
   .sale-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: minmax(0, 1fr) 320px;
     gap: 20px;
     align-items: start;
   }
@@ -1741,35 +1741,35 @@ input[type="number"]:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 0 22px;
-  height: 46px;
+  gap: 6px;
+  padding: 0 16px;
+  height: 38px;
   white-space: nowrap;
   border: none;
-  border-radius: var(--radius);
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   background: linear-gradient(135deg, var(--primary), #06b6d4);
   color: white;
   transition: all 0.25s ease;
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.2);
   flex-shrink: 0;
 }
 
 .btn-add-item:hover {
   background: linear-gradient(135deg, var(--primary-dark), #0891b2);
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);
+  box-shadow: 0 3px 10px rgba(14, 165, 233, 0.35);
   transform: translateY(-1px);
 }
 
 .btn-add-item:active {
   transform: translateY(0);
-  box-shadow: 0 1px 4px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 1px 3px rgba(14, 165, 233, 0.25);
 }
 
 .btn-add-item i {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .search-box-wrapper .search-input-wrap input:focus {

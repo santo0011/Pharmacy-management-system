@@ -23,7 +23,7 @@ export default function PurchaseForm() {
   const [discountType, setDiscountType] = useState('percentage');
   const [shippingCost, setShippingCost] = useState(0);
   const [otherCost, setOtherCost] = useState(0);
-  const [paidAmount, setPaidAmount] = useState(0);
+  const [paidAmount, setPaidAmount] = useState();
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -52,12 +52,8 @@ export default function PurchaseForm() {
       const result = await dispatch(fetchSupplierDueInvoices(supplierId)).unwrap();
       setSupplierData(result);
       setDueInvoices(result.dueInvoices || []);
-      // Auto-select all due invoices
-      if (result.dueInvoices?.length > 0) {
-        setSelectedDueInvoices(result.dueInvoices.map(inv => inv._id));
-      } else {
-        setSelectedDueInvoices([]);
-      }
+      // Let user manually select due invoices
+      setSelectedDueInvoices([]);
     } catch (err) {
       setSupplierData(null);
       setDueInvoices([]);
@@ -410,7 +406,7 @@ export default function PurchaseForm() {
                           className="search-dropdown-item">
                           <div>
                             <div className="item-name">{med.medicineName}</div>
-                            <div className="item-details">{med.genericName} | Batch: {med.batchNumber} | {med.barcode}</div>
+                            <div className="item-details">{med.genericName}</div>
                             <div className="item-batch-info">
                               <span className={`batches-badge ${med.currentStock <= 10 ? 'low' : 'in-stock'}`}>Stock: {med.currentStock}</span>
                               {med.expiryDate && (
@@ -420,7 +416,6 @@ export default function PurchaseForm() {
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <div className="item-price">₹{med.purchasePrice}</div>
-                            <div className="item-details">MRP: ₹{med.sellingPrice}</div>
                           </div>
                         </div>
                       ))}

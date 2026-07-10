@@ -36,8 +36,10 @@ export default function SuperAdminLayout() {
     <div className="app-layout">
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <i className="fa-solid fa-crown" style={{ color: '#f59e0b' }}></i>
-          <div>
+          <div className="sidebar-header-logo" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)' }}>
+            <i className="fa-solid fa-crown"></i>
+          </div>
+          <div className="sidebar-header-text">
             <h3>Super Admin</h3>
             <span>Platform Management</span>
           </div>
@@ -46,32 +48,53 @@ export default function SuperAdminLayout() {
           </button>
         </div>
         <nav className="sidebar-nav">
-          <div className="nav-label">Main Menu</div>
-          {navItems.map((item) => (
+          {/* Dashboard Link */}
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <i className="fa-solid fa-chart-pie"></i>
+            <span>Dashboard</span>
+          </NavLink>
+
+          <div className="sidebar-divider"></div>
+
+          {navItems.slice(1).map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === '/'}
-              className={({ isActive }) => (isActive ? 'active' : '')}
+              end
+              className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')}
               onClick={() => setSidebarOpen(false)}
             >
               <i className={item.icon}></i>
               <span>{item.label}</span>
             </NavLink>
           ))}
-          <div className="nav-label" style={{ marginTop: 'auto' }}>Account</div>
-          <NavLink
-            to="/profile"
-            className={({ isActive }) => (isActive ? 'active' : '')}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <i className="fa-solid fa-user"></i>
-            <span>Profile</span>
-          </NavLink>
-          <a className="sidebar-logout" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }} style={{ cursor: 'pointer' }}>
-            <i className="fa-solid fa-right-from-bracket"></i>
-            <span>Logout</span>
-          </a>
+
+          <div className="sidebar-divider"></div>
+
+          {/* Account & Logout */}
+          <div className="sidebar-account-section">
+            <div className="sidebar-account-header">
+              <i className="fa-solid fa-user"></i>
+              <span>Account</span>
+            </div>
+            <NavLink
+              to="/profile"
+              className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <i className="fa-solid fa-user-gear"></i>
+              <span>Profile</span>
+            </NavLink>
+            <a className="sidebar-logout-link" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }}>
+              <i className="fa-solid fa-right-from-bracket"></i>
+              <span>Logout</span>
+            </a>
+          </div>
         </nav>
       </aside>
 
