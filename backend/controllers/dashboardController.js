@@ -77,11 +77,17 @@ export const getPharmacyDashboard = async (req, res, next) => {
   try {
     const pharmacyId = req.pharmacyId;
 
+    const now = new Date();
+
     // Medicine stats
     const totalMedicines = await Medicine.countDocuments({ pharmacyId, isDeleted: false });
     const lowStockMedicines = await Medicine.countDocuments({
       pharmacyId, isDeleted: false,
       $expr: { $lte: ['$currentStock', '$minStockAlert'] },
+    });
+    const expiredMedicines = await Medicine.countDocuments({
+      pharmacyId, isDeleted: false,
+      expiryDate: { $lt: now },
     });
 
     // Low stock medicines (detailed)
@@ -91,6 +97,13 @@ export const getPharmacyDashboard = async (req, res, next) => {
     }).sort({ currentStock: 1 }).limit(10)
       .populate('category', 'name')
       .select('medicineName currentStock minStockAlert unit sellingPrice category');
+
+    // Expired medicines list
+    const expiredMedicinesList = await Medicine.find({
+      pharmacyId, isDeleted: false,
+      expiryDate: { $lt: now },
+    }).sort({ expiryDate: -1 }).limit(10)
+      .select('medicineName batchNumber expiryDate currentStock unit sellingPrice');
 
     // Stock distribution by category
     const stockDistribution = await Medicine.aggregate([
@@ -125,7 +138,9 @@ export const getPharmacyDashboard = async (req, res, next) => {
     return ApiResponse.success(res, {
       totalMedicines,
       lowStockMedicines,
+      expiredMedicines,
       lowStockItems,
+      expiredMedicinesList,
       stockDistribution: stockDistribution.map((s) => ({
         name: s.category?.name || 'Uncategorized',
         count: s.count,

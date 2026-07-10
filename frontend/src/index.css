@@ -5495,3 +5495,148 @@ input[type="number"]:focus {
   flex: 1;
   word-break: break-word;
 }
+
+/* ===== Global Search - Hide on Mobile ===== */
+@media (max-width: 768px) {
+  .global-search-container {
+    display: none !important;
+  }
+}
+
+/* ===== Dashboard Expired Medicines - Desktop/Mobile Toggle ===== */
+.dashboard-expired-desktop-table {
+  display: block;
+}
+
+.dashboard-expired-mobile-table {
+  display: none;
+}
+
+/* ===== Dashboard Tables - Mobile Responsive ===== */
+@media (max-width: 768px) {
+  /* Dashboard sections - stack properly */
+  .dashboard-tables-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Expired medicines - switch to mobile view */
+  .dashboard-expired-desktop-table {
+    display: none;
+  }
+
+  .dashboard-expired-mobile-table {
+    display: block;
+  }
+
+  .dashboard-expired-mobile-table .btn-sm {
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .dashboard-expired-mobile-table .btn-sm i {
+    font-size: 14px;
+  }
+
+  /* Expired medicines table - card layout on mobile */
+  .dashboard-table-scroll {
+    overflow-x: auto;
+  }
+
+  .dashboard-table th,
+  .dashboard-table td {
+    white-space: nowrap;
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+  }
+
+  /* Recent sales table on mobile */
+  .dashboard-recent-sales-desktop {
+    display: none;
+  }
+
+  .dashboard-recent-sales-mobile {
+    display: block;
+  }
+
+  .dashboard-recent-sales-mobile-table {
+    width: 100%;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-mobile-row {
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-mobile-row:hover {
+    background: var(--gray-50);
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-mobile-row td {
+    border-bottom: none !important;
+    vertical-align: middle;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-row {
+    display: table-row;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-cell {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-inner {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+    padding: 0 14px;
+    background: #fff;
+    border-radius: 8px;
+    margin: 0 4px 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-row-open .sale-detail-inner {
+    max-height: 300px;
+    padding: 10px 14px;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--gray-100);
+    gap: 10px;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-item:last-child {
+    border-bottom: none;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-label {
+    font-size: 12px;
+    color: var(--gray-500);
+    font-weight: 500;
+    flex-shrink: 0;
+    min-width: 70px;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-800);
+    text-align: right;
+    flex: 1;
+    word-break: break-word;
+  }
+
+  /* Expired medicines - mobile summary widgets */
+  .dashboard-tables-row + .card [style*="grid-template-columns"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+}

@@ -16,6 +16,12 @@ export default function Medicines() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { items, total, loading } = useSelector((state) => state.medicines);
+
+  // Parse URL query params for pre-applied filters
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlExpired = urlParams.get('expired');
+  const urlLowStock = urlParams.get('lowStock');
+  const urlExpiringSoon = urlParams.get('expiringSoon');
   const { items: categories } = useSelector((state) => state.categories);
   const { items: brands } = useSelector((state) => state.brands);
   const { items: suppliers } = useSelector((state) => state.suppliers);
@@ -28,9 +34,9 @@ export default function Medicines() {
     brand: '',
     supplier: '',
     status: '',
-    expired: '',
-    lowStock: '',
-    expiringSoon: '',
+    expired: urlExpired || '',
+    lowStock: urlLowStock || '',
+    expiringSoon: urlExpiringSoon || '',
     sort: 'newest',
   });
   const [expandedRows, setExpandedRows] = useState({});
