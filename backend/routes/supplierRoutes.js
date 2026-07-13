@@ -23,13 +23,15 @@ router.route('/')
   .get(getSuppliers)
   .post(createSupplier);
 
+// Static routes must come before /:id to avoid "bulk-import" being matched as :id
+router.post('/bulk-import', bulkImportSuppliers);
+router.get('/dues', getSupplierDues);
+
 router.route('/:id')
   .get(getSupplier)
   .put(updateSupplier)
   .delete(deleteSupplier);
 
-router.post('/bulk-import', bulkImportSuppliers);
-router.get('/dues', getSupplierDues);
 router.get('/:id/ledger', getSupplierLedger);
 router.patch('/:id/status', toggleSupplierStatus);
 

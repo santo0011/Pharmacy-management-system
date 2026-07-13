@@ -22,12 +22,13 @@ router.route('/')
   .get(getCategories)
   .post(uploadCategoryImage.single('image'), handleUploadError, createCategory);
 
+// Static routes must come before /:id to avoid "bulk-import" being matched as :id
+router.post('/bulk-import', bulkImportCategories);
+
 router.route('/:id')
   .get(getCategory)
   .put(uploadCategoryImage.single('image'), handleUploadError, updateCategory)
   .delete(deleteCategory);
-
-router.post('/bulk-import', bulkImportCategories);
 
 router.patch('/:id/status', toggleCategoryStatus);
 

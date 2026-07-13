@@ -69,7 +69,7 @@ const subscriptionHistorySchema = mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'upcoming', 'expired'],
+      enum: ['active', 'upcoming', 'expired', 'cancelled'],
       default: 'active',
     },
     transactionId: {
@@ -88,6 +88,30 @@ const subscriptionHistorySchema = mongoose.Schema(
       type: String,
       default: '',
     },
+    // Cancellation fields
+    cancelledDate: {
+      type: Date,
+      default: null,
+    },
+    cancelledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    cancelledByName: {
+      type: String,
+      default: '',
+    },
+    cancellationReason: {
+      type: String,
+      default: '',
+    },
+    // Action type for activity tracking
+    action: {
+      type: String,
+      enum: ['created', 'extended', 'cancelled', 'reactivated', 'expired', 'renewed'],
+      default: 'created',
+    },
   },
   {
     timestamps: true,
@@ -96,7 +120,9 @@ const subscriptionHistorySchema = mongoose.Schema(
 
 // Index for efficient queries
 subscriptionHistorySchema.index({ pharmacy: 1, startDate: -1 });
+subscriptionHistorySchema.index({ pharmacy: 1, status: 1 });
 subscriptionHistorySchema.index({ status: 1 });
+subscriptionHistorySchema.index({ endDate: 1 });
 
 const SubscriptionHistory = mongoose.model('SubscriptionHistory', subscriptionHistorySchema);
 

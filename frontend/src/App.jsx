@@ -26,6 +26,7 @@ import Customers from './pages/customers/Customers';
 import CustomerLedger from './pages/customers/CustomerLedger';
 import Reports from './pages/reports/Reports';
 import Subscriptions from './pages/subscriptions/Subscriptions';
+import SubscriptionExpired from './pages/subscriptions/SubscriptionExpired';
 import Payments from './pages/payments/Payments';
 import Settings from './pages/settings/Settings';
 import Profile from './pages/profile/Profile';
@@ -86,6 +87,7 @@ export default function App() {
 
         {/* Pharmacy User routes */}
         <Route path="subscriptions" element={<Subscriptions />} />
+        <Route path="subscription-expired" element={<SubscriptionExpired />} />
         <Route path="categories" element={<Categories />} />
         <Route path="brands" element={<Brands />} />
         <Route path="suppliers" element={<Suppliers />} />

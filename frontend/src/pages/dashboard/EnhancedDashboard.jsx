@@ -8,6 +8,7 @@ import { fetchSaleStats } from '../../redux/slices/saleSlice';
 import { fetchPurchaseStats } from '../../redux/slices/purchaseSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
 import { notificationService } from '../../services/notificationService';
+import { formatCurrency, getCurrentSymbol } from '../../utils/currency';
 import {
   Chart as ChartJS,
   ArcElement,
@@ -239,7 +240,7 @@ export default function EnhancedDashboard() {
   const dailySalesChart = dailySales.length > 0 ? {
     labels: dailySales.map(d => { const p = d.date.split('-'); return `${p[2]}/${p[1]}`; }),
     datasets: [{
-      label: 'Sales (₹)',
+      label: `Sales (${getCurrentSymbol()})`,
       data: dailySales.map(d => d.amount),
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -500,7 +501,7 @@ export default function EnhancedDashboard() {
                           const isCritical = daysExpired > 90;
                           const isWarning = daysExpired > 30;
                           return (
-                            <tr key={item._id} style={{ cursor: 'pointer', background: isCritical ? '#fef2f2' : isWarning ? '#fffbeb' : 'transparent' }} onClick={() => navigate(`/medicines/${item._id}`)}>
+                            <tr key={item._id} style={{ cursor: 'pointer', background: isCritical ? '#fef2f2' : isWarning ? '#fffbeb' : 'transparent' }} >
                               <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
                               <td style={{ fontSize: '12px', color: '#64748b' }}>{item.batchNumber || '-'}</td>
                               <td><span className="badge badge-danger">{expiryDate.toLocaleDateString()}</span></td>

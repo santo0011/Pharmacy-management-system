@@ -347,7 +347,7 @@ export default function Medicines() {
                     </thead>
                     <tbody>
                       {items.map((med) => (
-                        <tr key={med._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${med._id}`)}>
+                        <tr key={med._id} style={{ cursor: 'pointer' }} >
                           <td onClick={(e) => e.stopPropagation()}>
                             {med.medicineImage ? (
                               <img src={med.medicineImage} alt={med.medicineName} className="image-preview" style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} />

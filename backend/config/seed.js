@@ -7,14 +7,14 @@ const seedSuperAdmin = async () => {
       await User.create({
         name: 'Super Admin',
         email: 'admin@pharmacy.com',
-        password: 'Admin@123',
+        password: '123456',
         role: 'super_admin',
         phone: '0000000000',
         isActive: true,
       });
       console.log('Default Super Admin created successfully');
       console.log('Email: admin@pharmacy.com');
-      console.log('Password: Admin@123');
+      console.log('Password: 123456');
     } else {
       console.log('Super Admin already exists');
     }

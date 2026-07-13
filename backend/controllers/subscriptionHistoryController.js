@@ -101,35 +101,27 @@ export const deleteSubscriptionHistory = async (req, res, next) => {
     // Delete the upcoming record
     await record.deleteOne();
 
-    // Recalculate the pharmacy's subscription end date based on the most recent
-    // non-upcoming subscription history record.
-    // This ensures the remaining days are correct after cancelling a renewal.
+    // Recalculate the pharmacy's subscription end date dynamically
+    // from remaining active records
     const pharmacy = await Pharmacy.findById(pharmacyId);
     if (pharmacy) {
-      // Find the most recent record that is NOT upcoming (active or expired)
-      const lastActiveRecord = await SubscriptionHistory.findOne({
+      // Find all remaining active/upcoming records
+      const activeRecords = await SubscriptionHistory.find({
         pharmacy: pharmacyId,
-        status: { $ne: 'upcoming' },
-        // Exclude the just-deleted record in case the query uses a stale snapshot
-        _id: { $ne: record._id },
+        status: { $in: ['active', 'upcoming'] },
       }).sort({ endDate: -1 });
 
-      if (lastActiveRecord) {
-        // Roll back the pharmacy's subscription to the last non-upcoming record
-        pharmacy.subscriptionPlan = lastActiveRecord.planName;
-        pharmacy.subscriptionPlanId = lastActiveRecord.planId;
-        pharmacy.subscriptionStartDate = lastActiveRecord.startDate;
-        pharmacy.subscriptionEndDate = lastActiveRecord.endDate;
+      if (activeRecords.length > 0) {
+        const furthestRecord = activeRecords[0];
+        pharmacy.subscriptionPlan = furthestRecord.planName;
+        pharmacy.subscriptionPlanId = furthestRecord.planId;
+        pharmacy.subscriptionStartDate = furthestRecord.startDate;
+        pharmacy.subscriptionEndDate = furthestRecord.endDate;
       } else {
-        // No previous subscription records — check if endDate was set manually on pharmacy
-        // and if so, keep it; otherwise reset to free
-        if (!pharmacy.subscriptionEndDate) {
-          pharmacy.subscriptionPlan = 'free';
-          pharmacy.subscriptionPlanId = null;
-          pharmacy.subscriptionStartDate = null;
-        }
-        // If there's no history at all, just leave the current endDate as-is
-        // (it might have been set before history tracking was implemented)
+        pharmacy.subscriptionPlan = 'free';
+        pharmacy.subscriptionPlanId = null;
+        pharmacy.subscriptionStartDate = null;
+        pharmacy.subscriptionEndDate = null;
       }
 
       await pharmacy.save();

@@ -224,10 +224,10 @@ export default function Categories() {
             title="Bulk Import Categories"
             entityName="categories"
             endpoint="/categories/bulk-import"
-            sampleFormat="Name, Description\nPain Relief, Pain relief medications\nAntibiotics, Antibacterial medicines\nVitamins, Vitamin supplements"
+            headerIncluded={false}
             fields={[
-              { key: 'name', label: 'Name', required: true, sample: 'Pain Relief' },
-              { key: 'description', label: 'Description', required: false, sample: 'Pain relief medications' },
+              { key: 'name', label: 'Category Name', required: true, sample: 'Pain Relief' },
+              { key: 'description', label: 'Description', required: false, sample: 'Medicines for pain management' },
             ]}
             onComplete={() => loadCategories()}
           />

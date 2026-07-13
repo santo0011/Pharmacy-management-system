@@ -22,12 +22,13 @@ router.route('/')
   .get(getBrands)
   .post(uploadBrandLogo.single('logo'), handleUploadError, createBrand);
 
+// Static routes must come before /:id to avoid "bulk-import" being matched as :id
+router.post('/bulk-import', bulkImportBrands);
+
 router.route('/:id')
   .get(getBrand)
   .put(uploadBrandLogo.single('logo'), handleUploadError, updateBrand)
   .delete(deleteBrand);
-
-router.post('/bulk-import', bulkImportBrands);
 
 router.patch('/:id/status', toggleBrandStatus);
 

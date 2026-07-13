@@ -15,6 +15,7 @@ import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/
 import { pharmacyService } from '../../services/pharmacyService';
 import { subscriptionHistoryService } from '../../services/subscriptionHistoryService';
 import Drawer from '../../components/common/Drawer';
+import Swal from 'sweetalert2';
 
 const initialPlanFormState = {
   planName: '',
@@ -25,6 +26,24 @@ const initialPlanFormState = {
   features: '',
   maxStaff: '',
   maxBranches: '',
+};
+
+// Status badge configuration
+const STATUS_CONFIG = {
+  active: { class: 'badge-success', icon: 'fa-check-circle', label: 'Active' },
+  upcoming: { class: 'badge-info', icon: 'fa-clock', label: 'Upcoming' },
+  expired: { class: 'badge-danger', icon: 'fa-times-circle', label: 'Expired' },
+  cancelled: { class: 'badge-secondary', icon: 'fa-ban', label: 'Cancelled' },
+};
+
+// Action badge configuration
+const ACTION_CONFIG = {
+  created: { class: 'badge-success', icon: 'fa-plus-circle', label: 'Created' },
+  extended: { class: 'badge-info', icon: 'fa-arrow-right', label: 'Extended' },
+  cancelled: { class: 'badge-danger', icon: 'fa-ban', label: 'Cancelled' },
+  reactivated: { class: 'badge-warning', icon: 'fa-rotate', label: 'Reactivated' },
+  expired: { class: 'badge-secondary', icon: 'fa-clock', label: 'Expired' },
+  renewed: { class: 'badge-primary', icon: 'fa-refresh', label: 'Renewed' },
 };
 
 export default function Subscriptions() {
@@ -63,12 +82,35 @@ export default function Subscriptions() {
   }, [activeTab, isSuperAdmin, fetchMyHistory]);
 
   const getStatusBadge = (status) => {
-    switch (status) {
-      case 'active': return 'badge-success';
-      case 'upcoming': return 'badge-info';
-      case 'expired': return 'badge-danger';
-      default: return 'badge-secondary';
-    }
+    const config = STATUS_CONFIG[status];
+    if (!config) return 'badge-secondary';
+    return config.class;
+  };
+
+  const getStatusIcon = (status) => {
+    const config = STATUS_CONFIG[status];
+    return config ? config.icon : 'fa-circle';
+  };
+
+  const getStatusLabel = (status) => {
+    const config = STATUS_CONFIG[status];
+    return config ? config.label : status;
+  };
+
+  const getActionBadge = (action) => {
+    const config = ACTION_CONFIG[action];
+    if (!config) return 'badge-secondary';
+    return config.class;
+  };
+
+  const getActionIcon = (action) => {
+    const config = ACTION_CONFIG[action];
+    return config ? config.icon : 'fa-circle';
+  };
+
+  const getActionLabel = (action) => {
+    const config = ACTION_CONFIG[action];
+    return config ? config.label : action;
   };
 
   // ------ Plans State ------
@@ -144,22 +186,44 @@ export default function Subscriptions() {
     );
   };
 
-  // ------ Cancel Renewal (Super Admin only) ------
-  const handleCancelUpcoming = async (recordId) => {
-    const now = new Date();
-    const timeStr = now.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const confirmed = await showConfirm(
-      'Cancel Upcoming Subscription',
-      `Are you sure you want to cancel this upcoming subscription?\n\nThis action will be recorded at ${timeStr} and cannot be undone.`,
-      'warning'
-    );
-    if (!confirmed) return;
+  // ------ Cancel Subscription (Super Admin) ------
+  const handleCancelSubscription = async (recordId) => {
+    const { value: reason } = await Swal.fire({
+      title: 'Cancel Subscription',
+      text: 'Please provide a reason for cancellation:',
+      input: 'textarea',
+      inputPlaceholder: 'Enter cancellation reason...',
+      inputAttributes: {
+        'aria-label': 'Cancellation reason',
+      },
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, cancel it!',
+      cancelButtonText: 'Go Back',
+      background: '#1f2937',
+      color: '#fff',
+      iconColor: '#f59e0b',
+      reverseButtons: true,
+      inputValidator: (value) => {
+        if (!value) {
+          return 'Please provide a reason for cancellation';
+        }
+      },
+    });
+
+    if (!reason) return;
+
     try {
-      await subscriptionHistoryService.deleteRecord(recordId);
-      showSuccess(`Upcoming subscription cancelled successfully at ${timeStr}`);
-      // Remove from the drawer list and refresh parent pharmacy data
+      const { data } = await subscriptionHistoryService.cancelSubscription(recordId, { cancellationReason: reason });
+      showSuccess(data.message || 'Subscription cancelled successfully');
+      // Refresh the drawer list
       if (subHistoryDrawerOpen) {
-        setSubHistoryRecords(prev => prev.filter(r => r._id !== recordId));
+        setSubHistoryRecords(prev => prev.map(r => 
+          r._id === recordId 
+            ? { ...r, status: 'cancelled', action: 'cancelled', cancelledDate: new Date(), cancellationReason: reason }
+            : r
+        ));
       }
       // Reload the pharmacy list to reflect updated subscription end date
       loadPharmacies();
@@ -169,6 +233,35 @@ export default function Subscriptions() {
       }
     } catch (error) {
       showError(error?.response?.data?.message || 'Failed to cancel subscription');
+    }
+  };
+
+  // ------ Reactivate Subscription ------
+  const handleReactivateSubscription = async (recordId) => {
+    const confirmed = await showConfirm(
+      'Reactivate Subscription',
+      'Are you sure you want to reactivate this cancelled subscription? This will restore it as an active subscription.',
+      'question'
+    );
+    if (!confirmed) return;
+
+    try {
+      const { data } = await subscriptionHistoryService.reactivateSubscription(recordId);
+      showSuccess(data.message || 'Subscription reactivated successfully');
+      // Refresh the drawer list
+      if (subHistoryDrawerOpen) {
+        setSubHistoryRecords(prev => prev.map(r => 
+          r._id === recordId 
+            ? { ...r, status: 'active', action: 'reactivated', cancelledDate: null, cancellationReason: '' }
+            : r
+        ));
+      }
+      loadPharmacies();
+      if (!isSuperAdmin) {
+        dispatch(fetchSubscriptionStatus());
+      }
+    } catch (error) {
+      showError(error?.response?.data?.message || 'Failed to reactivate subscription');
     }
   };
 
@@ -379,7 +472,7 @@ export default function Subscriptions() {
     }
   };
 
-  // Renew handlers for subscriptions tab
+  // Renew handlers for subscriptions tab - with confirmation alert
   const openSubRenewDrawer = (pharmacy) => {
     const defaultPlanId = pharmacy.subscriptionPlanId || (activePlans.length > 0 ? activePlans[0]._id : '');
     const currentEnd = pharmacy.subscriptionEndDate ? new Date(pharmacy.subscriptionEndDate) : null;
@@ -430,19 +523,94 @@ export default function Subscriptions() {
 
   const handleSubRenew = async () => {
     if (!renewForm.planId) { showError('Please select a subscription plan'); return; }
+
+    // Show confirmation alert with preview
+    try {
+      const previewRes = await subscriptionHistoryService.previewSubscription({
+        pharmacyId: renewPharmacy._id,
+        planId: renewForm.planId,
+        startDate: renewForm.startDate,
+        endDate: renewForm.endDate,
+      });
+      const preview = previewRes.data.data;
+
+      const confirmResult = await Swal.fire({
+        title: 'Confirm Subscription Addition',
+        html: `
+          <div style="text-align: left; font-size: 14px; color: #1e293b;">
+            <div style="margin-bottom: 16px; padding: 12px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+              <strong style="color: #16a34a;">🏥 ${preview.pharmacyName}</strong>
+            </div>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Current Plan</td>
+                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; text-transform: capitalize; color: #1e293b;">${preview.currentPlan}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Plan</td>
+                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.newPlan}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Current Remaining Days</td>
+                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.currentRemainingDays} days</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Subscription Duration</td>
+                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.newDuration} ${preview.newDurationUnit}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Start Date</td>
+                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${new Date(preview.newStartDate).toLocaleDateString()}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New End Date</td>
+                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${new Date(preview.newEndDate).toLocaleDateString()}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Amount</td>
+                <td style="padding: 8px 12px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">₹${preview.amount?.toLocaleString()}</td>
+              </tr>
+            </table>
+            <div style="margin-top: 16px; padding: 12px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; text-align: center;">
+              <strong style="color: #1d4ed8; font-size: 16px;">
+                Final Remaining Days After Activation: ${preview.finalRemainingDays} days
+              </strong>
+            </div>
+          </div>
+        `,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#94a3b8',
+        confirmButtonText: 'Yes, Add Subscription',
+        cancelButtonText: 'Cancel',
+        background: '#ffffff',
+        color: '#1e293b',
+        iconColor: '#2563eb',
+        reverseButtons: true,
+        width: '550px',
+      });
+
+      if (!confirmResult.isConfirmed) return;
+    } catch (err) {
+      showError('Failed to get subscription preview');
+      return;
+    }
+
     setRenewSubmitting(true);
     try {
-      const { data } = await pharmacyService.updateSubscription(renewPharmacy._id, {
-        subscriptionPlanId: renewForm.planId,
-        subscriptionStartDate: renewForm.startDate,
-        subscriptionEndDate: renewForm.endDate,
+      const { data } = await subscriptionHistoryService.addSubscription({
+        pharmacyId: renewPharmacy._id,
+        planId: renewForm.planId,
+        startDate: renewForm.startDate,
+        endDate: renewForm.endDate,
         notes: renewForm.notes,
       });
-      showSuccess(data.message || 'Subscription renewed successfully!');
+      showSuccess(data.message || 'Subscription added successfully!');
       closeSubRenewDrawer();
       loadPharmacies();
     } catch (error) {
-      showError(error?.response?.data?.message || 'Failed to renew subscription');
+      showError(error?.response?.data?.message || 'Failed to add subscription');
     } finally {
       setRenewSubmitting(false);
     }
@@ -489,6 +657,106 @@ export default function Subscriptions() {
     </>
   );
 
+  // ------ Timeline View Component ------
+  const renderTimelineView = (records) => {
+    if (!records || records.length === 0) return null;
+
+    return (
+      <div className="timeline-container" style={{ padding: '16px' }}>
+        <h6 style={{ marginBottom: '16px', color: 'var(--gray-600)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <i className="fa-solid fa-timeline"></i> Subscription Timeline
+        </h6>
+        <div style={{ position: 'relative', paddingLeft: '30px' }}>
+          {/* Vertical line */}
+          <div style={{
+            position: 'absolute',
+            left: '12px',
+            top: '0',
+            bottom: '0',
+            width: '2px',
+            background: 'var(--gray-200)',
+          }}></div>
+          
+          {records.map((record, index) => {
+            const actionConfig = ACTION_CONFIG[record.action] || ACTION_CONFIG.created;
+            const statusConfig = STATUS_CONFIG[record.status] || STATUS_CONFIG.expired;
+            const isLatest = index === 0;
+            
+            return (
+              <div key={record._id} style={{
+                position: 'relative',
+                marginBottom: '20px',
+                paddingLeft: '20px',
+              }}>
+                {/* Timeline dot */}
+                <div style={{
+                  position: 'absolute',
+                  left: '-26px',
+                  top: '4px',
+                  width: isLatest ? '16px' : '12px',
+                  height: isLatest ? '16px' : '12px',
+                  borderRadius: '50%',
+                  background: record.status === 'active' ? '#22c55e' 
+                    : record.status === 'upcoming' ? '#0ea5e9'
+                    : record.status === 'cancelled' ? '#ef4444'
+                    : '#64748b',
+                  border: isLatest ? '3px solid #fff' : '2px solid #fff',
+                  boxShadow: isLatest ? '0 0 0 2px #22c55e' : '0 0 0 1px var(--gray-300)',
+                  zIndex: 1,
+                }}></div>
+                
+                {/* Card */}
+                <div style={{
+                  padding: '12px',
+                  background: isLatest ? '#f0fdf4' : '#f8fafc',
+                  borderRadius: '8px',
+                  border: isLatest ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div>
+                      <strong style={{ textTransform: 'capitalize', fontSize: '14px' }}>{record.planName}</strong>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                        <span className={`badge ${getStatusBadge(record.status)}`} style={{ fontSize: '10px' }}>
+                          <i className={`fa-solid ${getStatusIcon(record.status)}`} style={{ marginRight: '3px' }}></i>
+                          {getStatusLabel(record.status)}
+                        </span>
+                        <span className={`badge ${getActionBadge(record.action)}`} style={{ fontSize: '10px' }}>
+                          <i className={`fa-solid ${getActionIcon(record.action)}`} style={{ marginRight: '3px' }}></i>
+                          {getActionLabel(record.action)}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: '11px', color: 'var(--gray-500)' }}>
+                      <div>{new Date(record.createdAt).toLocaleDateString()}</div>
+                      <div style={{ fontSize: '10px' }}>{new Date(record.createdAt).toLocaleTimeString()}</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px', color: 'var(--gray-600)' }}>
+                    <div><strong>Start:</strong> {new Date(record.startDate).toLocaleDateString()}</div>
+                    <div><strong>End:</strong> {new Date(record.endDate).toLocaleDateString()}</div>
+                    <div><strong>Duration:</strong> {record.duration} {record.durationUnit}</div>
+                    <div><strong>Amount:</strong> ₹{record.amount?.toLocaleString()}</div>
+                    {record.createdByName && (
+                      <div style={{ gridColumn: '1 / -1' }}><strong>By:</strong> {record.createdByName}</div>
+                    )}
+                    {record.cancelledDate && (
+                      <div style={{ gridColumn: '1 / -1', color: '#ef4444' }}>
+                        <strong>Cancelled:</strong> {new Date(record.cancelledDate).toLocaleDateString()} 
+                        {record.cancellationReason ? ` - ${record.cancellationReason}` : ''}
+                        {record.cancelledByName ? ` (by ${record.cancelledByName})` : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // ------ Admin Subscription Status Card ------
   const renderMySubscription = () => {
     if (!subscriptionStatus) {
@@ -505,7 +773,7 @@ export default function Subscriptions() {
     const daysRemaining = subscriptionStatus.daysRemaining !== undefined ? subscriptionStatus.daysRemaining : 'N/A';
 
     // Desktop column definitions for history
-    const desktopCols = ['Plan Name', 'Start Date', 'Expiry Date', 'Duration', 'Amount', 'Status', 'Renewal Date', 'Payment Method'];
+    const desktopCols = ['Plan Name', 'Start Date', 'Expiry Date', 'Duration', 'Amount', 'Status', 'Action', 'Renewal Date', 'Payment Method'];
 
     return (
       <>
@@ -587,7 +855,7 @@ export default function Subscriptions() {
       </div>
 
       {/* Subscription History Section */}
-      <div className="card" style={{ maxWidth: '800px', margin: '24px auto 0' }}>
+      <div className="card" style={{ maxWidth: '900px', margin: '24px auto 0' }}>
         <div className="card-header">
           <h5><i className="fa-solid fa-clock-rotate-left"></i> Subscription History</h5>
         </div>
@@ -596,6 +864,9 @@ export default function Subscriptions() {
             <div className="loading-spinner" style={{ padding: '30px' }}><i className="fa-solid fa-spinner fa-spin"></i></div>
           ) : myHistory.length > 0 ? (
             <>
+              {/* Timeline View */}
+              {renderTimelineView(myHistory)}
+              
               {/* Desktop table */}
               <div className="customer-desktop-table">
                 <div className="table-container">
@@ -608,6 +879,7 @@ export default function Subscriptions() {
                         <th>Duration</th>
                         <th>Amount</th>
                         <th>Status</th>
+                        <th>Action</th>
                         <th>Renewal Date</th>
                         <th>Payment Method</th>
                       </tr>
@@ -622,7 +894,14 @@ export default function Subscriptions() {
                           <td style={{ fontWeight: 600 }}>₹{record.amount.toLocaleString()}</td>
                           <td>
                             <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
-                              {record.status}
+                              <i className={`fa-solid ${getStatusIcon(record.status)}`} style={{ marginRight: '3px' }}></i>
+                              {getStatusLabel(record.status)}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${getActionBadge(record.action)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>
+                              <i className={`fa-solid ${getActionIcon(record.action)}`} style={{ marginRight: '3px' }}></i>
+                              {getActionLabel(record.action)}
                             </span>
                           </td>
                           <td>{new Date(record.renewalDate).toLocaleDateString()}</td>
@@ -649,12 +928,13 @@ export default function Subscriptions() {
                     const mainCols = [
                       { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
                       { render: (r) => <span style={{ fontWeight: 600 }}>₹{r.amount.toLocaleString()}</span> },
-                      { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{r.status}</span> },
+                      { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{getStatusLabel(r.status)}</span> },
                     ];
                     const detailRows = [
                       { label: 'Start', render: (r) => new Date(r.startDate).toLocaleDateString() },
                       { label: 'Expiry', render: (r) => new Date(r.endDate).toLocaleDateString() },
                       { label: 'Duration', render: (r) => `${r.duration} ${r.durationUnit}` },
+                      { label: 'Action', render: (r) => <span className={`badge ${getActionBadge(r.action)}`} style={{ fontSize: '10px' }}>{getActionLabel(r.action)}</span> },
                       { label: 'Renewed', render: (r) => new Date(r.renewalDate).toLocaleDateString() },
                       { label: 'Payment', render: (r) => <span style={{ textTransform: 'capitalize' }}>{r.paymentMethod || '-'}</span> },
                     ];
@@ -936,7 +1216,7 @@ export default function Subscriptions() {
                               <td>
                                 <div className="action-buttons">
                                   <button className="btn btn-warning btn-sm" onClick={() => openEdit(p)} title="Edit"><i className="fa-solid fa-edit"></i></button>
-                                  <button className="btn btn-primary btn-sm" onClick={() => openSubRenewDrawer(p)} title="Renew"><i className="fa-solid fa-rotate"></i></button>
+                                  <button className="btn btn-primary btn-sm" onClick={() => openSubRenewDrawer(p)} title="Add/Renew Subscription"><i className="fa-solid fa-plus"></i></button>
                                   <button className="btn btn-info btn-sm" onClick={() => openSubHistoryDrawer(p)} title="History"><i className="fa-solid fa-clock-rotate-left"></i></button>
                                 </div>
                               </td>
@@ -970,7 +1250,7 @@ export default function Subscriptions() {
                           { label: 'Actions', render: () => (
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                               <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Edit"><i className="fa-solid fa-edit"></i></button>
-                              <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); openSubRenewDrawer(p); }} title="Renew"><i className="fa-solid fa-rotate"></i></button>
+                              <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); openSubRenewDrawer(p); }} title="Add/Renew"><i className="fa-solid fa-plus"></i></button>
                               <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); openSubHistoryDrawer(p); }} title="History"><i className="fa-solid fa-clock-rotate-left"></i></button>
                             </div>
                           )},
@@ -1020,13 +1300,13 @@ export default function Subscriptions() {
           <Drawer
             isOpen={renewDrawerOpen}
             onClose={closeSubRenewDrawer}
-            title={renewPharmacy ? `Renew Subscription - ${renewPharmacy.pharmacyName}` : 'Renew Subscription'}
+            title={renewPharmacy ? `Add Subscription - ${renewPharmacy.pharmacyName}` : 'Add Subscription'}
             footer={
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={closeSubRenewDrawer}>Cancel</button>
                 <button type="button" className="btn btn-primary" onClick={handleSubRenew} disabled={renewSubmitting}>
                   {renewSubmitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-                  {renewSubmitting ? 'Processing...' : 'Confirm & Renew'}
+                  {renewSubmitting ? 'Processing...' : 'Review & Confirm'}
                 </button>
               </div>
             }
@@ -1081,12 +1361,15 @@ export default function Subscriptions() {
             onClose={closeSubHistoryDrawer}
             title={subHistoryPharmacy ? `Subscription History - ${subHistoryPharmacy.pharmacyName}` : 'Subscription History'}
             footer={<button type="button" className="btn btn-secondary" onClick={closeSubHistoryDrawer}>Close</button>}
-            style={{ width: '750px' }}
+            style={{ width: '1050px' }}
           >
             {subHistoryLoading ? (
               <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
             ) : subHistoryRecords.length > 0 ? (
               <>
+                {/* Timeline View */}
+                {renderTimelineView(subHistoryRecords)}
+                
                 {/* Desktop table */}
                 <div className="customer-desktop-table">
                   <div className="table-container">
@@ -1099,6 +1382,7 @@ export default function Subscriptions() {
                           <th>Duration</th>
                           <th>Amount</th>
                           <th>Status</th>
+                          <th>Action</th>
                           <th>Renewed</th>
                           <th>Payment</th>
                           <th>Actions</th>
@@ -1114,17 +1398,31 @@ export default function Subscriptions() {
                             <td style={{ fontWeight: 600 }}>₹{record.amount?.toLocaleString()}</td>
                             <td>
                               <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
-                                {record.status}
+                                <i className={`fa-solid ${getStatusIcon(record.status)}`} style={{ marginRight: '3px' }}></i>
+                                {getStatusLabel(record.status)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`badge ${getActionBadge(record.action)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>
+                                <i className={`fa-solid ${getActionIcon(record.action)}`} style={{ marginRight: '3px' }}></i>
+                                {getActionLabel(record.action)}
                               </span>
                             </td>
                             <td>{new Date(record.renewalDate).toLocaleDateString()}</td>
                             <td style={{ textTransform: 'capitalize' }}>{record.paymentMethod || '-'}</td>
                             <td>
-                              {record.status === 'upcoming' && (
-                                <button className="btn btn-danger btn-sm" onClick={() => handleCancelUpcoming(record._id)} title="Cancel Subscription">
-                                  <i className="fa-solid fa-ban"></i> Cancel
-                                </button>
-                              )}
+                              <div className="action-buttons" style={{ gap: '4px' }}>
+                                {(record.status === 'active' || record.status === 'upcoming') && (
+                                  <button className="btn btn-danger btn-sm" onClick={() => handleCancelSubscription(record._id)} title="Cancel Subscription">
+                                    <i className="fa-solid fa-ban"></i>
+                                  </button>
+                                )}
+                                {record.status === 'cancelled' && (
+                                  <button className="btn btn-success btn-sm" onClick={() => handleReactivateSubscription(record._id)} title="Reactivate Subscription">
+                                    <i className="fa-solid fa-rotate"></i>
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1148,19 +1446,29 @@ export default function Subscriptions() {
                       const mainCols = [
                         { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
                         { render: (r) => <span style={{ fontWeight: 600 }}>₹{r.amount?.toLocaleString()}</span> },
-                        { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{r.status}</span> },
+                        { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{getStatusLabel(r.status)}</span> },
                       ];
                       const detailRows = [
                         { label: 'Start', render: (r) => new Date(r.startDate).toLocaleDateString() },
                         { label: 'End', render: (r) => new Date(r.endDate).toLocaleDateString() },
                         { label: 'Duration', render: (r) => `${r.duration} ${r.durationUnit}` },
+                        { label: 'Action', render: (r) => <span className={`badge ${getActionBadge(r.action)}`} style={{ fontSize: '10px' }}>{getActionLabel(r.action)}</span> },
                         { label: 'Renewed', render: (r) => new Date(r.renewalDate).toLocaleDateString() },
                         { label: 'Payment', render: (r) => <span style={{ textTransform: 'capitalize' }}>{r.paymentMethod || '-'}</span> },
-                        { label: '', render: (r) => record.status === 'upcoming' ? (
-                          <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleCancelUpcoming(r._id); }} title="Cancel Subscription">
-                            <i className="fa-solid fa-ban"></i> Cancel
-                          </button>
-                        ) : null },
+                        { label: '', render: (r) => (
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {(r.status === 'active' || r.status === 'upcoming') && (
+                              <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleCancelSubscription(r._id); }} title="Cancel Subscription">
+                                <i className="fa-solid fa-ban"></i> Cancel
+                              </button>
+                            )}
+                            {r.status === 'cancelled' && (
+                              <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleReactivateSubscription(r._id); }} title="Reactivate">
+                                <i className="fa-solid fa-rotate"></i> Reactivate
+                              </button>
+                            )}
+                          </div>
+                        )},
                       ];
                       return renderExpandableRow(record, idx, 'hist', expanded, () => toggleRow('hist', idx), mainCols, detailRows);
                     })}

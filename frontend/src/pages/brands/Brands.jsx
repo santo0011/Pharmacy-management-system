@@ -220,10 +220,10 @@ export default function Brands() {
             title="Bulk Import Brands"
             entityName="brands"
             endpoint="/brands/bulk-import"
-            sampleFormat="Name, Description\nCipla, Cipla pharmaceuticals\nSun Pharma, Sun pharmaceutical products\nDr Reddys, Dr Reddys medicines"
+            headerIncluded={false}
             fields={[
-              { key: 'name', label: 'Name', required: true, sample: 'Cipla' },
-              { key: 'description', label: 'Description', required: false, sample: 'Cipla pharmaceuticals' },
+              { key: 'name', label: 'Brand Name', required: true, sample: 'Square Pharma' },
+              { key: 'description', label: 'Description', required: false, sample: 'Pharmaceutical company' },
             ]}
             onComplete={() => loadBrands()}
           />
