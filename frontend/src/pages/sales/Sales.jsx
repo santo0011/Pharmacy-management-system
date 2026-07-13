@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchSales, fetchSaleStats } from '../../redux/slices/saleSlice';
@@ -50,7 +51,7 @@ export default function Sales() {
             <span style={{ fontWeight: 500, fontSize: '13px' }}>{sale.invoiceNumber}</span>
           </td>
           <td>
-            <span style={{ fontWeight: 600, fontSize: '13px' }}>₹{sale.grandTotal?.toFixed(2)}</span>
+            <span style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={sale.grandTotal} /></span>
           </td>
           <td className="sales-expand-cell">
             <button className="sales-expand-btn">
@@ -131,22 +132,22 @@ export default function Sales() {
       <div className="dashboard-summary-grid" style={{ marginBottom: '20px' }}>
         <div className="summary-item summary-item-blue">
           <div className="summary-label">Total Sales</div>
-          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalAmount || 0} decimals={2} compact /></div>
+          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.totalAmount || 0} /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalSales || 0} invoices</div>
         </div>
         <div className="summary-item summary-item-green">
           <div className="summary-label">Total Paid</div>
-          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalPaid || 0} decimals={2} compact /></div>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>This month: ₹{(stats?.monthlyAmount || 0).toFixed(2)}</div>
+          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.totalPaid || 0} /></div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>This month: <CurrencyDisplay value={stats?.monthlyAmount || 0} /></div>
         </div>
         <div className="summary-item summary-item-red">
           <div className="summary-label">Outstanding Due</div>
-          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalDue || 0} decimals={2} compact /></div>
+          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.totalDue || 0} /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalSales || 0} total invoices</div>
         </div>
         <div className="summary-item summary-item-gray">
           <div className="summary-label">Yearly Sales</div>
-          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.yearlyAmount || 0} decimals={2} compact /></div>
+          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.yearlyAmount || 0} /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.yearlySales || 0} sales this year</div>
         </div>
       </div>
@@ -214,7 +215,7 @@ export default function Sales() {
                           <td>{s.customerName}</td>
                           <td style={{ fontSize: '13px' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
                           <td>{s.items?.length || 0}</td>
-                          <td style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
                           <td><span className={`badge ${s.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{s.paymentStatus}</span></td>
                           <td>
                             <span className={`badge ${s.status === 'completed' ? 'badge-success' : s.status === 'returned' ? 'badge-info' : 'badge-danger'}`}>

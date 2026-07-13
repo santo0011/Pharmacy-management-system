@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchSale, clearSelectedSale, returnSale } from '../../redux/slices/saleSlice';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { saleService } from '../../services/saleService';
 
@@ -73,7 +75,7 @@ export default function SaleDetail() {
     return <div className="loading-spinner" style={{ marginTop: '40px' }}><i className="fa-solid fa-spinner fa-spin"></i></div>;
   }
 
-  // Determine if a field is monetary (should show ₹ symbol)
+  // Determine if a field is monetary (should show currency symbol)
   const isMonetaryField = (field) => {
     const monetaryFields = [
       'subtotal', 'taxAmount', 'discountAmount', 'discount', 'grandTotal',
@@ -149,10 +151,10 @@ export default function SaleDetail() {
                   <tr key={idx}>
                     <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
                     <td>{item.quantity}</td>
-                    <td>₹{item.sellingPrice?.toFixed(2)}</td>
+                    <td><CurrencyDisplay value={item.sellingPrice} /></td>
                     <td>{item.gst}%</td>
-                    <td>₹{item.discountAmount?.toFixed(2)}</td>
-                    <td style={{ fontWeight: 600 }}>₹{item.total?.toFixed(2)}</td>
+                    <td><CurrencyDisplay value={item.discountAmount} /></td>
+                    <td style={{ fontWeight: 600 }}><CurrencyDisplay value={item.total} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -165,15 +167,15 @@ export default function SaleDetail() {
         <div className="card-header"><h5>Payment Summary</h5></div>
         <div className="card-body">
           <div style={{ maxWidth: '400px' }}>
-            <InfoRow label="Subtotal" value={`₹${sale.subtotal?.toFixed(2)}`} />
-            <InfoRow label="Tax (GST)" value={`₹${sale.taxAmount?.toFixed(2)}`} />
-            <InfoRow label="Discount" value={`₹${sale.discountAmount?.toFixed(2)}`} />
+            <InfoRow label="Subtotal" value={<CurrencyDisplay value={sale.subtotal} />} />
+            <InfoRow label="Tax (GST)" value={<CurrencyDisplay value={sale.taxAmount} />} />
+            <InfoRow label="Discount" value={<CurrencyDisplay value={sale.discountAmount} />} />
             <div style={{ display: 'flex', padding: '12px 0', borderTop: '2px solid var(--gray-200)', fontWeight: 700, fontSize: '16px', color: 'var(--primary-color)' }}>
               <div style={{ width: '160px' }}>Grand Total</div>
-              <div>₹{sale.grandTotal?.toFixed(2)}</div>
+              <div><CurrencyDisplay value={sale.grandTotal} /></div>
             </div>
-            <InfoRow label="Paid" value={`₹${sale.paidAmount?.toFixed(2)}`} />
-            <InfoRow label="Due" value={<span style={{ color: sale.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>₹{sale.dueAmount?.toFixed(2)}</span>} />
+            <InfoRow label="Paid" value={<CurrencyDisplay value={sale.paidAmount} />} />
+            <InfoRow label="Due" value={<span style={{ color: sale.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}><CurrencyDisplay value={sale.dueAmount} /></span>} />
             {sale.notes && <InfoRow label="Notes" value={sale.notes} />}
           </div>
         </div>
@@ -226,9 +228,9 @@ export default function SaleDetail() {
                       <tr key={payment._id}>
                         <td>{idx + 1}</td>
                         <td>{new Date(payment.paymentDate || payment.createdAt).toLocaleString()}</td>
-                        <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(payment.amount).toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={payment.amount} /></td>
                         <td style={{ fontWeight: 600, color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>
-                          ₹{Number(payment.remainingDue).toFixed(2)}
+                          <CurrencyDisplay value={payment.remainingDue} />
                         </td>
                         <td>
                           <span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>
@@ -335,13 +337,13 @@ export default function SaleDetail() {
                                     <td style={{ fontWeight: 500 }}>{change.label || change.field}</td>
                                     <td style={{ color: change.changeType === 'added' ? '#16a34a' : '#dc2626' }}>
                                       {change.previousValue !== null && change.previousValue !== undefined
-                                        ? (isMonetaryField(change.field) ? `₹${Number(change.previousValue).toFixed(2)}` : String(change.previousValue))
+                                        ? (isMonetaryField(change.field) ? `${getCurrentSymbol()} ${Number(change.previousValue).toFixed(2)}` : String(change.previousValue))
                                         : <span style={{ color: '#888', fontStyle: 'italic' }}>none</span>
                                       }
                                     </td>
                                     <td style={{ color: change.changeType === 'removed' ? '#dc2626' : '#16a34a' }}>
                                       {change.newValue !== null && change.newValue !== undefined
-                                        ? (isMonetaryField(change.field) ? `₹${Number(change.newValue).toFixed(2)}` : String(change.newValue))
+                                        ? (isMonetaryField(change.field) ? `${getCurrentSymbol()} ${Number(change.newValue).toFixed(2)}` : String(change.newValue))
                                         : <span style={{ color: '#888', fontStyle: 'italic' }}>removed</span>
                                       }
                                     </td>

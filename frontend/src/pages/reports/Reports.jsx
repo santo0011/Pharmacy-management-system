@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { reportService } from '../../services/reportService';
 import { showError } from '../../utils/sweetAlert';
 
@@ -104,7 +106,7 @@ export default function Reports() {
     if (!summary) return null;
     const cards = [
       { label: 'Total Sales', value: summary.totalSales || 0, color: 'var(--primary)', icon: 'fa-solid fa-shopping-cart', isCurrency: false },
-      { label: 'Total Revenue', value: summary.totalRevenue || 0, color: '#22c55e', icon: 'fa-solid fa-indian-rupee-sign', isCurrency: true },
+      { label: 'Total Revenue', value: summary.totalRevenue || 0, color: '#22c55e', icon: 'fa-solid fa-money-bill-wave', isCurrency: true },
       { label: 'Total Discount', value: summary.totalDiscount || 0, color: '#f59e0b', icon: 'fa-solid fa-tags', isCurrency: true },
       { label: 'Total Tax', value: summary.totalTax || 0, color: '#3b82f6', icon: 'fa-solid fa-receipt', isCurrency: true },
       { label: 'Total Paid', value: summary.totalPaid || 0, color: '#22c55e', icon: 'fa-solid fa-check-circle', isCurrency: true },
@@ -120,7 +122,7 @@ export default function Reports() {
                 <div className="report-card-text">
                   <div className="report-card-label">{card.label}</div>
                   <div className="report-card-value" style={{ color: card.color }}>
-                    {card.isCurrency ? '₹' : ''}<AnimatedCounter value={card.value} decimals={2} />
+                    {card.isCurrency ? <CurrencyDisplay value={card.value} /> : <AnimatedCounter value={card.value} decimals={2} />}
                   </div>
                 </div>
               </div>
@@ -181,7 +183,7 @@ export default function Reports() {
                         <tr key={idx}>
                           <td style={{ textTransform: 'capitalize' }}>{p._id}</td>
                           <td>{p.count}</td>
-                          <td style={{ fontWeight: 600 }}>₹{Number(p.total).toFixed(2)}</td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={p.total} /></td>
                         </tr>
                       ))}
                     </tbody>
@@ -204,7 +206,7 @@ export default function Reports() {
                         <tr key={idx}>
                           <td style={{ fontWeight: 500 }}>{p._id}</td>
                           <td>{p.totalQty}</td>
-                          <td style={{ fontWeight: 600 }}>₹{Number(p.totalRevenue).toFixed(2)}</td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={p.totalRevenue} /></td>
                         </tr>
                       ))}
                     </tbody>
@@ -234,13 +236,13 @@ export default function Reports() {
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Cost</div>
-              <div className="report-stat-value" style={{ color: '#22c55e' }}>₹<AnimatedCounter value={summary?.totalCost || 0} decimals={2} /></div>
+              <div className="report-stat-value" style={{ color: '#22c55e' }}><CurrencyDisplay value={summary?.totalCost || 0} /></div>
             </div>
           </div>
           <div className="card report-summary-card report-purchase-due-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Purchase Due</div>
-              <div className="report-stat-value" style={{ color: '#ef4444' }}>₹<AnimatedCounter value={summary?.totalDue || 0} decimals={2} /></div>
+              <div className="report-stat-value" style={{ color: '#ef4444' }}><CurrencyDisplay value={summary?.totalDue || 0} /></div>
             </div>
           </div>
         </div>
@@ -292,25 +294,25 @@ export default function Reports() {
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Revenue</div>
-              <div className="report-card-value" style={{ color: '#22c55e' }}>₹<AnimatedCounter value={totals?.totalRevenue || 0} decimals={2} /></div>
+              <div className="report-card-value" style={{ color: '#22c55e' }}><CurrencyDisplay value={totals?.totalRevenue || 0} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #ef4444' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Cost</div>
-              <div className="report-card-value" style={{ color: '#ef4444' }}>₹<AnimatedCounter value={totals?.totalCost || 0} decimals={2} /></div>
+              <div className="report-card-value" style={{ color: '#ef4444' }}><CurrencyDisplay value={totals?.totalCost || 0} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: `4px solid ${totals?.totalProfit >= 0 ? '#22c55e' : '#ef4444'}` }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Profit</div>
-              <div className="report-card-value" style={{ color: totals?.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>₹<AnimatedCounter value={totals?.totalProfit || 0} decimals={2} /></div>
+              <div className="report-card-value" style={{ color: totals?.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}><CurrencyDisplay value={totals?.totalProfit || 0} /></div>
             </div>
           </div>
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #f59e0b' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Total Discount</div>
-              <div className="report-card-value" style={{ color: '#f59e0b' }}>₹<AnimatedCounter value={totals?.totalDiscount || 0} decimals={2} /></div>
+              <div className="report-card-value" style={{ color: '#f59e0b' }}><CurrencyDisplay value={totals?.totalDiscount || 0} /></div>
             </div>
           </div>
         </div>
@@ -339,11 +341,11 @@ export default function Reports() {
                       <tr key={idx}>
                         <td style={{ fontWeight: 500 }}>{item.period}</td>
                         <td>{item.quantity}</td>
-                        <td>₹{item.revenue.toFixed(2)}</td>
-                        <td>₹{item.cost.toFixed(2)}</td>
-                        <td>₹{item.discount.toFixed(2)}</td>
-                        <td>₹{item.gst.toFixed(2)}</td>
-                        <td style={{ fontWeight: 600, color: item.profit >= 0 ? '#22c55e' : '#ef4444' }}>₹{item.profit.toFixed(2)}</td>
+                        <td><CurrencyDisplay value={item.revenue} /></td>
+                        <td><CurrencyDisplay value={item.cost} /></td>
+                        <td><CurrencyDisplay value={item.discount} /></td>
+                        <td><CurrencyDisplay value={item.gst} /></td>
+                        <td style={{ fontWeight: 600, color: item.profit >= 0 ? '#22c55e' : '#ef4444' }}><CurrencyDisplay value={item.profit} /></td>
                         <td>
                           <span className="badge" style={{ background: item.margin >= 0 ? '#dcfce7' : '#fce4ec', color: item.margin >= 0 ? '#16a34a' : '#e53935' }}>
                             {item.margin}%
@@ -369,14 +371,14 @@ export default function Reports() {
                     const expanded = isRowExpanded('pl', idx);
                     const mainCols = [
                       { render: (i) => <span style={{ fontWeight: 500 }}>{i.period}</span> },
-                      { render: (i) => <span style={{ fontWeight: 600, color: i.profit >= 0 ? '#22c55e' : '#ef4444' }}>₹{i.profit.toFixed(2)}</span> },
+                      { render: (i) => <span style={{ fontWeight: 600, color: i.profit >= 0 ? '#22c55e' : '#ef4444' }}><CurrencyDisplay value={i.profit} /></span> },
                     ];
                     const detailRows = [
                       { label: 'Qty Sold', render: (i) => i.quantity },
-                      { label: 'Revenue', render: (i) => `₹${i.revenue.toFixed(2)}` },
-                      { label: 'Cost', render: (i) => `₹${i.cost.toFixed(2)}` },
-                      { label: 'Discount', render: (i) => `₹${i.discount.toFixed(2)}` },
-                      { label: 'GST', render: (i) => `₹${i.gst.toFixed(2)}` },
+                      { label: 'Revenue', render: (i) => <CurrencyDisplay value={i.revenue} /> },
+                      { label: 'Cost', render: (i) => <CurrencyDisplay value={i.cost} /> },
+                      { label: 'Discount', render: (i) => <CurrencyDisplay value={i.discount} /> },
+                      { label: 'GST', render: (i) => <CurrencyDisplay value={i.gst} /> },
                       { label: 'Margin %', render: (i) => (
                         <span className="badge" style={{ background: i.margin >= 0 ? '#dcfce7' : '#fce4ec', color: i.margin >= 0 ? '#16a34a' : '#e53935' }}>
                           {i.margin}%
@@ -427,7 +429,7 @@ export default function Reports() {
           <div className="card report-summary-card" style={{ borderLeft: '4px solid #22c55e' }}>
             <div className="card-body report-card-body-sm">
               <div className="report-card-label">Stock Value</div>
-              <div className="report-stat-value" style={{ color: '#22c55e' }}>₹<AnimatedCounter value={summary?.totalStockValue || 0} decimals={2} /></div>
+              <div className="report-stat-value" style={{ color: '#22c55e' }}><CurrencyDisplay value={summary?.totalStockValue || 0} /></div>
             </div>
           </div>
           <div className="card report-summary-card report-stock-last-card" style={{ borderLeft: '4px solid #ef4444' }}>
@@ -465,8 +467,8 @@ export default function Reports() {
                       <td style={{ fontWeight: 600 }}>{med.currentStock}</td>
                       <td>{med.minStockAlert}</td>
                       <td>{med.unit || 'unit'}</td>
-                      <td>₹{Number(med.purchasePrice).toFixed(2)}</td>
-                      <td>₹{Number(med.sellingPrice).toFixed(2)}</td>
+                      <td><CurrencyDisplay value={med.purchasePrice} /></td>
+                      <td><CurrencyDisplay value={med.sellingPrice} /></td>
                       <td>
                         <span className={`badge ${med.currentStock <= med.minStockAlert ? 'badge-warning' : 'badge-success'}`}>
                           {med.currentStock <= med.minStockAlert ? 'Low Stock' : 'In Stock'}
@@ -506,8 +508,8 @@ export default function Reports() {
                     { label: 'Stock', render: (m) => <span style={{ fontWeight: 600 }}>{m.currentStock}</span> },
                     { label: 'Min Alert', render: (m) => m.minStockAlert },
                     { label: 'Unit', render: (m) => m.unit || 'unit' },
-                    { label: 'Purchase Price', render: (m) => `₹${Number(m.purchasePrice).toFixed(2)}` },
-                    { label: 'Selling Price', render: (m) => `₹${Number(m.sellingPrice).toFixed(2)}` },
+                    { label: 'Purchase Price', render: (m) => <CurrencyDisplay value={m.purchasePrice} /> },
+                    { label: 'Selling Price', render: (m) => <CurrencyDisplay value={m.sellingPrice} /> },
                   ];
                   return renderExpandableRow(med, `stock-${idx}`, expanded, () => toggleRow('stock', idx), mainCols, detailRows);
                 })}

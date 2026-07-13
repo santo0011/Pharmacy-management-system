@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { customerService } from '../../services/customerService';
+import { formatCurrency, getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import PaymentDrawer from '../../components/common/PaymentDrawer';
 import Drawer from '../../components/common/Drawer';
@@ -298,7 +300,7 @@ export default function Customers() {
                         <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
                         <td>{customer.customerPhone || '-'}</td>
                         <td>{customer.totalPurchases}</td>
-                        <td style={{ fontWeight: 600 }}>₹{Number(customer.totalSpent).toFixed(2)}</td>
+                        <td style={{ fontWeight: 600 }}><CurrencyDisplay value={customer.totalSpent} /></td>
                         <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
                         <td>
                           <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)} title="View Details">
@@ -336,7 +338,7 @@ export default function Customers() {
                   const expanded = isRowExpanded('all', idx);
                   const mainCols = [
                     { render: (c) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{c.customerName}</span> },
-                    { render: (c) => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>₹{Number(c.totalSpent).toFixed(2)}</span> },
+                    { render: (c) => <CurrencyDisplay value={c.totalSpent} style={{ fontWeight: 600, color: 'var(--primary)' }} /> },
                   ];
                   const detailRows = [
                     { label: 'Phone', render: (c) => c.customerPhone || '-' },
@@ -399,11 +401,11 @@ export default function Customers() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', padding: '16px' }}>
           <div style={{ background: '#fff7ed', borderRadius: '10px', padding: '14px', border: '1px solid #fed7aa' }}>
             <div style={{ fontSize: '12px', color: '#9a3412', fontWeight: 500 }}>Total Due Amount</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#c2410c', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalDueAmount} decimals={2} compact /></div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#c2410c', marginTop: '4px' }}><CurrencyDisplay value={dueTotals.totalDueAmount} decimals={2} /></div>
           </div>
           <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
             <div style={{ fontSize: '12px', color: '#166534', fontWeight: 500 }}>Total Outstanding</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>₹<AnimatedCounter value={dueTotals.totalOutstanding} decimals={2} compact /></div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}><CurrencyDisplay value={dueTotals.totalOutstanding} decimals={2} /></div>
           </div>
           <div style={{ background: '#eff6ff', borderRadius: '10px', padding: '14px', border: '1px solid #bfdbfe' }}>
             <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: 500 }}>Customers with Due</div>
@@ -447,9 +449,9 @@ export default function Customers() {
                         <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
                         <td>{customer.customerPhone || '-'}</td>
                         <td>{customer.totalPurchases}</td>
-                        <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(customer.totalPaid).toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={customer.totalPaid} /></td>
                         <td style={{ fontWeight: 700, color: customer.totalDue > 0 ? '#dc2626' : '#16a34a' }}>
-                          ₹{Number(customer.totalDue).toFixed(2)}
+                          <CurrencyDisplay value={customer.totalDue} />
                         </td>
                         <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
                         <td>
@@ -471,7 +473,7 @@ export default function Customers() {
                             disabled={customer.totalDue <= 0}
                             title="Collect Payment"
                           >
-                            <i className="fa-solid fa-indian-rupee-sign"></i> Payment
+                            <i className="fa-solid fa-money-bill-wave"></i> Payment
                           </button>
                         </td>
                       </tr>
@@ -498,7 +500,7 @@ export default function Customers() {
                     {
                       render: (c) => (
                         <span style={{ fontWeight: 700, color: c.totalDue > 0 ? '#dc2626' : '#16a34a' }}>
-                          ₹{Number(c.totalDue).toFixed(2)}
+                          <CurrencyDisplay value={c.totalDue} />
                         </span>
                       )
                     },
@@ -506,7 +508,7 @@ export default function Customers() {
                   const detailRows = [
                     { label: 'Phone', render: (c) => c.customerPhone || '-' },
                     { label: 'Total Sales', render: (c) => c.totalPurchases },
-                    { label: 'Total Paid', render: (c) => <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(c.totalPaid).toFixed(2)}</span> },
+                    { label: 'Total Paid', render: (c) => <CurrencyDisplay value={c.totalPaid} style={{ fontWeight: 600, color: '#16a34a' }} /> },
                     { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
                     {
                       label: 'Actions', render: (c) => (
@@ -520,7 +522,7 @@ export default function Customers() {
                             disabled={c.totalDue <= 0}
                             title="Collect Payment"
                           >
-                            <i className="fa-solid fa-indian-rupee-sign"></i>
+                            <i className="fa-solid fa-money-bill-wave"></i>
                           </button>
                         </div>
                       )
@@ -629,13 +631,13 @@ export default function Customers() {
                   <div style={{ background: '#eff6ff', borderRadius: '10px', padding: '12px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
                     <div style={{ fontSize: '11px', color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Paid</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>
-                      ₹{Number(customerDetail.customer?.totalPaid || 0).toFixed(2)}
+                      <CurrencyDisplay value={customerDetail.customer?.totalPaid || 0} />
                     </div>
                   </div>
                   <div style={{ background: Number(customerDetail.customer?.totalDue || 0) > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '10px', padding: '12px', border: `1px solid ${Number(customerDetail.customer?.totalDue || 0) > 0 ? '#fed7aa' : '#bbf7d0'}`, textAlign: 'center' }}>
                     <div style={{ fontSize: '11px', color: Number(customerDetail.customer?.totalDue || 0) > 0 ? '#9a3412' : '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Due</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: Number(customerDetail.customer?.totalDue || 0) > 0 ? '#c2410c' : '#16a34a', marginTop: '4px' }}>
-                      ₹{Number(customerDetail.customer?.totalDue || 0).toFixed(2)}
+                      <CurrencyDisplay value={customerDetail.customer?.totalDue || 0} />
                     </div>
                   </div>
                 </div>
@@ -682,7 +684,7 @@ export default function Customers() {
                                   <span key={i}>
                                     {i > 0 && ', '}
                                     <strong>{item.medicineName}</strong> × {item.quantity}
-                                    {item.sellingPrice ? ` (₹${Number(item.sellingPrice).toFixed(2)}/pc)` : ''}
+                                    {item.sellingPrice ? ` (${formatCurrency(item.sellingPrice)}/pc)` : ''}
                                   </span>
                                 ))}
                               </div>
@@ -693,16 +695,16 @@ export default function Customers() {
                           <div className="customer-detail-invoice-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '12px', padding: '6px 10px', background: sale.dueAmount > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '6px' }}>
                             <div>
                               <span style={{ color: '#888' }}>Amount: </span>
-                              <span style={{ fontWeight: 600 }}>₹{Number(sale.grandTotal).toFixed(2)}</span>
+                              <span style={{ fontWeight: 600 }}><CurrencyDisplay value={sale.grandTotal} /></span>
                             </div>
                             <div>
                               <span style={{ color: '#888' }}>Paid: </span>
-                              <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(sale.paidAmount).toFixed(2)}</span>
+                              <span style={{ fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={sale.paidAmount} /></span>
                             </div>
                             <div style={{ textAlign: 'right' }}>
                               <span style={{ color: '#888' }}>Due: </span>
                               <span style={{ fontWeight: 700, color: sale.dueAmount > 0 ? '#dc2626' : '#16a34a' }}>
-                                {sale.dueAmount > 0 ? `₹${Number(sale.dueAmount).toFixed(2)}` : 'Cleared'}
+                                {sale.dueAmount > 0 ? <CurrencyDisplay value={sale.dueAmount} /> : 'Cleared'}
                               </span>
                             </div>
                           </div>
@@ -733,9 +735,9 @@ export default function Customers() {
                                 <td>{idx + 1}</td>
                                 <td>{new Date(payment.paymentDate || payment.createdAt).toLocaleString()}</td>
                                 <td style={{ fontWeight: 500 }}>{payment.sale?.invoiceNumber || '-'}</td>
-                                <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(payment.amount).toFixed(2)}</td>
+                                <td style={{ fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={payment.amount} /></td>
                                 <td><span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>{payment.paymentMethod ? payment.paymentMethod.replace('_', ' ') : 'Cash'}</span></td>
-                                <td style={{ fontWeight: 600, color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>₹{Number(payment.remainingDue).toFixed(2)}</td>
+                                <td style={{ fontWeight: 600, color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}><CurrencyDisplay value={payment.remainingDue} /></td>
                                 <td>{payment.createdBy?.name || 'Unknown'}</td>
                               </tr>
                             ))}
@@ -758,7 +760,7 @@ export default function Customers() {
                           const expanded = isRowExpanded('pay', idx);
                           const mainCols = [
                             { render: (p) => <span style={{ fontSize: '12px' }}>{new Date(p.paymentDate || p.createdAt).toLocaleString()}</span> },
-                            { render: (p) => <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(p.amount).toFixed(2)}</span> },
+                            { render: (p) => <CurrencyDisplay value={p.amount} style={{ fontWeight: 600, color: '#16a34a' }} /> },
                           ];
                           const detailRows = [
                             { label: 'Invoice', render: (p) => p.sale?.invoiceNumber || '-' },
@@ -772,7 +774,7 @@ export default function Customers() {
                             {
                               label: 'Remaining Due', render: (p) => (
                                 <span style={{ fontWeight: 600, color: Number(p.remainingDue) > 0 ? '#dc2626' : '#16a34a' }}>
-                                  ₹{Number(p.remainingDue).toFixed(2)}
+                                  <CurrencyDisplay value={p.remainingDue} />
                                 </span>
                               )
                             },

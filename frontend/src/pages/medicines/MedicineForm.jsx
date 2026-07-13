@@ -12,6 +12,7 @@ import {
 } from '../../redux/slices/medicineSlice';
 import { medicineService } from '../../services/medicineService';
 import { showSuccess, showError, showWarning, showInfo } from '../../utils/sweetAlert';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useAuth } from '../../hooks/useAuth';
 
 const initialFormState = {
@@ -680,11 +681,11 @@ export default function MedicineForm() {
                 </div>
                 <div className="form-row-2">
                   <div className="form-group">
-                    <label>Purchase Price * (₹)</label>
+                    <label>Purchase Price *</label>
                     <input type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} placeholder="0.00" min="0.01" step="0.01" required />
                   </div>
                   <div className="form-group">
-                    <label>Selling Price * (₹)</label>
+                    <label>Selling Price *</label>
                     <input type="number" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} placeholder="0.00" min="0.01" step="0.01" required />
                   </div>
                 </div>
@@ -792,7 +793,7 @@ export default function MedicineForm() {
                             {m.genericName && <div style={{ fontSize: '11px', color: '#888' }}>{m.genericName}</div>}
                           </div>
                           <div style={{ fontSize: '12px', textAlign: 'right' }}>
-                            <div>₹{m.sellingPrice?.toFixed(2)}</div>
+                            <div><CurrencyDisplay value={m.sellingPrice} /></div>
                             <div style={{ color: m.currentStock > 0 ? 'var(--success)' : 'var(--danger)' }}>
                               Stock: {m.currentStock}
                             </div>

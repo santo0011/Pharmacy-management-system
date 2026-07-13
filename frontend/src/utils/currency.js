@@ -105,7 +105,7 @@ export const formatCurrency = (amount, overrideSymbol = null, decimals = 2) => {
   // Priority: override > pharmacy cache > platform cache > default
   const sym = overrideSymbol || pharmacyCachedSymbol || platformCachedSymbol || DEFAULT_SYMBOL;
   const value = Number(amount) || 0;
-  return `${sym}${value.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  return `${sym} ${value.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 };
 
 /**

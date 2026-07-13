@@ -3,6 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchPurchase, clearSelectedPurchase, addPurchasePayment, fetchPurchasePayments } from '../../redux/slices/purchaseSlice';
 import { fetchSuppliers } from '../../redux/slices/supplierSlice';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 
 export default function PurchaseDetail() {
@@ -40,11 +42,11 @@ export default function PurchaseDetail() {
     e.preventDefault();
     const amount = Number(paymentAmount);
     if (!amount || amount <= 0) { showError('Enter a valid payment amount'); return; }
-    if (amount > (purchase?.dueAmount || 0)) { showError(`Amount cannot exceed due amount of ₹${purchase?.dueAmount?.toFixed(2)}`); return; }
+    if (amount > (purchase?.dueAmount || 0)) { showError(`Amount cannot exceed due amount of ${getCurrentSymbol()} ${purchase?.dueAmount?.toFixed(2)}`); return; }
 
     const confirmed = await confirmAction(
       'Record Payment',
-      `Pay ₹${amount.toFixed(2)} to ${purchase?.supplierName || purchase?.supplier?.supplierName}?`,
+      `Pay ${getCurrentSymbol()} ${amount.toFixed(2)} to ${purchase?.supplierName || purchase?.supplier?.supplierName}?`,
       'Yes, Record'
     );
     if (!confirmed) return;
@@ -144,12 +146,12 @@ export default function PurchaseDetail() {
                     <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
                     <td>{item.batchNumber}</td>
                     <td>{item.quantity}</td>
-                    <td>₹{item.purchasePrice?.toFixed(2)}</td>
-                    <td>₹{item.sellingPrice?.toFixed(2)}</td>
-                    <td>{item.mrp ? `₹${item.mrp?.toFixed(2)}` : '-'}</td>
+                    <td><CurrencyDisplay value={item.purchasePrice} /></td>
+                    <td><CurrencyDisplay value={item.sellingPrice} /></td>
+                    <td>{item.mrp ? <CurrencyDisplay value={item.mrp} /> : '-'}</td>
                     <td>{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : '-'}</td>
                     <td>{item.gst}%</td>
-                    <td style={{ fontWeight: 600 }}>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</td>
+                    <td style={{ fontWeight: 600 }}><CurrencyDisplay value={Number(item.quantity) * Number(item.purchasePrice)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -163,17 +165,17 @@ export default function PurchaseDetail() {
         <div className="card-header"><h5>Payment Summary</h5></div>
         <div className="card-body">
           <div style={{ maxWidth: '400px' }}>
-            <InfoRow label="Subtotal" value={`₹${purchase.subtotal?.toFixed(2)}`} />
-            <InfoRow label="Tax (GST)" value={`₹${purchase.taxAmount?.toFixed(2)}`} />
-            <InfoRow label="Discount" value={`₹${purchase.discountAmount?.toFixed(2)}`} />
-            <InfoRow label="Shipping" value={`₹${purchase.shippingCost?.toFixed(2)}`} />
-            <InfoRow label="Other Cost" value={`₹${purchase.otherCost?.toFixed(2)}`} />
+            <InfoRow label="Subtotal" value={<CurrencyDisplay value={purchase.subtotal} />} />
+            <InfoRow label="Tax (GST)" value={<CurrencyDisplay value={purchase.taxAmount} />} />
+            <InfoRow label="Discount" value={<CurrencyDisplay value={purchase.discountAmount} />} />
+            <InfoRow label="Shipping" value={<CurrencyDisplay value={purchase.shippingCost} />} />
+            <InfoRow label="Other Cost" value={<CurrencyDisplay value={purchase.otherCost} />} />
             <div style={{ display: 'flex', padding: '12px 0', borderTop: '2px solid var(--gray-200)', fontWeight: 700, fontSize: '16px', color: 'var(--primary)' }}>
               <div style={{ width: '160px' }}>Grand Total</div>
-              <div>₹{purchase.grandTotal?.toFixed(2)}</div>
+              <div><CurrencyDisplay value={purchase.grandTotal} /></div>
             </div>
-            <InfoRow label="Paid" value={`₹${purchase.paidAmount?.toFixed(2)}`} />
-            <InfoRow label="Due" value={<span style={{ color: purchase.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>₹{purchase.dueAmount?.toFixed(2)}</span>} />
+            <InfoRow label="Paid" value={<CurrencyDisplay value={purchase.paidAmount} />} />
+            <InfoRow label="Due" value={<span style={{ color: purchase.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}><CurrencyDisplay value={purchase.dueAmount} /></span>} />
           </div>
         </div>
       </div>
@@ -222,7 +224,7 @@ export default function PurchaseDetail() {
                       <tr key={p._id || idx}>
                         <td>{idx + 1}</td>
                         <td style={{ fontSize: '13px' }}>{new Date(p.paymentDate).toLocaleDateString()}</td>
-                        <td style={{ fontWeight: 600, color: 'var(--success)' }}>₹{p.amount?.toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, color: 'var(--success)' }}><CurrencyDisplay value={p.amount} /></td>
                         <td>
                           <span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{p.paymentMethod || 'cash'}</span>
                         </td>
@@ -270,7 +272,7 @@ export default function PurchaseDetail() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid #bfdbfe' }}>
                 <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--gray-600)' }}>Outstanding Due</span>
-                <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--danger)' }}>₹{purchase.dueAmount?.toFixed(2)}</span>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--danger)' }}><CurrencyDisplay value={purchase.dueAmount} /></span>
               </div>
             </div>
 
@@ -279,7 +281,7 @@ export default function PurchaseDetail() {
               <input type="number" step="0.01" min="0" max={purchase.dueAmount} value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 className="form-select" style={{ width: '100%' }}
-                placeholder={`Max: ₹${purchase.dueAmount?.toFixed(2)}`} required />
+                placeholder={`Max: ${getCurrentSymbol()} ${purchase.dueAmount?.toFixed(2)}`} required />
             </div>
             <div className="form-group">
               <label>Payment Method</label>

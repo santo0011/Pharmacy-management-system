@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { ledgerService } from '../../services/ledgerService';
 import { showError } from '../../utils/sweetAlert';
+import { formatCurrency, getCurrentSymbol } from '../../utils/currency';
 
 export default function CustomerLedger() {
   const { customerId } = useParams();
@@ -85,19 +87,19 @@ export default function CustomerLedger() {
         <div className="ledger-summary-card" style={{ background: '#eff6ff', borderRadius: '12px', padding: '16px', border: '1px solid #bfdbfe' }}>
           <div style={{ fontSize: '11px', color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Total Amount</div>
           <div style={{ fontSize: '24px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>
-            ₹<AnimatedCounter value={summary.totalAmount} duration={800} decimals={2} />
+            <CurrencyDisplay value={summary.totalAmount} decimals={2} />
           </div>
         </div>
         <div className="ledger-summary-card" style={{ background: '#f0fdf4', borderRadius: '12px', padding: '16px', border: '1px solid #bbf7d0' }}>
           <div style={{ fontSize: '11px', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Total Paid</div>
           <div style={{ fontSize: '24px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}>
-            ₹<AnimatedCounter value={summary.totalPaid} duration={800} decimals={2} />
+            <CurrencyDisplay value={summary.totalPaid} decimals={2} />
           </div>
         </div>
         <div className="ledger-summary-card" style={{ background: summary.totalDue > 0 ? '#fff7ed' : '#f0fdf4', borderRadius: '12px', padding: '16px', border: `1px solid ${summary.totalDue > 0 ? '#fed7aa' : '#bbf7d0'}` }}>
           <div style={{ fontSize: '11px', color: summary.totalDue > 0 ? '#9a3412' : '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Current Balance</div>
           <div style={{ fontSize: '24px', fontWeight: 700, color: summary.totalDue > 0 ? '#c2410c' : '#16a34a', marginTop: '4px' }}>
-            {summary.totalDue > 0 ? '₹' : '₹'}<AnimatedCounter value={summary.totalDue} duration={800} decimals={2} />
+            <CurrencyDisplay value={summary.totalDue} decimals={2} />
           </div>
         </div>
       </div>
@@ -140,10 +142,10 @@ export default function CustomerLedger() {
                         <td>{new Date(entry.date).toLocaleDateString()}</td>
                         <td style={{ fontWeight: 500 }}>{entry.invoiceNumber}</td>
                         <td style={{ fontSize: '13px', color: '#555' }}>{entry.description}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>₹{Number(entry.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#16a34a' }}>₹{Number(entry.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}><CurrencyDisplay value={entry.totalAmount} /></td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={entry.paidAmount} /></td>
                         <td style={{ textAlign: 'right', fontWeight: 600, color: entry.dueAmount > 0 ? '#dc2626' : '#16a34a' }}>
-                          {entry.dueAmount > 0 ? `₹${Number(entry.dueAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00'}
+                          {entry.dueAmount > 0 ? <CurrencyDisplay value={entry.dueAmount} /> : <CurrencyDisplay value={0} />}
                         </td>
                         <td>
                           <span className={`badge ${entry.paymentStatus === 'paid' ? 'badge-success' : entry.paymentStatus === 'partial' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '10px' }}>
@@ -151,7 +153,7 @@ export default function CustomerLedger() {
                           </span>
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: entry.runningBalance > 0 ? '#c2410c' : '#16a34a' }}>
-                          ₹{Number(entry.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          <CurrencyDisplay value={entry.runningBalance} />
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {entry.payments && entry.payments.length > 0 && (
@@ -190,15 +192,15 @@ export default function CustomerLedger() {
                                   <tr key={payment._id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                                     <td style={{ padding: '6px 8px' }}>{pidx + 1}</td>
                                     <td style={{ padding: '6px 8px' }}>{new Date(payment.paymentDate).toLocaleString()}</td>
-                                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#16a34a' }}>₹{Number(payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={payment.amount} /></td>
                                     <td style={{ padding: '6px 8px' }}>
                                       <span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`} style={{ fontSize: '10px' }}>
                                         {payment.paymentMethod ? payment.paymentMethod.replace('_', ' ') : 'Cash'}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>₹{Number(payment.previousDue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td style={{ padding: '6px 8px', textAlign: 'right' }}><CurrencyDisplay value={payment.previousDue || 0} /></td>
                                     <td style={{ padding: '6px 8px', textAlign: 'right', color: Number(payment.remainingDue) > 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
-                                      ₹{Number(payment.remainingDue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      <CurrencyDisplay value={payment.remainingDue || 0} />
                                     </td>
                                     <td style={{ padding: '6px 8px' }}>{payment.collectedBy || 'Unknown'}</td>
                                     <td style={{ padding: '6px 8px', color: '#888', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

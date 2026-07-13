@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { purchaseService } from '../../services/purchaseService';
 import { purchaseReturnService } from '../../services/purchaseReturnService';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
@@ -85,7 +87,7 @@ export default function PurchaseReturn() {
 
     const confirmed = await confirmAction(
       'Confirm Return',
-      `Return ${totalReturnQty} item(s) worth ₹${totalReturnAmount.toFixed(2)} from purchase ${purchase.invoiceNumber}?`,
+      `Return ${totalReturnQty} item(s) worth ${getCurrentSymbol()} ${totalReturnAmount.toFixed(2)} from purchase ${purchase.invoiceNumber}?`,
       'Yes, Return Items'
     );
     if (!confirmed) return;
@@ -167,7 +169,7 @@ export default function PurchaseReturn() {
             </div>
             <div>
               <div style={{ fontSize: '11px', color: '#92400e', textTransform: 'uppercase', fontWeight: 600 }}>Grand Total</div>
-              <div style={{ fontWeight: 700, fontSize: '15px', marginTop: '2px', color: '#2563eb' }}>₹{purchase.grandTotal?.toFixed(2)}</div>
+              <div style={{ fontWeight: 700, fontSize: '15px', marginTop: '2px', color: '#2563eb' }}><CurrencyDisplay value={purchase.grandTotal} /></div>
             </div>
           </div>
         </div>
@@ -206,7 +208,7 @@ export default function PurchaseReturn() {
                     <td>{idx + 1}</td>
                     <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
                     <td style={{ fontSize: '13px', color: '#888' }}>{item.batchNumber || '-'}</td>
-                    <td>₹{item.purchasePrice?.toFixed(2)}</td>
+                    <td><CurrencyDisplay value={item.purchasePrice} /></td>
                     <td>{item.purchasedQuantity}</td>
                     <td>
                       <input
@@ -220,7 +222,7 @@ export default function PurchaseReturn() {
                       />
                     </td>
                     <td style={{ fontWeight: 600, color: item.returnedQuantity > 0 ? '#dc2626' : '#888' }}>
-                      ₹{(item.returnedQuantity * item.purchasePrice).toFixed(2)}
+                      <CurrencyDisplay value={item.returnedQuantity * item.purchasePrice} />
                     </td>
                   </tr>
                 ))}
@@ -245,7 +247,7 @@ export default function PurchaseReturn() {
             </div>
             <div style={{ display: 'flex', padding: '12px 0', borderTop: '2px solid var(--gray-200)', fontWeight: 700, fontSize: '16px', color: '#dc2626' }}>
               <div style={{ width: '160px' }}>Total Return Amount</div>
-              <div>₹{totalReturnAmount.toFixed(2)}</div>
+              <div><CurrencyDisplay value={totalReturnAmount} /></div>
             </div>
           </div>
         </div>
@@ -280,7 +282,7 @@ export default function PurchaseReturn() {
           {submitting ? (
             <><i className="fa-solid fa-spinner fa-spin"></i> Processing...</>
           ) : (
-            <><i className="fa-solid fa-undo"></i> Process Return (₹{totalReturnAmount.toFixed(2)})</>
+            <><i className="fa-solid fa-undo"></i> Process Return (<CurrencyDisplay value={totalReturnAmount} />)</>
           )}
         </button>
       </div>

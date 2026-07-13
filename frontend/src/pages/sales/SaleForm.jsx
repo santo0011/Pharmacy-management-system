@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createSale, updateSale, fetchSale, clearSelectedSale } from '../../redux/slices/saleSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
 import { medicineService } from '../../services/medicineService';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { customerService } from '../../services/customerService';
 import PortalDropdown from '../../components/common/PortalDropdown';
@@ -348,7 +350,7 @@ export default function SaleForm() {
     const dueAfterPayment = Math.max(0, finalGrandTotal - paid);
     const confirmed = await confirmAction(
       `${isEditing ? 'Update' : 'Complete'} Sale`,
-      `Customer: ${customerName}\nItems: ${items.length}\nTotal: ₹${currentBillGrandTotal.toFixed(2)}\nPrevious Due: ₹${calcPreviousDue().toFixed(2)}\nFinal Grand Total: ₹${finalGrandTotal.toFixed(2)}\nPaid: ₹${paid.toFixed(2)}\nDue: ₹${dueAfterPayment.toFixed(2)}\nMethod: ${paymentMethod}`,
+      `Customer: ${customerName}\nItems: ${items.length}\nTotal: ${getCurrentSymbol()} ${currentBillGrandTotal.toFixed(2)}\nPrevious Due: ${getCurrentSymbol()} ${calcPreviousDue().toFixed(2)}\nFinal Grand Total: ${getCurrentSymbol()} ${finalGrandTotal.toFixed(2)}\nPaid: ${getCurrentSymbol()} ${paid.toFixed(2)}\nDue: ${getCurrentSymbol()} ${dueAfterPayment.toFixed(2)}\nMethod: ${paymentMethod}`,
       `Yes, ${isEditing ? 'Update' : 'Complete'}`
     );
     if (!confirmed) {
@@ -441,7 +443,7 @@ export default function SaleForm() {
 
       // Validate paidForNewInvoice doesn't exceed the new invoice grand total
       if (paidForNewInvoice > currentBillGrandTotal) {
-        showError(`Total paid (₹${paid.toFixed(2)}) minus previous due allocation (₹${previousDuePayments.reduce((s,p)=>s+p.amount,0).toFixed(2)}) = ₹${paidForNewInvoice.toFixed(2)} exceeds the current bill total (₹${currentBillGrandTotal.toFixed(2)})`);
+        showError(`Total paid (${getCurrentSymbol()} ${paid.toFixed(2)}) minus previous due allocation (${getCurrentSymbol()} ${previousDuePayments.reduce((s,p)=>s+p.amount,0).toFixed(2)}) = ${getCurrentSymbol()} ${paidForNewInvoice.toFixed(2)} exceeds the current bill total (${getCurrentSymbol()} ${currentBillGrandTotal.toFixed(2)})`);
         setSubmitting(false);
         return;
       }
@@ -463,7 +465,7 @@ export default function SaleForm() {
         // Send the total amount paid by the customer
         paidAmount: paid,
         paymentMethod,
-        notes: selectedDueInvoices.length > 0 && customerDueInfo ? `Previous due of ₹${calcPreviousDue().toFixed(2)} included` : '',
+        notes: selectedDueInvoices.length > 0 && customerDueInfo ? `Previous due of ${getCurrentSymbol()} ${calcPreviousDue().toFixed(2)} included` : '',
       };
 
       // Add previous due payments array with FIFO allocation
@@ -533,7 +535,7 @@ export default function SaleForm() {
                             <div className="item-details">{med.genericName} | {med.barcode}</div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div className="item-price">₹{med.sellingPrice}</div>
+                            <div className="item-price"><CurrencyDisplay value={med.sellingPrice} /></div>
                             <div className={`item-stock ${med.currentStock <= 10 ? 'low' : ''}`}>Stock: {med.currentStock}</div>
                           </div>
                         </div>
@@ -708,13 +710,13 @@ export default function SaleForm() {
                       <span className="due-invoice-number">{inv.invoiceNumber}</span>
                       <span className="due-invoice-date">{new Date(inv.saleDate).toLocaleDateString()}</span>
                       <div className="due-invoice-payment-details">
-                        <span>Total: ₹{(inv.grandTotal || 0).toFixed(2)}</span>
-                        <span>Paid: ₹{(inv.paidAmount || 0).toFixed(2)}</span>
-                        <span className="due-invoice-remaining">Due: ₹{(inv.dueAmount || 0).toFixed(2)}</span>
+                        <span>Total: <CurrencyDisplay value={inv.grandTotal || 0} /></span>
+                        <span>Paid: <CurrencyDisplay value={inv.paidAmount || 0} /></span>
+                        <span className="due-invoice-remaining">Due: <CurrencyDisplay value={inv.dueAmount || 0} /></span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                      <span className="due-invoice-amount">₹{inv.dueAmount.toFixed(2)}</span>
+                      <span className="due-invoice-amount"><CurrencyDisplay value={inv.dueAmount} /></span>
                       <span className={`badge ${inv.paymentStatus === 'paid' ? 'badge-success' : inv.paymentStatus === 'partial' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '10px' }}>
                         {inv.paymentStatus || 'due'}
                       </span>
@@ -734,7 +736,7 @@ export default function SaleForm() {
                 color: '#991b1b',
               }}>
                 <span>Total Due</span>
-                <span>₹{customerDueInfo.totalDue.toFixed(2)}</span>
+                <span><CurrencyDisplay value={customerDueInfo.totalDue} /></span>
               </div>
             </div>
           )}
@@ -789,7 +791,7 @@ export default function SaleForm() {
                           <td className="gst-label">
                             {item.gst > 0 && <div>GST: {item.gst}%</div>}
                           </td>
-                          <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{calcItemTotal(item).toFixed(2)}</td>
+                          <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={calcItemTotal(item)} /></td>
                           <td>
                             <button className="btn btn-sm btn-outline-info" 
                               onClick={async () => {
@@ -844,7 +846,7 @@ export default function SaleForm() {
                       <span className="cart-item-name">{item.medicineName}</span>
                       <span className="cart-item-quantity"> × {item.quantity}</span>
                     </div>
-                    <span className="cart-item-total">₹{calcItemTotal(item).toFixed(2)}</span>
+                    <span className="cart-item-total"><CurrencyDisplay value={calcItemTotal(item)} /></span>
                   </div>
                 ))}
               </div>
@@ -852,17 +854,17 @@ export default function SaleForm() {
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="summary-row">
-                <span className="summary-label">Subtotal:</span><span className="summary-value">₹{calcSubtotal().toFixed(2)}</span>
+                <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={calcSubtotal()} /></span>
               </div>
               <div className="summary-row">
-                <span className="summary-label">Tax (GST):</span><span className="summary-value">₹{calcTax().toFixed(2)}</span>
+                <span className="summary-label">Tax (GST):</span><span className="summary-value"><CurrencyDisplay value={calcTax()} /></span>
               </div>
               <div className="summary-row" style={{ alignItems: 'center' }}>
                 <span className="summary-label">Discount:</span>
                 <div className="inline-discount">
                   <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
                   <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
-                    <option value="fixed">₹</option>
+                    <option value="fixed">{getCurrentSymbol()}</option>
                     <option value="percentage">%</option>
                   </select>
                 </div>
@@ -871,27 +873,27 @@ export default function SaleForm() {
               {/* Current Bill Total */}
               <div className="summary-row" style={{ fontWeight: 500 }}>
                 <span className="summary-label">Current Bill:</span>
-                <span className="summary-value">₹{currentBillTotal.toFixed(2)}</span>
+                <span className="summary-value"><CurrencyDisplay value={currentBillTotal} /></span>
               </div>
 
               {/* Previous Due Row - only shown when included */}
               {calcPreviousDue() > 0 && (
                 <div className="summary-row" style={{ color: '#c2410c', fontWeight: 600 }}>
                   <span className="summary-label"><i className="fa-solid fa-exclamation-triangle"></i> Previous Due:</span>
-                  <span className="summary-value">+ ₹{calcPreviousDue().toFixed(2)}</span>
+                  <span className="summary-value">+ <CurrencyDisplay value={calcPreviousDue()} /></span>
                 </div>
               )}
 
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="grand-total-row" style={{ marginBottom: '10px' }}>
-                <span>Final Grand Total:</span><span>₹{gt.toFixed(2)}</span>
+                <span>Final Grand Total:</span><span><CurrencyDisplay value={gt} /></span>
               </div>
 
               {/* Previous Due - separate note */}
               {calcPreviousDue() > 0 && (
                 <div style={{ fontSize: '11px', color: '#9a3412', marginBottom: '8px', padding: '4px 8px', background: '#fff7ed', borderRadius: '4px', textAlign: 'center' }}>
-                  <i className="fa-solid fa-info-circle"></i> Previous due of ₹{calcPreviousDue().toFixed(2)} added to invoice
+                  <i className="fa-solid fa-info-circle"></i> Previous due of <CurrencyDisplay value={calcPreviousDue()} /> added to invoice
                 </div>
               )}
 
@@ -913,7 +915,7 @@ export default function SaleForm() {
                   const val = Number(e.target.value);
                   const finalTotal = calcGrandTotal();
                   if (val > finalTotal) {
-                    showError(`Paid amount (₹${val.toFixed(2)}) cannot exceed Final Grand Total (₹${finalTotal.toFixed(2)})`);
+                    showError(`Paid amount (${getCurrentSymbol()} ${val.toFixed(2)}) cannot exceed Final Grand Total (${getCurrentSymbol()} ${finalTotal.toFixed(2)})`);
                     return;
                   }
                   setPaidAmount(e.target.value);
@@ -924,7 +926,7 @@ export default function SaleForm() {
 
               {Number(paidAmount) > 0 && (
                 <div className={`due-row ${Number(paidAmount) >= calcGrandTotal() ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
-                  <span>Change/Due:</span><span className="due-value">₹{Math.abs(gt - Number(paidAmount)).toFixed(2)}</span>
+                  <span>Change/Due:</span><span className="due-value"><CurrencyDisplay value={Math.abs(gt - Number(paidAmount))} /></span>
                 </div>
               )}
 
@@ -935,7 +937,7 @@ export default function SaleForm() {
                 style={{ marginTop: '12px', padding: '10px', fontSize: '15px', fontWeight: 700 }}
               >
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-                {submitting ? ' Processing...' : ` ₹${gt.toFixed(2)} • ${isEditing ? 'Update Sale' : 'Complete Sale'}`}
+                {submitting ? ' Processing...' : ` ${getCurrentSymbol()} ${gt.toFixed(2)} • ${isEditing ? 'Update Sale' : 'Complete Sale'}`}
               </button>
             </div>
           </div>
@@ -998,7 +1000,7 @@ export default function SaleForm() {
                           Stock: {suggestion.currentStock} {suggestion.unit}
                         </span>
                         {' | '}
-                        <span style={{ fontWeight: 500 }}>₹{suggestion.sellingPrice?.toFixed(2)}</span>
+                        <span style={{ fontWeight: 500 }}><CurrencyDisplay value={suggestion.sellingPrice} /></span>
                         {suggestion.gst > 0 && <span> (GST: {suggestion.gst}%)</span>}
                       </div>
                     </div>

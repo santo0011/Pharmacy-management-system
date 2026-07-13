@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -256,7 +257,7 @@ export default function EnhancedDashboard() {
   const monthlyRevenueChart = revenueByMonth.length > 0 ? {
     labels: revenueByMonth.map(m => m.month),
     datasets: [{
-      label: 'Revenue (₹)',
+      label: `Revenue (${getCurrentSymbol()})`,
       data: revenueByMonth.map(m => m.amount),
       backgroundColor: 'rgba(34, 197, 94, 0.7)',
       borderColor: '#22c55e',
@@ -332,19 +333,28 @@ export default function EnhancedDashboard() {
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
           <div className="stat-icon green"><i className="fa-solid fa-coins"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={totalRevenue} decimals={2} compact /></h3><p>Total Revenue</p></div>
+          <div className="stat-info">
+            <h3><CurrencyDisplay value={totalRevenue} /></h3>
+            <p>Total Revenue</p>
+          </div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-receipt"></i></div>
           <div className="stat-info"><h3><AnimatedCounter value={totalSales} /></h3><p>Total Sales Count</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
-          <div className="stat-icon green"><i className="fa-solid fa-indian-rupee-sign"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={todayAmount} decimals={2} compact /></h3><p>Today's Sales ({todaySales})</p></div>
+          <div className="stat-icon green"><i className="fa-solid fa-money-bill-wave"></i></div>
+          <div className="stat-info">
+            <h3><CurrencyDisplay value={todayAmount} /></h3>
+            <p>Today's Sales ({todaySales})</p>
+          </div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
           <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-chart-line"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={monthlyAmount} decimals={2} compact /></h3><p>Monthly Revenue</p></div>
+          <div className="stat-info">
+            <h3><CurrencyDisplay value={monthlyAmount} /></h3>
+            <p>Monthly Revenue</p>
+          </div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-triangle-exclamation"></i></div>
@@ -372,7 +382,9 @@ export default function EnhancedDashboard() {
         <div className="card">
           <div className="card-header">
             <h5><i className="fa-solid fa-coins" style={{ marginRight: '8px', color: '#22c55e' }}></i>Monthly Revenue</h5>
-            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>₹{monthlyAmount.toFixed(2)} this month</span>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+              <CurrencyDisplay value={monthlyAmount} /> this month
+            </span>
           </div>
           <div className="card-body card-body-chart">
             {monthlyRevenueChart ? <Bar data={monthlyRevenueChart} options={chartOptions} />
@@ -415,7 +427,9 @@ export default function EnhancedDashboard() {
                     <div key={i} className="payment-method-item">
                       <div className="payment-method-row">
                         <span className="payment-method-name">{p.method}</span>
-                        <span className="payment-method-amount">₹{p.total.toFixed(2)} ({pct}%)</span>
+                        <span className="payment-method-amount">
+                          <CurrencyDisplay value={p.total} /> ({pct}%)
+                        </span>
                       </div>
                       <div className="payment-progress-bar">
                         <div className="payment-progress-fill" style={{ width: `${pct}%`, background: colors[i % colors.length] }}></div>
@@ -645,7 +659,7 @@ export default function EnhancedDashboard() {
                         <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
                           <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
                           <td><span className="badge badge-danger">{item.currentStock} {item.unit || 'units'}</span></td>
-                          <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{item.sellingPrice?.toFixed(2)}</td>
+                          <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={item.sellingPrice} /></td>
                         </tr>
                       ))}
                     </tbody>
@@ -718,9 +732,9 @@ export default function EnhancedDashboard() {
                       <tr key={s._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/sales/${s._id}`)}>
                         <td style={{ fontWeight: 500, fontSize: '13px' }}>{s.invoiceNumber}</td>
                         <td>{s.customerName}</td>
-                        <td style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</td>
-                        <td style={{ color: '#22c55e', fontWeight: 500 }}>₹{s.paidAmount?.toFixed(2)}</td>
-                        <td style={{ color: s.dueAmount > 0 ? '#ef4444' : '#22c55e', fontWeight: 500 }}>₹{s.dueAmount?.toFixed(2)}</td>
+                        <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
+                        <td style={{ color: '#22c55e', fontWeight: 500 }}><CurrencyDisplay value={s.paidAmount} /></td>
+                        <td style={{ color: s.dueAmount > 0 ? '#ef4444' : '#22c55e', fontWeight: 500 }}><CurrencyDisplay value={s.dueAmount} /></td>
                         <td><span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{s.paymentMethod}</span></td>
                         <td style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
                       </tr>
@@ -750,7 +764,7 @@ export default function EnhancedDashboard() {
                             <span style={{ fontWeight: 500, fontSize: '13px' }}>{s.invoiceNumber}</span>
                             <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>{s.customerName}</div>
                           </td>
-                          <td style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
                           <td className="sales-expand-cell">
                             <button className="sales-expand-btn">
                               <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
@@ -770,15 +784,15 @@ export default function EnhancedDashboard() {
                               </div>
                               <div className="sales-detail-item">
                                 <span className="sales-detail-label">Total</span>
-                                <span className="sales-detail-value" style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</span>
+                                <span className="sales-detail-value" style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></span>
                               </div>
                               <div className="sales-detail-item">
                                 <span className="sales-detail-label">Paid</span>
-                                <span className="sales-detail-value" style={{ color: '#22c55e', fontWeight: 600 }}>₹{s.paidAmount?.toFixed(2)}</span>
+                                <span className="sales-detail-value" style={{ color: '#22c55e', fontWeight: 600 }}><CurrencyDisplay value={s.paidAmount} /></span>
                               </div>
                               <div className="sales-detail-item">
                                 <span className="sales-detail-label">Due</span>
-                                <span className="sales-detail-value" style={{ color: s.dueAmount > 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}>₹{s.dueAmount?.toFixed(2)}</span>
+                                <span className="sales-detail-value" style={{ color: s.dueAmount > 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}><CurrencyDisplay value={s.dueAmount} /></span>
                               </div>
                               <div className="sales-detail-item">
                                 <span className="sales-detail-label">Payment</span>
@@ -803,5 +817,3 @@ export default function EnhancedDashboard() {
     </div>
   );
 }
-
-

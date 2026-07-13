@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchMedicine, clearSelectedMedicine } from '../../redux/slices/medicineSlice';
 import { medicineService } from '../../services/medicineService';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function MedicineDetail() {
@@ -131,8 +132,8 @@ export default function MedicineDetail() {
           <div className="card medicine-detail-card">
             <div className="card-header"><h5>Pricing & Stock</h5></div>
             <div className="card-body medicine-detail-card-body">
-              <MedicineInfoRow label="Purchase Price" value={`₹${medicine.purchasePrice?.toFixed(2)}`} />
-              <MedicineInfoRow label="Selling Price" value={`₹${medicine.sellingPrice?.toFixed(2)}`} />
+              <MedicineInfoRow label="Purchase Price" value={<CurrencyDisplay value={medicine.purchasePrice} />} />
+              <MedicineInfoRow label="Selling Price" value={<CurrencyDisplay value={medicine.sellingPrice} />} />
               <MedicineInfoRow label="GST" value={`${medicine.gst}%`} />
               <MedicineInfoRow
                 label="Current Stock"
@@ -211,7 +212,7 @@ export default function MedicineDetail() {
                             {sub.genericName && <div style={{ fontSize: '11px', color: '#888' }}>{sub.genericName}</div>}
                           </div>
                           <div style={{ textAlign: 'right', fontSize: '12px' }}>
-                            <div style={{ fontWeight: 600 }}>₹{sub.sellingPrice?.toFixed(2)}</div>
+                            <div style={{ fontWeight: 600 }}><CurrencyDisplay value={sub.sellingPrice} /></div>
                             <div style={{ color: sub.currentStock > 0 ? 'var(--success)' : 'var(--danger)' }}>
                               Stock: {sub.currentStock} {sub.unit}
                             </div>
@@ -238,7 +239,7 @@ export default function MedicineDetail() {
                             {sub.genericName && <div style={{ fontSize: '11px', color: '#888' }}>{sub.genericName}</div>}
                           </div>
                           <div style={{ textAlign: 'right', fontSize: '12px' }}>
-                            <div style={{ fontWeight: 600 }}>₹{sub.sellingPrice?.toFixed(2)}</div>
+                            <div style={{ fontWeight: 600 }}><CurrencyDisplay value={sub.sellingPrice} /></div>
                             <div style={{ color: sub.currentStock > 0 ? 'var(--success)' : 'var(--danger)' }}>
                               Stock: {sub.currentStock} {sub.unit}
                             </div>

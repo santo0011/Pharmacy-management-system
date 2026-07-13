@@ -11,6 +11,8 @@ import {
   deletePlan,
 } from '../../redux/slices/subscriptionPlanSlice';
 import { fetchSubscriptionStatus, clearSubscriptionStatus } from '../../redux/slices/dashboardSlice';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/sweetAlert';
 import { pharmacyService } from '../../services/pharmacyService';
 import { subscriptionHistoryService } from '../../services/subscriptionHistoryService';
@@ -568,7 +570,7 @@ export default function Subscriptions() {
               </tr>
               <tr>
                 <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Amount</td>
-                <td style="padding: 8px 12px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">₹${preview.amount?.toLocaleString()}</td>
+                <td style="padding: 8px 12px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">${getCurrentSymbol()} ${preview.amount?.toLocaleString()}</td>
               </tr>
             </table>
             <div style="margin-top: 16px; padding: 12px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; text-align: center;">
@@ -736,7 +738,7 @@ export default function Subscriptions() {
                     <div><strong>Start:</strong> {new Date(record.startDate).toLocaleDateString()}</div>
                     <div><strong>End:</strong> {new Date(record.endDate).toLocaleDateString()}</div>
                     <div><strong>Duration:</strong> {record.duration} {record.durationUnit}</div>
-                    <div><strong>Amount:</strong> ₹{record.amount?.toLocaleString()}</div>
+                    <div><strong>Amount:</strong> {getCurrentSymbol()} {record.amount?.toLocaleString()}</div>
                     {record.createdByName && (
                       <div style={{ gridColumn: '1 / -1' }}><strong>By:</strong> {record.createdByName}</div>
                     )}
@@ -891,7 +893,7 @@ export default function Subscriptions() {
                           <td>{new Date(record.startDate).toLocaleDateString()}</td>
                           <td>{new Date(record.endDate).toLocaleDateString()}</td>
                           <td>{record.duration} {record.durationUnit}</td>
-                          <td style={{ fontWeight: 600 }}>₹{record.amount.toLocaleString()}</td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={record.amount} /></td>
                           <td>
                             <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
                               <i className={`fa-solid ${getStatusIcon(record.status)}`} style={{ marginRight: '3px' }}></i>
@@ -927,7 +929,7 @@ export default function Subscriptions() {
                     const expanded = isRowExpanded('admin', idx);
                     const mainCols = [
                       { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
-                      { render: (r) => <span style={{ fontWeight: 600 }}>₹{r.amount.toLocaleString()}</span> },
+                      { render: (r) => <CurrencyDisplay value={r.amount} /> },
                       { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{getStatusLabel(r.status)}</span> },
                     ];
                     const detailRows = [
@@ -1065,7 +1067,7 @@ export default function Subscriptions() {
                           {plans.map((plan) => (
                             <tr key={plan._id}>
                               <td style={{ fontWeight: 500 }}>{plan.planName}</td>
-                              <td>₹{plan.price?.toFixed(2)}</td>
+                              <td><CurrencyDisplay value={plan.price} /></td>
                               <td>{plan.duration} {plan.durationUnit}</td>
                               <td>{plan.maxStaff ?? 'Unlimited'}</td>
                               <td>{plan.maxBranches ?? 'Unlimited'}</td>
@@ -1099,7 +1101,7 @@ export default function Subscriptions() {
                         const expanded = isRowExpanded('plan', idx);
                         const mainCols = [
                           { render: (p) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{p.planName}</span> },
-                          { render: (p) => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>₹{p.price?.toFixed(2)}</span> },
+                          { render: (p) => <CurrencyDisplay value={p.price} style={{ fontWeight: 600, color: 'var(--primary)' }} /> },
                           { render: (p) => <span className={`badge ${p.isActive ? 'badge-success' : 'badge-danger'}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{p.isActive ? 'Active' : 'Inactive'}</span> },
                         ];
                         const detailRows = [
@@ -1138,7 +1140,7 @@ export default function Subscriptions() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
-                  <label>Price (₹) *</label>
+                  <label>Price *</label>
                   <input type="number" name="price" value={planFormData.price} onChange={handlePlanChange} placeholder="0.00" min="0" step="0.01" required />
                 </div>
                 <div className="form-group">
@@ -1283,7 +1285,7 @@ export default function Subscriptions() {
                   }} required>
                     <option value="">-- Select Plan --</option>
                     {activePlans.map((plan) => (
-                      <option key={plan._id} value={plan._id}>{plan.planName} (₹{plan.price} / {plan.duration} {plan.durationUnit})</option>
+                      <option key={plan._id} value={plan._id}>{plan.planName} ({getCurrentSymbol()} {plan.price} / {plan.duration} {plan.durationUnit})</option>
                     ))}
                   </select>
                 </div>
@@ -1319,7 +1321,7 @@ export default function Subscriptions() {
                     <option value="">-- Select Plan --</option>
                     {activePlans.map((plan) => (
                       <option key={plan._id} value={plan._id}>
-                        {plan.planName} - ₹{plan.price?.toLocaleString()} ({plan.duration} {plan.durationUnit})
+                        {plan.planName} - {getCurrentSymbol()} {plan.price?.toLocaleString()} ({plan.duration} {plan.durationUnit})
                       </option>
                     ))}
                   </select>
@@ -1346,7 +1348,7 @@ export default function Subscriptions() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Total Amount</span>
                       <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary)' }}>
-                        ₹{activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()}
+                        {getCurrentSymbol()} {activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -1395,7 +1397,7 @@ export default function Subscriptions() {
                             <td>{new Date(record.startDate).toLocaleDateString()}</td>
                             <td>{new Date(record.endDate).toLocaleDateString()}</td>
                             <td>{record.duration} {record.durationUnit}</td>
-                            <td style={{ fontWeight: 600 }}>₹{record.amount?.toLocaleString()}</td>
+                            <td style={{ fontWeight: 600 }}><CurrencyDisplay value={record.amount} /></td>
                             <td>
                               <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
                                 <i className={`fa-solid ${getStatusIcon(record.status)}`} style={{ marginRight: '3px' }}></i>
@@ -1445,7 +1447,7 @@ export default function Subscriptions() {
                       const expanded = isRowExpanded('hist', idx);
                       const mainCols = [
                         { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
-                        { render: (r) => <span style={{ fontWeight: 600 }}>₹{r.amount?.toLocaleString()}</span> },
+                        { render: (r) => <CurrencyDisplay value={r.amount} /> },
                         { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{getStatusLabel(r.status)}</span> },
                       ];
                       const detailRows = [
