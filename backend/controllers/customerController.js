@@ -1121,6 +1121,111 @@ export const getCustomerEditHistory = async (req, res, next) => {
 // @desc    Get payment history
 // @route   GET /api/customers/payment-history
 // @access  Private
+// @desc    Get customer dashboard statistics (total customers, total receivable, total collected)
+// @route   GET /api/customers/stats
+// @access  Private
+export const getCustomerStats = async (req, res, next) => {
+  try {
+    const pharmacyId = req.pharmacyId;
+
+    // Total unique customers count
+    const totalCustomers = await Customer.countDocuments({
+      pharmacyId,
+      isDeleted: false,
+    });
+
+    // Aggregate sales stats for all customers belonging to this pharmacy
+    const salesStats = await Sale.aggregate([
+      {
+        $match: {
+          pharmacyId: new mongoose.Types.ObjectId(pharmacyId),
+          isDeleted: false,
+          status: { $nin: ['cancelled', 'returned'] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalReceivable: { $sum: '$dueAmount' },
+          totalCollected: { $sum: '$paidAmount' },
+          totalSalesAmount: { $sum: '$grandTotal' },
+        },
+      },
+    ]);
+
+    const stats = salesStats[0] || { totalReceivable: 0, totalCollected: 0, totalSalesAmount: 0 };
+
+    return ApiResponse.success(res, {
+      totalCustomers,
+      totalReceivable: stats.totalReceivable || 0,
+      totalCollected: stats.totalCollected || 0,
+      totalSalesAmount: stats.totalSalesAmount || 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get top selling customers ranked by total sales amount
+// @route   GET /api/customers/top-selling
+// @access  Private
+export const getTopSellingCustomers = async (req, res, next) => {
+  try {
+    const pharmacyId = req.pharmacyId;
+    const limit = parseInt(req.query.limit) || 5;
+
+    // Aggregate sales by customer reference (newer sales with customer ref)
+    const topCustomers = await Sale.aggregate([
+      {
+        $match: {
+          pharmacyId: new mongoose.Types.ObjectId(pharmacyId),
+          isDeleted: false,
+          status: { $nin: ['cancelled', 'returned'] },
+          customer: { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: '$customer',
+          totalPurchases: { $sum: 1 },
+          totalAmount: { $sum: '$grandTotal' },
+          totalPaid: { $sum: '$paidAmount' },
+          totalDue: { $sum: '$dueAmount' },
+          lastPurchaseDate: { $max: '$saleDate' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'customerInfo',
+        },
+      },
+      { $unwind: { path: '$customerInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          customerName: { $ifNull: ['$customerInfo.name', 'Unknown'] },
+          customerPhone: { $ifNull: ['$customerInfo.phone', ''] },
+          totalPurchases: 1,
+          totalAmount: { $round: ['$totalAmount', 2] },
+          totalPaid: { $round: ['$totalPaid', 2] },
+          totalDue: { $round: ['$totalDue', 2] },
+        },
+      },
+      { $sort: { totalAmount: -1 } },
+      { $limit: limit },
+    ]);
+
+    return ApiResponse.success(res, topCustomers);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get payment history
+// @route   GET /api/customers/payment-history
+// @access  Private
 export const getPaymentHistory = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;

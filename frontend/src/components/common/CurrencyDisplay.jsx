@@ -15,59 +15,52 @@
  *   amountStyle (object) - Additional styles for the amount span
  *   animate (boolean) - Enable/disable number animation (default: true)
  *   duration (number) - Animation duration in ms (default: 1000)
- *   compact (boolean) - Use compact notation (K, L, Cr) (default: false)
+ *   compact (boolean) - Use compact notation (K, M, B) (default: false)
+ *   cardMode (boolean) - Force card mode / compact mode. If not set, auto-detects card context.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getCurrentSymbol } from '../../utils/currency';
 
 /**
- * Format a number with Indian numbering system (K, L, Cr) and strip trailing .00
+ * Format a number with standard compact notation (K, M, B).
+ * Examples:
+ *   1026.72 → 1K
+ *   15420.50 → 15.4K
+ *   1250000 → 1.25M
+ *   999 → 999
  */
-function formatCompactValue(num, decimals) {
+function formatCompactValue(num) {
   if (num === 0) return '0';
 
   const abs = Math.abs(num);
   let formatted;
+  let suffix;
 
-  if (abs >= 10000000) {
-    formatted = (num / 10000000).toFixed(2);
-    formatted = parseFloat(formatted).toString();
-    return formatted + 'Cr';
-  } else if (abs >= 100000) {
-    formatted = (num / 100000).toFixed(2);
-    formatted = parseFloat(formatted).toString();
-    return formatted + 'L';
+  if (abs >= 1e9) {
+    formatted = (num / 1e9).toFixed(2);
+    suffix = 'B';
+  } else if (abs >= 1e7) {
+    // 10M+ → round to whole millions: 12.5M
+    formatted = (num / 1e6).toFixed(1);
+    suffix = 'M';
+  } else if (abs >= 1e6) {
+    // 1M - 9.99M → 2 decimals: 1.25M
+    formatted = (num / 1e6).toFixed(2);
+    suffix = 'M';
   } else if (abs >= 1000) {
+    // 1K - 999K → 1 decimal: 15.4K, but strip trailing .0
     formatted = (num / 1000).toFixed(1);
-    formatted = parseFloat(formatted).toString();
-    return formatted + 'K';
-  }
-
-  const intPart = Math.floor(Math.abs(num));
-  const hasDecimals = decimals > 0 && num % 1 !== 0;
-
-  let result = '';
-  const numStr = intPart.toString();
-  const len = numStr.length;
-
-  if (len <= 3) {
-    result = numStr;
+    suffix = 'K';
   } else {
-    const lastThree = numStr.slice(-3);
-    const rest = numStr.slice(0, -3);
-    const restGroups = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
-    result = restGroups + ',' + lastThree;
+    // Below 1000, just show the number as-is
+    return (num < 0 ? '-' : '') + String(Math.round(num));
   }
 
-  if (hasDecimals) {
-    const decPart = num.toFixed(decimals).split('.')[1];
-    if (decPart && parseInt(decPart) > 0) {
-      result += '.' + decPart;
-    }
-  }
+  // Strip unnecessary trailing zeros from decimals
+  formatted = parseFloat(formatted).toString();
 
-  return (num < 0 ? '-' : '') + result;
+  return (num < 0 ? '-' : '') + formatted + suffix;
 }
 
 /**
@@ -113,6 +106,7 @@ export default function CurrencyDisplay({
   animate = true,
   duration = 1000,
   compact = false,
+  cardMode,
 }) {
   const sym = symbol || getCurrentSymbol();
   const [displayValue, setDisplayValue] = useState(0);
@@ -122,7 +116,6 @@ export default function CurrencyDisplay({
   const containerRef = useRef(null);
 
   // Detect if this currency display is inside a card parent
-  // Currency animations should ONLY run when inside cards, not tables/drawers/modals
   const isInsideCard = useCallback(() => {
     if (typeof document === 'undefined' || !containerRef.current) return false;
     let el = containerRef.current.parentElement;
@@ -132,9 +125,21 @@ export default function CurrencyDisplay({
         el.classList.contains('stat-card') ||
         el.classList.contains('summary-item') ||
         el.classList.contains('purchase-item-card') ||
-        el.classList.contains('dashboard-summary-grid')
+        el.classList.contains('dashboard-summary-grid') ||
+        el.classList.contains('report-card') ||
+        el.classList.contains('summary-cards-grid')
       )) {
         return true;
+      }
+      // Also detect compact summary cards (styled divs with specific inline backgrounds)
+      if (el.style && el.style.borderRadius === '10px' && el.style.padding === '14px' && el.tagName === 'DIV') {
+        const bg = el.style.background || '';
+        const border = el.style.border || '';
+        if ((bg.includes('#fff7ed') || bg.includes('#f0fdf4') || bg.includes('#eff6ff') ||
+             bg.includes('#fef2f2') || bg.includes('#f8fafc') || bg.includes('#f0f5ff')) &&
+            (border.includes('solid') || border.includes('1px'))) {
+          return true;
+        }
       }
       // Stop traversing if we hit a table, drawer, or modal boundary
       if (el.tagName === 'TABLE' || el.tagName === 'TR' || el.tagName === 'TD' || el.tagName === 'TH' ||
@@ -151,6 +156,12 @@ export default function CurrencyDisplay({
 
   // Determine effective animation state based on parent context
   const effectiveAnimate = animate && isInsideCard();
+
+  // Determine effective compact mode:
+  // - If cardMode prop is explicitly provided, use it
+  // - Else if compact prop is true, use it
+  // - Else auto-enable compact when inside a card
+  const effectiveCompact = cardMode !== undefined ? cardMode : (compact || isInsideCard());
 
   // Animated counter logic
   useEffect(() => {
@@ -204,8 +215,8 @@ export default function CurrencyDisplay({
   const tooltipText = formatFullValue(fullVal);
 
   let displayText;
-  if (compact) {
-    displayText = formatCompactValue(num, decimals);
+  if (effectiveCompact) {
+    displayText = formatCompactValue(num);
   } else {
     const formatted = num.toFixed(decimals);
     const parts = formatted.split('.');

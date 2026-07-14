@@ -11,6 +11,8 @@ import {
   createCustomer,
   updateCustomer,
   getCustomerEditHistory,
+  getCustomerStats,
+  getTopSellingCustomers,
 } from '../controllers/customerController.js';
 import { getCustomerLedger } from '../controllers/customerLedgerController.js';
 import { protect } from '../middleware/auth.js';
@@ -18,6 +20,8 @@ import { pharmacyScope } from '../middleware/pharmacyAccess.js';
 
 const router = express.Router();
 
+router.get('/top-selling', protect, pharmacyScope, getTopSellingCustomers);
+router.get('/stats', protect, pharmacyScope, getCustomerStats);
 router.get('/search', protect, pharmacyScope, searchCustomers);
 router.post('/create', protect, pharmacyScope, createCustomer);
 router.get('/dues', protect, pharmacyScope, getCustomerDues);

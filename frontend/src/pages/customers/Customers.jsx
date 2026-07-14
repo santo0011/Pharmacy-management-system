@@ -19,6 +19,9 @@ export default function Customers() {
   const [duePage, setDuePage] = useState(1);
   const [total, setTotal] = useState(0);
   const [dueTotal, setDueTotal] = useState(0);
+  const [customerStats, setCustomerStats] = useState({ totalCustomers: 0, totalReceivable: 0, totalCollected: 0 });
+  const [topSellingCustomers, setTopSellingCustomers] = useState([]);
+  const [topSellingLoading, setTopSellingLoading] = useState(false);
   const [dueTotals, setDueTotals] = useState({ totalDueAmount: 0, totalOutstanding: 0, totalCustomers: 0 });
   const [limit] = useState(10);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -39,6 +42,41 @@ export default function Customers() {
   const [historyCustomer, setHistoryCustomer] = useState(null);
   const [editHistory, setEditHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // --- Fetch Customer Stats (summary cards) ---
+  const fetchCustomerStats = useCallback(async () => {
+    try {
+      const { data } = await customerService.getCustomerStats();
+      if (data.data) {
+        setCustomerStats(data.data);
+      }
+    } catch (error) {
+      // Stats are non-critical - silently fail
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCustomerStats();
+  }, [fetchCustomerStats]);
+
+  // --- Fetch Top Selling Customers ---
+  const fetchTopSellingCustomers = useCallback(async () => {
+    setTopSellingLoading(true);
+    try {
+      const { data } = await customerService.getTopSellingCustomers({ limit: 5 });
+      if (data.data) {
+        setTopSellingCustomers(data.data);
+      }
+    } catch (error) {
+      // Silently fail
+    } finally {
+      setTopSellingLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTopSellingCustomers();
+  }, [fetchTopSellingCustomers]);
 
   const toggleRow = (tableKey, rowIdx) => {
     const key = `${tableKey}-${rowIdx}`;
@@ -250,130 +288,199 @@ export default function Customers() {
 
   // --- Render All Customers Tab ---
   const renderAllCustomers = () => (
-    <div className="card">
-      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <h5>All Customers</h5>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <input
-            type="text"
-            placeholder="Search by name or phone..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="form-select"
-            style={{ width: '250px' }}
-          />
-          <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>Total: {total}</span>
+    <div>
+      {/* Summary Cards - compact style like due customer cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ background: '#eff6ff', borderRadius: '10px', padding: '14px', border: '1px solid #bfdbfe' }}>
+          <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: 500 }}>Total Customers</div>
+          <div style={{ fontSize: '22px', fontWeight: 700, color: '#2563eb', marginTop: '4px' }}>{customerStats.totalCustomers}</div>
+        </div>
+        <div style={{ background: '#fff7ed', borderRadius: '10px', padding: '14px', border: '1px solid #fed7aa' }}>
+          <div style={{ fontSize: '12px', color: '#9a3412', fontWeight: 500 }}>Total Receivable</div>
+          <div style={{ fontSize: '22px', fontWeight: 700, color: '#c2410c', marginTop: '4px' }}><CurrencyDisplay value={customerStats.totalReceivable} /></div>
+        </div>
+        <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
+          <div style={{ fontSize: '12px', color: '#166534', fontWeight: 500 }}>Total Collected</div>
+          <div style={{ fontSize: '22px', fontWeight: 700, color: '#16a34a', marginTop: '4px' }}><CurrencyDisplay value={customerStats.totalCollected} /></div>
         </div>
       </div>
-      <div className="card-body" style={{ padding: 0 }}>
-        {loading ? (
-          <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
-        ) : customers.length === 0 ? (
-          <div className="empty-state">
-            <i className="fa-solid fa-users" style={{ fontSize: '48px', color: 'var(--gray-300)' }}></i>
-            <h4>No Customers Found</h4>
-            <p>Customers will appear here after they make purchases.</p>
+
+      <div className="card">
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <h5>All Customers</h5>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Search by name or phone..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="form-select"
+              style={{ width: '250px' }}
+            />
+            <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>Total: {total}</span>
           </div>
-        ) : (
-          <>
-            {/* Desktop table */}
-            <div className="customer-desktop-table">
-              <div className="table-container">
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {loading ? (
+            <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+          ) : customers.length === 0 ? (
+            <div className="empty-state">
+              <i className="fa-solid fa-users" style={{ fontSize: '48px', color: 'var(--gray-300)' }}></i>
+              <h4>No Customers Found</h4>
+              <p>Customers will appear here after they make purchases.</p>
+            </div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="customer-desktop-table">
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Customer Name</th>
+                        <th>Phone</th>
+                        <th>Total Purchases</th>
+                        <th>Total Spent</th>
+                        <th>Last Purchase</th>
+                        <th>View</th>
+                        <th>Edit</th>
+                        <th>History</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customers.map((customer, idx) => (
+                        <tr key={customer._id || idx}>
+                          <td>{(page - 1) * limit + idx + 1}</td>
+                          <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
+                          <td>{customer.customerPhone || '-'}</td>
+                          <td>{customer.totalPurchases}</td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={customer.totalSpent} /></td>
+                          <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
+                          <td>
+                            <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)} title="View Details">
+                              <i className="fa-solid fa-eye"></i> View
+                            </button>
+                          </td>
+                          <td>
+                            <button className="btn btn-warning btn-sm" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
+                              <i className="fa-solid fa-edit"></i> Edit
+                            </button>
+                          </td>
+                          <td>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleViewHistory(customer)} title="Edit History">
+                              <i className="fa-solid fa-history"></i> History
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile table */}
+              <div className="customer-mobile-table">
                 <table>
                   <thead>
                     <tr>
-                      <th>#</th>
                       <th>Customer Name</th>
-                      <th>Phone</th>
-                      <th>Total Purchases</th>
                       <th>Total Spent</th>
-                      <th>Last Purchase</th>
-                      <th>View</th>
-                      <th>Edit</th>
-                      <th>History</th>
+                      <th className="customer-expand-th"></th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {customers.map((customer, idx) => (
-                      <tr key={customer._id || idx}>
-                        <td>{(page - 1) * limit + idx + 1}</td>
-                        <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
-                        <td>{customer.customerPhone || '-'}</td>
-                        <td>{customer.totalPurchases}</td>
-                        <td style={{ fontWeight: 600 }}><CurrencyDisplay value={customer.totalSpent} /></td>
-                        <td>{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : '-'}</td>
-                        <td>
-                          <button className="btn btn-info btn-sm" onClick={() => handleViewCustomer(customer)} title="View Details">
-                            <i className="fa-solid fa-eye"></i> View
-                          </button>
-                        </td>
-                        <td>
-                          <button className="btn btn-warning btn-sm" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
-                            <i className="fa-solid fa-edit"></i> Edit
-                          </button>
-                        </td>
-                        <td>
-                          <button className="btn btn-secondary btn-sm" onClick={() => handleViewHistory(customer)} title="Edit History">
-                            <i className="fa-solid fa-history"></i> History
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {customers.map((customer, idx) => {
+                    const expanded = isRowExpanded('all', idx);
+                    const mainCols = [
+                      { render: (c) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{c.customerName}</span> },
+                      { render: (c) => <CurrencyDisplay value={c.totalSpent} style={{ fontWeight: 600, color: 'var(--primary)' }} /> },
+                    ];
+                    const detailRows = [
+                      { label: 'Phone', render: (c) => c.customerPhone || '-' },
+                      { label: 'Total Purchases', render: (c) => c.totalPurchases },
+                      { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
+                      {
+                        label: 'Actions', render: (c) => (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
+                              <i className="fa-solid fa-eye"></i>
+                            </button>
+                            <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }} title="Edit Customer">
+                              <i className="fa-solid fa-edit"></i>
+                            </button>
+                            <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleViewHistory(c); }} title="Edit History">
+                              <i className="fa-solid fa-history"></i>
+                            </button>
+                          </div>
+                        )
+                      },
+                    ];
+                    return renderExpandableRow(customer, idx, 'all', expanded, () => toggleRow('all', idx), mainCols, detailRows);
+                  })}
                 </table>
               </div>
-            </div>
+            </>
+          )}
 
-            {/* Mobile table */}
-            <div className="customer-mobile-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Customer Name</th>
-                    <th>Total Spent</th>
-                    <th className="customer-expand-th"></th>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', padding: '16px' }}>
+              <button className="btn btn-sm btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button key={p} className={`btn btn-sm ${p === page ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPage(p)}>{p}</button>
+              ))}
+              <button className="btn btn-sm btn-secondary" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // --- Render Top Selling Tab ---
+  const renderTopSelling = () => (
+    <div className="card">
+      <div className="card-header">
+        <h5><i className="fa-solid fa-trophy" style={{ color: '#f59e0b' }}></i> Top Selling Customers</h5>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        {topSellingLoading ? (
+          <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+        ) : topSellingCustomers.length === 0 ? (
+          <div className="empty-state">
+            <i className="fa-solid fa-users" style={{ fontSize: '48px', color: 'var(--gray-300)' }}></i>
+            <h4>No Data Available</h4>
+            <p>Customer sales data will appear here as purchases are made.</p>
+          </div>
+        ) : (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Customer Name</th>
+                  <th>Phone</th>
+                  <th>Purchases</th>
+                  <th>Total Amount</th>
+                  <th>Total Paid</th>
+                  <th>Total Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topSellingCustomers.map((customer, idx) => (
+                  <tr key={idx}>
+                    <td style={{ fontWeight: 700, color: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#cd7f32' : 'inherit' }}>
+                      {idx === 0 ? <i className="fa-solid fa-crown" style={{ color: '#f59e0b' }}></i> : idx + 1}
+                    </td>
+                    <td style={{ fontWeight: 500 }}>{customer.customerName}</td>
+                    <td>{customer.customerPhone || '-'}</td>
+                    <td>{customer.totalPurchases}</td>
+                    <td style={{ fontWeight: 600 }}><CurrencyDisplay value={customer.totalAmount} /></td>
+                    <td style={{ fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={customer.totalPaid} /></td>
+                    <td style={{ fontWeight: 700, color: customer.totalDue > 0 ? '#dc2626' : '#16a34a' }}><CurrencyDisplay value={customer.totalDue} /></td>
                   </tr>
-                </thead>
-                {customers.map((customer, idx) => {
-                  const expanded = isRowExpanded('all', idx);
-                  const mainCols = [
-                    { render: (c) => <span style={{ fontWeight: 500, fontSize: '13px' }}>{c.customerName}</span> },
-                    { render: (c) => <CurrencyDisplay value={c.totalSpent} style={{ fontWeight: 600, color: 'var(--primary)' }} /> },
-                  ];
-                  const detailRows = [
-                    { label: 'Phone', render: (c) => c.customerPhone || '-' },
-                    { label: 'Total Purchases', render: (c) => c.totalPurchases },
-                    { label: 'Last Purchase', render: (c) => c.lastPurchaseDate ? new Date(c.lastPurchaseDate).toLocaleDateString() : '-' },
-                    {
-                      label: 'Actions', render: (c) => (
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(c); }} title="View Details">
-                            <i className="fa-solid fa-eye"></i>
-                          </button>
-                          <button className="btn btn-warning btn-sm" onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }} title="Edit Customer">
-                            <i className="fa-solid fa-edit"></i>
-                          </button>
-                          <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleViewHistory(c); }} title="Edit History">
-                            <i className="fa-solid fa-history"></i>
-                          </button>
-                        </div>
-                      )
-                    },
-                  ];
-                  return renderExpandableRow(customer, idx, 'all', expanded, () => toggleRow('all', idx), mainCols, detailRows);
-                })}
-              </table>
-            </div>
-          </>
-        )}
-
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', padding: '16px' }}>
-            <button className="btn btn-sm btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-              <button key={p} className={`btn btn-sm ${p === page ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPage(p)}>{p}</button>
-            ))}
-            <button className="btn btn-sm btn-secondary" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</button>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -566,6 +673,13 @@ export default function Customers() {
           <i className="fa-solid fa-users"></i> All Customers
         </button>
         <button
+          className={`btn ${activeTab === 'top-selling' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ border: 'none', borderRadius: '8px 8px 0 0', fontSize: '13px' }}
+          onClick={() => { setActiveTab('top-selling'); }}
+        >
+          <i className="fa-solid fa-trophy" style={{ color: '#f59e0b' }}></i> Top Selling
+        </button>
+        <button
           className={`btn ${activeTab === 'due' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ border: 'none', borderRadius: '8px 8px 0 0', fontSize: '13px' }}
           onClick={() => { setActiveTab('due'); setDueSearch(''); setDuePage(1); }}
@@ -574,7 +688,9 @@ export default function Customers() {
         </button>
       </div>
 
-      {activeTab === 'all' ? renderAllCustomers() : renderDueCustomers()}
+      {activeTab === 'all' && renderAllCustomers()}
+      {activeTab === 'top-selling' && renderTopSelling()}
+      {activeTab === 'due' && renderDueCustomers()}
 
       {/* Enhanced Customer Detail Drawer */}
       <Drawer

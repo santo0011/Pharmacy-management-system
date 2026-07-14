@@ -6489,3 +6489,40 @@ table .currency-display-amount,
   -o-animation: none !important;
   animation: none !important;
 }
+
+/* =============================================
+   CURRENCY DISPLAY — CARD COMPACT HOVER
+   Smooth, professional hover effect for
+   compact card amounts.
+   ============================================= */
+
+/* Cards — subtle hover indicator on compact amounts */
+.card .currency-display[title]:hover .currency-display-amount,
+.stat-card .currency-display[title]:hover .currency-display-amount,
+.summary-item .currency-display[title]:hover .currency-display-amount,
+.purchase-item-card .currency-display[title]:hover .currency-display-amount,
+.dashboard-summary-grid .currency-display[title]:hover .currency-display-amount,
+.report-card .currency-display[title]:hover .currency-display-amount,
+.summary-cards-grid .currency-display[title]:hover .currency-display-amount {
+  opacity: 0.75;
+}
+
+/* Also target inline-style summary cards that use the compact card pattern */
+.card .currency-display[title]:hover .currency-display-symbol,
+.stat-card .currency-display[title]:hover .currency-display-symbol,
+.summary-item .currency-display[title]:hover .currency-display-symbol,
+.purchase-item-card .currency-display[title]:hover .currency-display-symbol,
+.dashboard-summary-grid .currency-display[title]:hover .currency-display-symbol,
+.report-card .currency-display[title]:hover .currency-display-symbol,
+.summary-cards-grid .currency-display[title]:hover .currency-display-symbol {
+  opacity: 0.75;
+}
+
+/* Smooth transition for both elements */
+.currency-display .currency-display-amount,
+.currency-display .currency-display-symbol {
+  -webkit-transition: opacity 200ms ease;
+  -moz-transition: opacity 200ms ease;
+  -o-transition: opacity 200ms ease;
+  transition: opacity 200ms ease;
+}
