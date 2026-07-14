@@ -18,7 +18,7 @@
  *   compact (boolean) - Use compact notation (K, L, Cr) (default: false)
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getCurrentSymbol } from '../../utils/currency';
 
 /**
@@ -119,10 +119,42 @@ export default function CurrencyDisplay({
   const startTimeRef = useRef(null);
   const rafRef = useRef(null);
   const prevValueRef = useRef(0);
+  const containerRef = useRef(null);
+
+  // Detect if this currency display is inside a card parent
+  // Currency animations should ONLY run when inside cards, not tables/drawers/modals
+  const isInsideCard = useCallback(() => {
+    if (typeof document === 'undefined' || !containerRef.current) return false;
+    let el = containerRef.current.parentElement;
+    while (el) {
+      if (el.classList && (
+        el.classList.contains('card') ||
+        el.classList.contains('stat-card') ||
+        el.classList.contains('summary-item') ||
+        el.classList.contains('purchase-item-card') ||
+        el.classList.contains('dashboard-summary-grid')
+      )) {
+        return true;
+      }
+      // Stop traversing if we hit a table, drawer, or modal boundary
+      if (el.tagName === 'TABLE' || el.tagName === 'TR' || el.tagName === 'TD' || el.tagName === 'TH' ||
+          el.classList.contains('drawer') ||
+          el.classList.contains('drawer-body') ||
+          el.classList.contains('modal') ||
+          el.classList.contains('modal-body')) {
+        return false;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }, []);
+
+  // Determine effective animation state based on parent context
+  const effectiveAnimate = animate && isInsideCard();
 
   // Animated counter logic
   useEffect(() => {
-    if (!animate) {
+    if (!effectiveAnimate) {
       setDisplayValue(Number(value) || 0);
       return;
     }
@@ -163,7 +195,7 @@ export default function CurrencyDisplay({
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [value, duration, animate]);
+  }, [value, duration, effectiveAnimate]);
 
   const num = displayValue;
   const fullVal = Number(value) || 0;
@@ -202,6 +234,7 @@ export default function CurrencyDisplay({
 
   return (
     <span
+      ref={containerRef}
       className={`currency-display ${className}`}
       title={tooltipText}
       style={{

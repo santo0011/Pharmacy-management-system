@@ -789,11 +789,11 @@ a {
   box-shadow: var(--shadow);
   overflow: hidden;
   width: 100%;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
@@ -835,11 +835,11 @@ a {
   display: flex;
   align-items: center;
   gap: 16px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
@@ -2000,11 +2000,11 @@ input[type="number"]:focus {
   padding: 16px;
   border-radius: 10px;
   border: 1px solid;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .summary-item:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
@@ -4471,7 +4471,7 @@ input[type="number"]:focus {
   border-radius: var(--radius);
   margin-bottom: 12px;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .purchase-item-card:hover {
@@ -6413,4 +6413,79 @@ input[type="number"]:focus {
   .login-mobile-dev-content {
     padding: 6px 10px;
   }
+}
+
+/* =============================================
+   CURRENCY DISPLAY ANIMATION CONTROL
+   =============================================
+   Currency animations ONLY in cards.
+   Disabled in tables, lists, drawers, modals, dropdowns, and other non-card containers.
+   ============================================= */
+
+/* Disable currency display animation inside tables */
+table .currency-display,
+table .currency-display *,
+table .currency-display-symbol,
+table .currency-display-amount,
+.table-container .currency-display,
+.table-container .currency-display *,
+.dashboard-table .currency-display,
+.dashboard-table .currency-display *,
+.history-table .currency-display,
+.history-table .currency-display *,
+.payment-history-table-wrapper .currency-display,
+.payment-history-table-wrapper .currency-display *,
+.due-invoices-list .currency-display,
+.due-invoices-list .currency-display *,
+.dashboard-recent-sales-mobile-table .currency-display,
+.dashboard-recent-sales-mobile-table .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
+}
+
+/* Disable currency display animation inside drawers */
+.drawer .currency-display,
+.drawer .currency-display *,
+.drawer-body .currency-display,
+.drawer-body .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
+}
+
+/* Disable currency display animation inside modals */
+.modal .currency-display,
+.modal .currency-display *,
+.modal-body .currency-display,
+.modal-body .currency-display *,
+.modal-content .currency-display,
+.modal-content .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
+}
+
+/* Disable currency display animation inside lists and list items */
+.cart-item-row .currency-display,
+.cart-item-row .currency-display *,
+.sale-card-item .currency-display,
+.sale-card-item .currency-display *,
+.customer-detail-item .currency-display,
+.customer-detail-item .currency-display *,
+.report-detail-item .currency-display,
+.report-detail-item .currency-display *,
+.detail-row .currency-display,
+.detail-row .currency-display *,
+.sale-detail-field .currency-display,
+.sale-detail-field .currency-display *,
+.purchase-item-card-field .currency-display,
+.purchase-item-card-field .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
 }

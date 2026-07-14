@@ -1,10 +1,15 @@
 /**
  * Invoice Templates for printing
  * Each template returns HTML string given sale data and settings
+ * All currency values use the pharmacy's configured currency symbol dynamically.
  */
 
+import { getCurrentSymbol } from './currency';
+
 // Template 1: Classic - Clean blue-themed professional layout
-const templateClassic = (sale, pharmacy) => `
+const templateClassic = (sale, pharmacy, currencySymbol) => {
+  const sym = currencySymbol || getCurrentSymbol() || '₹';
+  return `
 <style>
   @page { size: ${pharmacy.printFormat === 'a4' ? 'A4' : pharmacy.printFormat === '58mm' ? '58mm 297mm' : '80mm 297mm'}; margin: ${pharmacy.printFormat === 'a4' ? '15mm' : '5mm 3mm'}; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #333; font-size: ${pharmacy.printFormat === 'a4' ? '12px' : '10px'}; line-height: 1.5; margin: 0; padding: 0; }
@@ -48,27 +53,27 @@ const templateClassic = (sale, pharmacy) => `
           <td>${idx + 1}</td>
           <td style="font-weight:500;">${item.medicineName}</td>
           <td>${item.quantity}</td>
-          <td>₹${Number(item.sellingPrice).toFixed(2)}</td>
+          <td>${sym} ${Number(item.sellingPrice).toFixed(2)}</td>
           <td>${item.gst}%</td>
-          <td style="font-weight:600;">₹${Number(item.total).toFixed(2)}</td>
+          <td style="font-weight:600;">${sym} ${Number(item.total).toFixed(2)}</td>
         </tr>
       `).join('')}
     </tbody>
   </table>
   <div class="summary">
-    <div class="summary-row"><span>Subtotal:</span><span>₹${Number(sale.subtotal || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>GST:</span><span>₹${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>Discount:</span><span>₹${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Subtotal:</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>GST:</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Discount:</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>${sym} ${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
     ${sale.previousDueAmount > 0 ? `
-    <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
     ` : ''}
-    <div class="summary-row total"><span>Grand Total:</span><span>₹${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
-    <div class="summary-row"><span>Paid:</span><span>₹${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row total"><span>Grand Total:</span><span>${sym} ${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Paid:</span><span>${sym} ${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
     ${sale.previousDueAmount > 0 ? `
-    <div class="summary-row" style="color:#16a34a;font-size:10px;"><span>Including Previous Due Paid:</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="color:#16a34a;font-size:10px;"><span>Including Previous Due Paid:</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
     ` : ''}
-    <div class="summary-row"><span>Due:</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">₹${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Due:</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">${sym} ${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Payment:</span><span style="text-transform:capitalize;">${sale.paymentMethod} <span class="badge badge-success">${sale.paymentStatus}</span></span></div>
   </div>
   <div class="footer">
@@ -77,9 +82,12 @@ const templateClassic = (sale, pharmacy) => `
   </div>
 </div>
 `;
+};
 
 // Template 2: Modern - Dark header, green accent, clean
-const templateModern = (sale, pharmacy) => `
+const templateModern = (sale, pharmacy, currencySymbol) => {
+  const sym = currencySymbol || getCurrentSymbol() || '₹';
+  return `
 <style>
   @page { size: ${pharmacy.printFormat === 'a4' ? 'A4' : pharmacy.printFormat === '58mm' ? '58mm 297mm' : '80mm 297mm'}; margin: ${pharmacy.printFormat === 'a4' ? '15mm' : '5mm 3mm'}; }
   body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; color: #1e293b; font-size: ${pharmacy.printFormat === 'a4' ? '12px' : '10px'}; line-height: 1.5; margin: 0; padding: 0; background: #f8fafc; }
@@ -139,24 +147,24 @@ const templateModern = (sale, pharmacy) => `
             <td>${idx + 1}</td>
             <td style="font-weight:500;">${item.medicineName}</td>
             <td>${item.quantity}</td>
-            <td>₹${Number(item.sellingPrice).toFixed(2)}</td>
+            <td>${sym} ${Number(item.sellingPrice).toFixed(2)}</td>
             <td>${item.gst}%</td>
-            <td style="font-weight:600;">₹${Number(item.total).toFixed(2)}</td>
+            <td style="font-weight:600;">${sym} ${Number(item.total).toFixed(2)}</td>
           </tr>
         `).join('')}
       </tbody>
     </table>
     <div class="summary">
-      <div class="summary-row"><span>Subtotal:</span><span>₹${Number(sale.subtotal || 0).toFixed(2)}</span></div>
-      <div class="summary-row"><span>GST:</span><span>₹${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
-      <div class="summary-row"><span>Discount:</span><span>₹${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-      <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+      <div class="summary-row"><span>Subtotal:</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
+      <div class="summary-row"><span>GST:</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
+      <div class="summary-row"><span>Discount:</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
+      <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>${sym} ${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
       ${sale.previousDueAmount > 0 ? `
-      <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+      <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
       ` : ''}
-      <div class="summary-row total"><span>Grand Total:</span><span>₹${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
-      <div class="summary-row"><span>Paid:</span><span>₹${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
-      <div class="summary-row"><span>Due:</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">₹${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
+      <div class="summary-row total"><span>Grand Total:</span><span>${sym} ${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
+      <div class="summary-row"><span>Paid:</span><span>${sym} ${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
+      <div class="summary-row"><span>Due:</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">${sym} ${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
       <div class="summary-row"><span>Method:</span><span style="text-transform:capitalize;">${sale.paymentMethod}</span></div>
     </div>
   </div>
@@ -166,9 +174,12 @@ const templateModern = (sale, pharmacy) => `
   </div>
 </div>
 `;
+};
 
 // Template 3: Minimal - Clean, borderless, minimal design with serif
-const templateMinimal = (sale, pharmacy) => `
+const templateMinimal = (sale, pharmacy, currencySymbol) => {
+  const sym = currencySymbol || getCurrentSymbol() || '₹';
+  return `
 <style>
   @page { size: ${pharmacy.printFormat === 'a4' ? 'A4' : pharmacy.printFormat === '58mm' ? '58mm 297mm' : '80mm 297mm'}; margin: ${pharmacy.printFormat === 'a4' ? '15mm' : '5mm 3mm'}; }
   body { font-family: 'Georgia', 'Times New Roman', serif; color: #2d2d2d; font-size: ${pharmacy.printFormat === 'a4' ? '12px' : '10px'}; line-height: 1.6; margin: 0; padding: 0; }
@@ -215,24 +226,24 @@ const templateMinimal = (sale, pharmacy) => `
           <td style="color:#999;">${idx + 1}</td>
           <td style="font-weight:500;">${item.medicineName}</td>
           <td>${item.quantity}</td>
-          <td>₹${Number(item.sellingPrice).toFixed(2)}</td>
+          <td>${sym} ${Number(item.sellingPrice).toFixed(2)}</td>
           <td>${item.gst}%</td>
-          <td style="font-weight:600;">₹${Number(item.total).toFixed(2)}</td>
+          <td style="font-weight:600;">${sym} ${Number(item.total).toFixed(2)}</td>
         </tr>
       `).join('')}
     </tbody>
   </table>
   <div class="summary">
-    <div class="summary-row"><span>Subtotal</span><span>₹${Number(sale.subtotal || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>GST</span><span>₹${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>Discount</span><span>₹${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total</span><span>₹${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Subtotal</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>GST</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Discount</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total</span><span>${sym} ${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
     ${sale.previousDueAmount > 0 ? `
-    <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid</span><span>₹${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
     ` : ''}
-    <div class="summary-row total"><span>Grand Total</span><span>₹${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
-    <div class="summary-row"><span>Paid</span><span>₹${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>Due</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">₹${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row total"><span>Grand Total</span><span>${sym} ${(Number(sale.grandTotal || 0) + Number(sale.previousDueAmount || 0)).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Paid</span><span>${sym} ${Number(sale.paidAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Due</span><span style="color:${sale.dueAmount > 0 ? '#ef4444' : '#22c55e'};font-weight:600;">${sym} ${Number(sale.dueAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Payment</span><span style="text-transform:capitalize;">${sale.paymentMethod} <span class="badge-success">${sale.paymentStatus}</span></span></div>
   </div>
   <div class="footer">
@@ -241,6 +252,7 @@ const templateMinimal = (sale, pharmacy) => `
   </div>
 </div>
 `;
+};
 
 /**
  * Get invoice HTML for printing based on selected template
@@ -258,6 +270,9 @@ export function getInvoiceHTML(sale, pharmacy, templateName = 'classic', printFo
     printFormat,
   };
 
+  // Use the pharmacy's configured currency symbol as the single source of truth
+  const currencySymbol = getCurrentSymbol();
+
   let templateFn;
   switch (templateName) {
     case 'modern':
@@ -272,7 +287,7 @@ export function getInvoiceHTML(sale, pharmacy, templateName = 'classic', printFo
       break;
   }
 
-  const bodyContent = templateFn(sale, pharmacyInfo);
+  const bodyContent = templateFn(sale, pharmacyInfo, currencySymbol);
 
   return `
     <html>
