@@ -12,7 +12,9 @@ import {
 } from '../../redux/slices/subscriptionPlanSlice';
 import { fetchSubscriptionStatus, clearSubscriptionStatus } from '../../redux/slices/dashboardSlice';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
-import { getCurrentSymbol } from '../../utils/currency';
+import CurrencyConverter from '../../components/common/CurrencyConverter';
+import { getCurrentSymbol, getCurrentCurrency, getCurrencySymbol } from '../../utils/currency';
+import { getExchangeRates, convertCurrency } from '../../services/exchangeRateService';
 import { showSuccess, showError, confirmDelete, showConfirm } from '../../utils/sweetAlert';
 import { pharmacyService } from '../../services/pharmacyService';
 import { subscriptionHistoryService } from '../../services/subscriptionHistoryService';
@@ -136,6 +138,7 @@ export default function Subscriptions() {
   const [renewPharmacy, setRenewPharmacy] = useState(null);
   const [renewForm, setRenewForm] = useState({ planId: '', startDate: '', endDate: '', notes: '' });
   const [renewSubmitting, setRenewSubmitting] = useState(false);
+  const [conversionInfo, setConversionInfo] = useState(null); // { rate, convertedAmount, currency, symbol }
 
   // History drawer for subscriptions tab
   const [subHistoryDrawerOpen, setSubHistoryDrawerOpen] = useState(false);
@@ -501,7 +504,73 @@ export default function Subscriptions() {
     setRenewDrawerOpen(false);
     setRenewPharmacy(null);
     setRenewForm({ planId: '', startDate: '', endDate: '', notes: '' });
+    setConversionInfo(null);
   };
+
+  // Hardcoded fallback exchange rates (1 INR = X currency)
+  // Used when the external API is unavailable
+  const FALLBACK_RATES = {
+    USD: 0.012, BDT: 1.17, EUR: 0.011, GBP: 0.0095,
+    PKR: 3.35, NPR: 1.60, LKR: 3.60, AED: 0.044,
+    SAR: 0.045, MYR: 0.056, SGD: 0.016, AUD: 0.018,
+    CAD: 0.016, PHP: 0.70,
+  };
+
+  // Auto-detect pharmacy currency and calculate converted amount
+  useEffect(() => {
+    if (!renewPharmacy || !renewForm.planId) {
+      setConversionInfo(null);
+      return;
+    }
+    const plan = activePlans.find(p => p._id === renewForm.planId);
+    if (!plan || !plan.price) { setConversionInfo(null); return; }
+
+    const pharmCurrency = renewPharmacy.currency || 'INR';
+    const adminCurrency = 'INR';
+    if (pharmCurrency === adminCurrency) { setConversionInfo(null); return; }
+
+    let cancelled = false;
+    const fetchConversion = async () => {
+      try {
+        console.log('Subscriptions - Pharmacy currency:', pharmCurrency, 'Plan price:', plan.price);
+        
+        // Try fetching from API first
+        let rate = null;
+        try {
+          const result = await getExchangeRates(adminCurrency, [pharmCurrency]);
+          if (cancelled) return;
+          console.log('Exchange rates result:', result);
+          rate = result.rates[pharmCurrency];
+        } catch (apiErr) {
+          console.warn('API fetch failed, using fallback rates:', apiErr.message);
+        }
+
+        // Fallback to hardcoded rates if API fails
+        if (!rate) {
+          rate = FALLBACK_RATES[pharmCurrency];
+          console.log('Using fallback rate for', pharmCurrency, ':', rate);
+        }
+
+        if (!rate) { 
+          console.warn('No rate found for', pharmCurrency);
+          setConversionInfo(null); 
+          return; 
+        }
+        
+        setConversionInfo({
+          rate,
+          convertedAmount: plan.price * rate,
+          currency: pharmCurrency,
+          symbol: getCurrencySymbol(pharmCurrency),
+        });
+      } catch (err) {
+        console.error('Exchange rate fetch error:', err);
+        if (!cancelled) setConversionInfo(null);
+      }
+    };
+    fetchConversion();
+    return () => { cancelled = true; };
+  }, [renewPharmacy, renewForm.planId, activePlans]);
 
   const handleSubRenewFormChange = (field, value) => {
     setRenewForm((prev) => {
@@ -569,8 +638,8 @@ export default function Subscriptions() {
                 <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${new Date(preview.newEndDate).toLocaleDateString()}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Amount</td>
-                <td style="padding: 8px 12px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">${getCurrentSymbol()} ${preview.amount?.toLocaleString()}</td>
+                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Amount (${conversionInfo ? conversionInfo.currency : 'INR'})</td>
+                <td style="padding: 8px 12px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">${conversionInfo ? conversionInfo.symbol + ' ' + Math.round(conversionInfo.convertedAmount).toLocaleString() + ' ' + conversionInfo.currency : getCurrentSymbol() + ' ' + preview.amount?.toLocaleString()}</td>
               </tr>
             </table>
             <div style="margin-top: 16px; padding: 12px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; text-align: center;">
@@ -601,13 +670,20 @@ export default function Subscriptions() {
 
     setRenewSubmitting(true);
     try {
-      const { data } = await subscriptionHistoryService.addSubscription({
+      const addData = {
         pharmacyId: renewPharmacy._id,
         planId: renewForm.planId,
         startDate: renewForm.startDate,
         endDate: renewForm.endDate,
         notes: renewForm.notes,
-      });
+      };
+      // Include conversion data if currency differs
+      if (conversionInfo) {
+        addData.convertedAmount = Math.round(conversionInfo.convertedAmount * 100) / 100;
+        addData.convertedCurrency = conversionInfo.currency;
+        addData.exchangeRate = conversionInfo.rate;
+      }
+      const { data } = await subscriptionHistoryService.addSubscription(addData);
       showSuccess(data.message || 'Subscription added successfully!');
       closeSubRenewDrawer();
       loadPharmacies();
@@ -774,8 +850,10 @@ export default function Subscriptions() {
     const endDate = subscriptionStatus.endDate ? new Date(subscriptionStatus.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A';
     const daysRemaining = subscriptionStatus.daysRemaining !== undefined ? subscriptionStatus.daysRemaining : 'N/A';
 
-    // Desktop column definitions for history
-    const desktopCols = ['Plan Name', 'Start Date', 'Expiry Date', 'Duration', 'Amount', 'Status', 'Action', 'Renewal Date', 'Payment Method'];
+    // Use converted amount for admin display if available
+    const displayAmount = subscriptionStatus.originalAmount || null;
+    const displayCurrency = subscriptionStatus.originalCurrency || null;
+    const displaySymbol = displayCurrency ? getCurrencySymbol(displayCurrency) : getCurrentSymbol();
 
     return (
       <>
@@ -1067,7 +1145,18 @@ export default function Subscriptions() {
                           {plans.map((plan) => (
                             <tr key={plan._id}>
                               <td style={{ fontWeight: 500 }}>{plan.planName}</td>
-                              <td><CurrencyDisplay value={plan.price} /></td>
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <CurrencyDisplay value={plan.price} />
+                                  {isSuperAdmin && (
+                                    <CurrencyConverter
+                                      value={plan.price}
+                                      showCurrencies={['USD', 'BDT', 'EUR']}
+                                      compact
+                                    />
+                                  )}
+                                </div>
+                              </td>
                               <td>{plan.duration} {plan.durationUnit}</td>
                               <td>{plan.maxStaff ?? 'Unlimited'}</td>
                               <td>{plan.maxBranches ?? 'Unlimited'}</td>
@@ -1345,12 +1434,38 @@ export default function Subscriptions() {
                 </div>
                 {renewForm.planId && activePlans.find(p => p._id === renewForm.planId) && (
                   <div className="renew-preview-card" style={{ padding: '14px', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', marginTop: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Total Amount</span>
-                      <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary)' }}>
-                        {getCurrentSymbol()} {activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()}
-                      </span>
-                    </div>
+                    {conversionInfo ? (
+                      <>
+                        {/* Pharmacy's currency price (primary) */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Selected Plan Price ({renewPharmacy?.pharmacyName})</span>
+                          <span style={{ fontWeight: 700, fontSize: '18px', color: '#16a34a' }}>
+                            {conversionInfo.symbol} {Math.round(conversionInfo.convertedAmount).toLocaleString()} {conversionInfo.currency}
+                          </span>
+                        </div>
+                        {/* INR equivalent (secondary) */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                          <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--gray-500)' }}>Base Price (INR)</span>
+                          <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--gray-600)' }}>
+                            {getCurrentSymbol()} {activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()} INR
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', textAlign: 'right' }}>
+                          1 INR = {conversionInfo.rate?.toFixed(4)} {conversionInfo.currency}
+                        </div>
+                        <div style={{ marginTop: '8px', padding: '8px 10px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '12px', color: '#166534', textAlign: 'center' }}>
+                          <i className="fa-solid fa-info-circle"></i> Price shown in {conversionInfo.currency} based on the pharmacy's configured currency.
+                        </div>
+                      </>
+                    ) : (
+                      /* Same currency (INR) - show directly */
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Selected Plan Price</span>
+                        <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary)' }}>
+                          {getCurrentSymbol()} {activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()} INR
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

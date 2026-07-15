@@ -1,5 +1,5 @@
 import express from 'express';
-import { login, getMe, updateProfile, getUsers, createUser, updateUser, deleteUser, resetPassword } from '../controllers/authController.js';
+import { login, getMe, updateProfile, getUsers, createUser, updateUser, deleteUser, resetPassword, forgotPassword, resetPasswordByToken } from '../controllers/authController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { loginValidator } from '../validators/authValidator.js';
 import { createUserValidator, updateUserValidator, resetPasswordValidator } from '../validators/userValidator.js';
@@ -9,6 +9,8 @@ const router = express.Router();
 
 // Public routes
 router.post('/login', loginValidator, validate, login);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password/:token', resetPasswordByToken);
 
 // Protected routes
 router.get('/me', protect, getMe);

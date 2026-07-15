@@ -9,6 +9,7 @@ import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { customerService } from '../../services/customerService';
 import PortalDropdown from '../../components/common/PortalDropdown';
+import BarcodeScanner from '../../components/common/BarcodeScanner';
 
 export default function SaleForm() {
   const dispatch = useDispatch();
@@ -238,34 +239,14 @@ export default function SaleForm() {
     searchRef.current?.focus();
   };
 
-  const handleScanBarcode = async () => {
-    setScanning(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      stream.getTracks().forEach(t => t.stop());
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode('pos-scanner');
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 5, qrbox: { width: 200, height: 100 } },
-        async (decodedText) => {
-          await scanner.stop();
-          scanner.clear();
-          setScanning(false);
-          const med = medicines?.find(m => m.barcode === decodedText && m.currentStock > 0);
-          if (med) {
-            addItem(med);
-          } else {
-            showError('Medicine not found for this barcode');
-          }
-        },
-        () => { }
-      );
-    } catch (err) {
-      setScanning(false);
-      showError('Scanner failed. Please search manually.');
+  const handleScanResult = useCallback((decodedText) => {
+    const med = medicines?.find(m => m.barcode === decodedText && m.currentStock > 0);
+    if (med) {
+      addItem(med);
+    } else {
+      showError('Medicine not found for this barcode');
     }
-  };
+  }, [medicines]);
 
   const updateItem = (index, field, value) => {
     setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
@@ -545,11 +526,17 @@ export default function SaleForm() {
                     )}
                   </PortalDropdown>
                 </div>
-                <button type="button" className="btn btn-info" onClick={handleScanBarcode} disabled={scanning} style={{ height: '46px', whiteSpace: 'nowrap' }}>
-                  {scanning ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-camera"></i>} Scan
+                <button type="button" className="btn btn-info" onClick={() => setScanning(true)} style={{ height: '46px', whiteSpace: 'nowrap' }}>
+                  <i className="fa-solid fa-camera"></i> Scan
                 </button>
               </div>
-              {scanning && <div id="pos-scanner" style={{ width: '100%', maxWidth: '300px', marginTop: '8px' }}></div>}
+              <BarcodeScanner
+                open={scanning}
+                onScan={handleScanResult}
+                onClose={() => setScanning(false)}
+                scannerId="pos-scanner"
+                stopAfterScan={true}
+              />
             </div>
           </div>
 

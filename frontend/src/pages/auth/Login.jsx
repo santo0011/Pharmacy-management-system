@@ -215,6 +215,24 @@ export default function Login() {
                   </>
                 )}
               </button>
+
+              <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                <a
+                  href="/forgot-password"
+                  style={{
+                    color: '#0ea5e9',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    textDecoration: 'none',
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/forgot-password');
+                  }}
+                >
+                  <i className="fa-solid fa-key"></i> Forgot Password?
+                </a>
+              </div>
             </form>
 
             {/* Footer */}

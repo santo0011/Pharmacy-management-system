@@ -85,6 +85,27 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server is running' });
 });
 
+// SMTP Test endpoint - remove in production
+app.get('/api/test-smtp', async (req, res) => {
+  try {
+    const nodemailer = (await import('nodemailer')).default;
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_PORT === '465',
+      requireTLS: true,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+    await transporter.verify();
+    res.json({ success: true, message: 'SMTP connection successful' });
+  } catch (error) {
+    res.json({ success: false, message: 'SMTP connection failed', error: error.message });
+  }
+});
+
 // Error Handler
 app.use(errorHandler);
 

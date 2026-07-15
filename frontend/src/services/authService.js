@@ -10,4 +10,7 @@ export const authService = {
   updateUser: (id, data) => API.put(`/auth/users/${id}`, data),
   deleteUser: (id) => API.delete(`/auth/users/${id}`),
   resetPassword: (id, data) => API.put(`/auth/users/${id}/reset-password`, data),
+  // Public - Forgot/Reset Password
+  forgotPassword: (email) => API.post('/auth/forgot-password', { email }),
+  resetPasswordByToken: (token, data) => API.post(`/auth/reset-password/${token}`, data),
 };

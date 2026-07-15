@@ -13,6 +13,7 @@ import {
 import { medicineService } from '../../services/medicineService';
 import { showSuccess, showError, showWarning, showInfo } from '../../utils/sweetAlert';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import BarcodeScanner from '../../components/common/BarcodeScanner';
 import { useAuth } from '../../hooks/useAuth';
 
 const initialFormState = {
@@ -62,19 +63,11 @@ export default function MedicineForm() {
 
   // Barcode scanner state
   const [showScanner, setShowScanner] = useState(false);
-  const [scannerLoading, setScannerLoading] = useState(false);
-  const [scannerError, setScannerError] = useState('');
-  const [scannerPermission, setScannerPermission] = useState(false);
-  const [availableCameras, setAvailableCameras] = useState([]);
-  const [selectedCameraId, setSelectedCameraId] = useState('');
 
   // Barcode lookup state
   const [barcodeChecking, setBarcodeChecking] = useState(false);
   const [barcodeLookupMessage, setBarcodeLookupMessage] = useState('');
 
-  const scannerInstanceRef = useRef(null);
-  const scannerContainerRef = useRef(null);
-  const isProcessingScan = useRef(false);
   const formDataRef = useRef(formData);
   const barcodeCheckInProgress = useRef(false);
 
@@ -100,7 +93,6 @@ export default function MedicineForm() {
     }
 
     return () => {
-      cleanupScanner();
       dispatch(clearSelectedMedicine());
     };
   }, [dispatch, id, isEditing]);
@@ -139,158 +131,6 @@ export default function MedicineForm() {
     }
   }, [selectedMedicine, isEditing]);
 
-  // --- Scanner Functions ---
-
-  const cleanupScanner = useCallback(async () => {
-    if (scannerInstanceRef.current) {
-      try {
-        await scannerInstanceRef.current.stop();
-        scannerInstanceRef.current.clear();
-      } catch (err) {
-        // Ignore cleanup errors
-      }
-      scannerInstanceRef.current = null;
-    }
-    setShowScanner(false);
-    setScannerLoading(false);
-    setScannerError('');
-    setScannerPermission(false);
-    setAvailableCameras([]);
-    setSelectedCameraId('');
-    isProcessingScan.current = false;
-  }, []);
-
-  const getAvailableCameras = async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
-      setAvailableCameras(videoDevices);
-      if (videoDevices.length > 0) {
-        // Prefer environment (rear) camera
-        const rearCam = videoDevices.find(
-          (d) => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear') || d.label.toLowerCase().includes('environment')
-        );
-        setSelectedCameraId(rearCam ? rearCam.deviceId : videoDevices[0].deviceId);
-      }
-      return videoDevices;
-    } catch (err) {
-      return [];
-    }
-  };
-
-  const startScanner = async () => {
-    setScannerError('');
-    setScannerLoading(true);
-    setShowScanner(true);
-    setScannerPermission(false);
-
-    try {
-      // First request camera permission explicitly
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      // Stop the test stream immediately; we just needed permission
-      stream.getTracks().forEach((track) => track.stop());
-      setScannerPermission(true);
-
-      // Get available cameras
-      await getAvailableCameras();
-
-      // Dynamically import html5-qrcode
-      const { Html5Qrcode } = await import('html5-qrcode');
-
-      if (scannerInstanceRef.current) {
-        await scannerInstanceRef.current.stop().catch(() => {});
-        scannerInstanceRef.current.clear().catch(() => {});
-        scannerInstanceRef.current = null;
-      }
-
-      // Create scanner with specific element ID
-      if (scannerContainerRef.current) {
-        scannerContainerRef.current.innerHTML = '';
-      }
-
-      scannerInstanceRef.current = new Html5Qrcode('barcode-scanner-reader');
-
-      const cameraConfig = selectedCameraId
-        ? { deviceId: { exact: selectedCameraId } }
-        : { facingMode: 'environment' };
-
-      isProcessingScan.current = false;
-
-      await scannerInstanceRef.current.start(
-        cameraConfig,
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          // Prevent duplicate scans
-          if (isProcessingScan.current) return;
-
-          isProcessingScan.current = true;
-          handleBarcodeDetected(decodedText);
-        },
-        () => {}
-      );
-
-      setScannerLoading(false);
-    } catch (err) {
-      setScannerLoading(false);
-      console.error('Scanner error:', err);
-
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setScannerError('Camera permission denied. Please allow camera access and try again, or type the barcode manually.');
-      } else if (err.name === 'NotFoundError') {
-        setScannerError('No camera found on this device. Please type the barcode manually.');
-      } else if (err.name === 'NotReadableError') {
-        setScannerError('Camera is already in use by another application. Please close other apps and try again.');
-      } else {
-        setScannerError('Failed to access camera. Please try typing the barcode manually.');
-      }
-    }
-  };
-
-  const switchCamera = async (deviceId) => {
-    setSelectedCameraId(deviceId);
-    setScannerLoading(true);
-    setScannerError('');
-
-    try {
-      if (scannerInstanceRef.current) {
-        await scannerInstanceRef.current.stop().catch(() => {});
-      }
-
-      const { Html5Qrcode } = await import('html5-qrcode');
-
-      if (scannerContainerRef.current) {
-        scannerContainerRef.current.innerHTML = '';
-      }
-
-      scannerInstanceRef.current = new Html5Qrcode('barcode-scanner-reader');
-
-      isProcessingScan.current = false;
-
-      await scannerInstanceRef.current.start(
-        { deviceId: { exact: deviceId } },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          if (isProcessingScan.current) return;
-
-          isProcessingScan.current = true;
-          handleBarcodeDetected(decodedText);
-        },
-        () => {}
-      );
-
-      setScannerLoading(false);
-    } catch (err) {
-      setScannerLoading(false);
-      setScannerError('Failed to switch camera. Please try again.');
-    }
-  };
-
-  const stopScanner = async () => {
-    await cleanupScanner();
-  };
-
   // --- Barcode Handling ---
 
   const handleBarcodeDetected = async (barcode) => {
@@ -305,7 +145,7 @@ export default function MedicineForm() {
       setBarcodeChecking(true);
 
       // Close scanner overlay immediately after successful scan
-      await cleanupScanner();
+      setShowScanner(false);
 
       // Lookup barcode - this checks our DB first, then external API
       const lookupResponse = await medicineService.lookupBarcode(barcode);
@@ -646,15 +486,10 @@ export default function MedicineForm() {
                       <button
                         type="button"
                         className="btn btn-info btn-scan"
-                        onClick={startScanner}
+                        onClick={() => setShowScanner(true)}
                         title="Scan Barcode/QR"
-                        disabled={scannerLoading}
                       >
-                        {scannerLoading ? (
-                          <i className="fa-solid fa-spinner fa-spin"></i>
-                        ) : (
-                          <i className="fa-solid fa-camera"></i>
-                        )} Scan
+                        <i className="fa-solid fa-camera"></i> Scan
                       </button>
                     </div>
                     {barcodeChecking && (
@@ -853,63 +688,13 @@ export default function MedicineForm() {
         </div>
       </div>
 
-      {/* Barcode Scanner Overlay */}
-      {showScanner && (
-        <div className="scanner-overlay">
-          {scannerLoading ? (
-            <div className="scanner-loading">
-              <i className="fa-solid fa-spinner fa-spin"></i>
-              <div>Accessing camera...</div>
-              <p>Please allow camera permission when prompted</p>
-            </div>
-          ) : scannerError ? (
-            <div className="scanner-error">
-              <i className="fa-solid fa-exclamation-triangle"></i>
-              <div>Camera Error</div>
-              <p>{scannerError}</p>
-              <div className="scanner-error-actions">
-                <button type="button" className="btn btn-info" onClick={startScanner}>
-                  <i className="fa-solid fa-redo"></i> Try Again
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={stopScanner}>
-                  Close
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="scanner-header">
-                <i className="fa-solid fa-camera"></i> Point camera at barcode
-              </div>
-
-              {availableCameras.length > 1 && (
-                <div className="scanner-cameras">
-                  {availableCameras.map((cam) => (
-                    <button
-                      key={cam.deviceId}
-                      type="button"
-                      className={`btn btn-sm ${cam.deviceId === selectedCameraId ? 'btn-primary' : 'btn-outline-light'}`}
-                      onClick={() => switchCamera(cam.deviceId)}
-                    >
-                      <i className="fa-solid fa-camera"></i>{' '}
-                      {cam.label || `Camera ${availableCameras.indexOf(cam) + 1}`}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div
-                id="barcode-scanner-reader"
-                ref={scannerContainerRef}
-                className="scanner-reader"
-              />
-              <button type="button" className="btn btn-danger scanner-cancel" onClick={stopScanner}>
-                <i className="fa-solid fa-times"></i> Cancel
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      <BarcodeScanner
+        open={showScanner}
+        onScan={handleBarcodeDetected}
+        onClose={() => setShowScanner(false)}
+        scannerId="barcode-scanner-reader"
+        stopAfterScan={true}
+      />
     </div>
   );
 }

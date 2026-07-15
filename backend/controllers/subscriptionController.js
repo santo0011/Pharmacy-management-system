@@ -159,7 +159,7 @@ async function logSubscriptionActivity({
 // @access  Private/SuperAdmin
 export const addSubscription = async (req, res, next) => {
   try {
-    const { pharmacyId, planId, startDate, endDate, notes } = req.body;
+    const { pharmacyId, planId, startDate, endDate, notes, convertedAmount, convertedCurrency, exchangeRate } = req.body;
 
     if (!pharmacyId || !planId) {
       return ApiResponse.error(res, 'Pharmacy ID and Plan ID are required', 400);
@@ -208,6 +208,24 @@ export const addSubscription = async (req, res, next) => {
     const hasActiveSubscription = currentEndDate && new Date(currentEndDate) > now;
     const actionType = hasActiveSubscription ? 'extended' : 'created';
 
+    // Determine currency fields:
+    // - amount stores the value in INR (base admin currency)
+    // - originalCurrency stores the pharmacy's currency code
+    // - originalAmount stores the converted amount in pharmacy currency
+    // - exchangeRate stores 1 INR = X pharmacy_currency
+    const baseAmount = plan.priceInINR || plan.price;
+    const baseCurrency = plan.priceCurrency || 'INR';
+    
+    // If the frontend provided converted values, use them.
+    // Otherwise, use plan defaults (no conversion).
+    const effectiveConvertedCurrency = convertedCurrency || baseCurrency;
+    const effectiveExchangeRate = exchangeRate || (plan.priceInINR && plan.price ? (plan.priceInINR / plan.price).toFixed(4) : 1);
+    const effectiveOriginalAmount = convertedAmount || plan.price;
+    
+    // The stored 'amount' is always INR (or the admin base currency)
+    // This is what Super Admin sees everywhere
+    // The pharmacy sees 'originalAmount' in its own currency
+
     // Create subscription history record
     const historyRecord = await SubscriptionHistory.create({
       pharmacy: pharmacy._id,
@@ -218,10 +236,10 @@ export const addSubscription = async (req, res, next) => {
       endDate: newEndDate,
       duration: plan.duration,
       durationUnit: plan.durationUnit,
-      amount: plan.priceInINR || plan.price,
-      originalCurrency: plan.priceCurrency || 'INR',
-      originalAmount: plan.price,
-      exchangeRate: plan.priceInINR && plan.price ? (plan.priceInINR / plan.price).toFixed(4) : 1,
+      amount: baseAmount,
+      originalCurrency: effectiveConvertedCurrency,
+      originalAmount: effectiveOriginalAmount,
+      exchangeRate: effectiveExchangeRate,
       paymentMethod: 'manual',
       renewalDate: new Date(),
       status: historyStatus,
@@ -450,6 +468,12 @@ export const getSubscriptionStatus = async (req, res, next) => {
       status = 'expiring_soon';
     }
 
+    // Fetch the latest active history record to get currency info
+    const latestRecord = await SubscriptionHistory.findOne({
+      pharmacy: pharmacyId,
+      status: { $in: ['active', 'upcoming'] },
+    }).sort({ createdAt: -1 });
+
     return ApiResponse.success(res, {
       status,
       daysRemaining: remainingDays,
@@ -457,6 +481,9 @@ export const getSubscriptionStatus = async (req, res, next) => {
       endDate: effectiveEndDate,
       plan: planInfo.plan,
       hasSubscription: !!planInfo.planId,
+      originalAmount: latestRecord?.originalAmount || null,
+      originalCurrency: latestRecord?.originalCurrency || null,
+      exchangeRate: latestRecord?.exchangeRate || null,
     });
   } catch (error) {
     next(error);
@@ -487,6 +514,12 @@ export const getMySubscriptionStatus = async (req, res, next) => {
       status = 'expiring_soon';
     }
 
+    // Fetch the latest active history record to get currency info for admin view
+    const latestRecord = await SubscriptionHistory.findOne({
+      pharmacy: pharmacyId,
+      status: { $in: ['active', 'upcoming'] },
+    }).sort({ createdAt: -1 });
+
     return ApiResponse.success(res, {
       status,
       daysRemaining: remainingDays,
@@ -494,6 +527,9 @@ export const getMySubscriptionStatus = async (req, res, next) => {
       endDate: effectiveEndDate,
       plan: planInfo.plan,
       hasSubscription: !!planInfo.planId,
+      originalAmount: latestRecord?.originalAmount || null,
+      originalCurrency: latestRecord?.originalCurrency || null,
+      exchangeRate: latestRecord?.exchangeRate || null,
     });
   } catch (error) {
     next(error);

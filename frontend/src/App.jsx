@@ -3,6 +3,8 @@ import { useAuth } from './hooks/useAuth';
 import SuperAdminLayout from './layouts/SuperAdminLayout';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/auth/Login';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
 import Dashboard from './pages/dashboard/EnhancedDashboard';
 import Categories from './pages/categories/Categories';
 import Brands from './pages/brands/Brands';
@@ -70,6 +72,18 @@ export default function App() {
             <Login />
           </PublicRoute>
         }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <PublicRoute>
+            <ForgotPassword />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/reset-password/:token"
+        element={<ResetPassword />}
       />
 
       {/* All authenticated routes under one path, layout switches by role */}
