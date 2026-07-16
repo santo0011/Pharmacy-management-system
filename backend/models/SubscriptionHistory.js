@@ -41,11 +41,10 @@ const subscriptionHistorySchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
-    // Original payment currency (e.g., USD, EUR)
+    // Original payment currency (e.g., USD, EUR, BDT, PKR)
     originalCurrency: {
       type: String,
       default: 'INR',
-      enum: ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'],
     },
     // Original amount paid in the user's local currency
     originalAmount: {

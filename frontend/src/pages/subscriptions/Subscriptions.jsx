@@ -608,43 +608,54 @@ export default function Subscriptions() {
       const confirmResult = await Swal.fire({
         title: 'Confirm Subscription Addition',
         html: `
-          <div style="text-align: left; font-size: 14px; color: #1e293b;">
-            <div style="margin-bottom: 16px; padding: 12px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
-              <strong style="color: #16a34a;">🏥 ${preview.pharmacyName}</strong>
+          <div style="text-align: left; font-size: 12px; color: #1e293b;">
+            <div style="margin-bottom: 8px; padding: 6px 10px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+              <strong style="color: #16a34a; font-size: 13px;">🏥 ${preview.pharmacyName}</strong>
             </div>
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Current Plan</td>
-                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; text-transform: capitalize; color: #1e293b;">${preview.currentPlan}</td>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Current Plan</td>
+                <td style="padding: 4px 10px; font-weight: 600; border-bottom: 1px solid #e2e8f0; text-transform: capitalize; color: #1e293b;">${preview.currentPlan}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Plan</td>
-                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.newPlan}</td>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Plan</td>
+                <td style="padding: 4px 10px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.newPlan}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Current Remaining Days</td>
-                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.currentRemainingDays} days</td>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Remaining Days</td>
+                <td style="padding: 4px 10px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.currentRemainingDays} days</td>
               </tr>
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Subscription Duration</td>
-                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.newDuration} ${preview.newDurationUnit}</td>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Duration</td>
+                <td style="padding: 4px 10px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${preview.newDuration} ${preview.newDurationUnit}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New Start Date</td>
-                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${new Date(preview.newStartDate).toLocaleDateString()}</td>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Start Date</td>
+                <td style="padding: 4px 10px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${new Date(preview.newStartDate).toLocaleDateString()}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">New End Date</td>
-                <td style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${new Date(preview.newEndDate).toLocaleDateString()}</td>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">End Date</td>
+                <td style="padding: 4px 10px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #1e293b;">${new Date(preview.newEndDate).toLocaleDateString()}</td>
+              </tr>
+              ${conversionInfo ? `
+              <tr>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Original Price (INR)</td>
+                <td style="padding: 4px 10px; font-weight: 600; border-bottom: 1px solid #e2e8f0; color: #475569;">${getCurrentSymbol()} ${preview.amount?.toLocaleString()}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Amount (${conversionInfo ? conversionInfo.currency : 'INR'})</td>
-                <td style="padding: 8px 12px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">${conversionInfo ? conversionInfo.symbol + ' ' + Math.round(conversionInfo.convertedAmount).toLocaleString() + ' ' + conversionInfo.currency : getCurrentSymbol() + ' ' + preview.amount?.toLocaleString()}</td>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Converted (${conversionInfo.currency})</td>
+                <td style="padding: 4px 10px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">${conversionInfo.symbol} ${Math.round(conversionInfo.convertedAmount).toLocaleString()}</td>
               </tr>
+              ` : `
+              <tr>
+                <td style="padding: 4px 10px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Amount</td>
+                <td style="padding: 4px 10px; font-weight: 700; border-bottom: 1px solid #e2e8f0; color: #2563eb;">${getCurrentSymbol()} ${preview.amount?.toLocaleString()} INR</td>
+              </tr>
+              `}
             </table>
-            <div style="margin-top: 16px; padding: 12px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; text-align: center;">
-              <strong style="color: #1d4ed8; font-size: 16px;">
-                Final Remaining Days After Activation: ${preview.finalRemainingDays} days
+            <div style="margin-top: 8px; padding: 6px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe; text-align: center;">
+              <strong style="color: #1d4ed8; font-size: 13px;">
+                Final Remaining Days: ${preview.finalRemainingDays} days
               </strong>
             </div>
           </div>
@@ -659,7 +670,7 @@ export default function Subscriptions() {
         color: '#1e293b',
         iconColor: '#2563eb',
         reverseButtons: true,
-        width: '550px',
+        width: '480px',
       });
 
       if (!confirmResult.isConfirmed) return;
@@ -814,7 +825,7 @@ export default function Subscriptions() {
                     <div><strong>Start:</strong> {new Date(record.startDate).toLocaleDateString()}</div>
                     <div><strong>End:</strong> {new Date(record.endDate).toLocaleDateString()}</div>
                     <div><strong>Duration:</strong> {record.duration} {record.durationUnit}</div>
-                    <div><strong>Amount:</strong> {getCurrentSymbol()} {record.amount?.toLocaleString()}</div>
+                    <div><strong>Amount:</strong> {isSuperAdmin ? (getCurrentSymbol() + ' ' + record.amount?.toLocaleString()) : (record.originalCurrency ? (getCurrencySymbol(record.originalCurrency) + ' ' + (record.originalAmount || record.amount)?.toLocaleString()) : getCurrentSymbol() + ' ' + record.amount?.toLocaleString())}</div>
                     {record.createdByName && (
                       <div style={{ gridColumn: '1 / -1' }}><strong>By:</strong> {record.createdByName}</div>
                     )}
@@ -919,6 +930,17 @@ export default function Subscriptions() {
                 {endDate}
               </div>
             </div>
+            {displayAmount && displayCurrency && displayCurrency !== 'INR' && (
+              <div style={{ padding: '14px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0', gridColumn: '1 / -1' }}>
+                <div style={{ fontSize: '11px', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500 }}>Subscription Amount ({displayCurrency})</div>
+                <div style={{ fontWeight: 700, fontSize: '22px', marginTop: '4px', color: '#16a34a' }}>
+                  {displaySymbol} {Number(displayAmount).toLocaleString()} {displayCurrency}
+                </div>
+                <div style={{ fontSize: '10px', color: '#166534', marginTop: '2px' }}>
+                  <i className="fa-solid fa-info-circle"></i> Amount automatically converted from INR at time of purchase.
+                </div>
+              </div>
+            )}
           </div>
 
           {subscriptionStatus.status === 'expired' && (
@@ -971,7 +993,15 @@ export default function Subscriptions() {
                           <td>{new Date(record.startDate).toLocaleDateString()}</td>
                           <td>{new Date(record.endDate).toLocaleDateString()}</td>
                           <td>{record.duration} {record.durationUnit}</td>
-                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={record.amount} /></td>
+                          <td style={{ fontWeight: 600 }}>
+                            {isSuperAdmin ? (
+                              <CurrencyDisplay value={record.amount} />
+                            ) : record.originalCurrency ? (
+                              <CurrencyDisplay value={record.originalAmount || record.amount} symbol={getCurrencySymbol(record.originalCurrency)} />
+                            ) : (
+                              <CurrencyDisplay value={record.amount} />
+                            )}
+                          </td>
                           <td>
                             <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
                               <i className={`fa-solid ${getStatusIcon(record.status)}`} style={{ marginRight: '3px' }}></i>
@@ -1007,7 +1037,7 @@ export default function Subscriptions() {
                     const expanded = isRowExpanded('admin', idx);
                     const mainCols = [
                       { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
-                      { render: (r) => <CurrencyDisplay value={r.amount} /> },
+                      { render: (r) => isSuperAdmin ? <CurrencyDisplay value={r.amount} /> : <CurrencyDisplay value={r.originalAmount || r.amount} symbol={getCurrencySymbol(r.originalCurrency) || getCurrentSymbol()} /> },
                       { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{getStatusLabel(r.status)}</span> },
                     ];
                     const detailRows = [
@@ -1432,41 +1462,41 @@ export default function Subscriptions() {
                   <label>Notes (optional)</label>
                   <textarea value={renewForm.notes} onChange={(e) => handleSubRenewFormChange('notes', e.target.value)} placeholder="Add any notes..." rows={2} />
                 </div>
-                {renewForm.planId && activePlans.find(p => p._id === renewForm.planId) && (
-                  <div className="renew-preview-card" style={{ padding: '14px', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', marginTop: '12px' }}>
-                    {conversionInfo ? (
-                      <>
-                        {/* Pharmacy's currency price (primary) */}
+                  {renewForm.planId && activePlans.find(p => p._id === renewForm.planId) && (
+                    <div className="renew-preview-card" style={{ padding: '14px', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', marginTop: '12px' }}>
+                      {conversionInfo ? (
+                        <>
+                          {/* Original Plan Price in INR (always shown to Super Admin) */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--gray-500)' }}>Original Plan Price (INR)</span>
+                            <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--gray-600)' }}>
+                              {getCurrentSymbol()} {activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()} INR
+                            </span>
+                          </div>
+                          {/* Pharmacy's local currency price (primary) */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Converted Pharmacy Amount ({conversionInfo.currency})</span>
+                            <span style={{ fontWeight: 700, fontSize: '18px', color: '#16a34a' }}>
+                              {conversionInfo.symbol} {Math.round(conversionInfo.convertedAmount).toLocaleString()} {conversionInfo.currency}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', textAlign: 'right' }}>
+                            1 INR = {conversionInfo.rate?.toFixed(4)} {conversionInfo.currency}
+                          </div>
+                          <div style={{ marginTop: '8px', padding: '10px 12px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '12px', color: '#166534', textAlign: 'center' }}>
+                            <i className="fa-solid fa-info-circle"></i> This amount has been automatically converted to the pharmacy's local currency using live exchange rates.
+                          </div>
+                        </>
+                      ) : (
+                        /* Same currency (INR) - show directly */
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Selected Plan Price ({renewPharmacy?.pharmacyName})</span>
-                          <span style={{ fontWeight: 700, fontSize: '18px', color: '#16a34a' }}>
-                            {conversionInfo.symbol} {Math.round(conversionInfo.convertedAmount).toLocaleString()} {conversionInfo.currency}
-                          </span>
-                        </div>
-                        {/* INR equivalent (secondary) */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
-                          <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--gray-500)' }}>Base Price (INR)</span>
-                          <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--gray-600)' }}>
+                          <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Selected Plan Price</span>
+                          <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary)' }}>
                             {getCurrentSymbol()} {activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()} INR
                           </span>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', textAlign: 'right' }}>
-                          1 INR = {conversionInfo.rate?.toFixed(4)} {conversionInfo.currency}
-                        </div>
-                        <div style={{ marginTop: '8px', padding: '8px 10px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '12px', color: '#166534', textAlign: 'center' }}>
-                          <i className="fa-solid fa-info-circle"></i> Price shown in {conversionInfo.currency} based on the pharmacy's configured currency.
-                        </div>
-                      </>
-                    ) : (
-                      /* Same currency (INR) - show directly */
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)' }}>Selected Plan Price</span>
-                        <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary)' }}>
-                          {getCurrentSymbol()} {activePlans.find(p => p._id === renewForm.planId)?.price?.toLocaleString()} INR
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
                 )}
               </div>
             )}
@@ -1512,7 +1542,15 @@ export default function Subscriptions() {
                             <td>{new Date(record.startDate).toLocaleDateString()}</td>
                             <td>{new Date(record.endDate).toLocaleDateString()}</td>
                             <td>{record.duration} {record.durationUnit}</td>
-                            <td style={{ fontWeight: 600 }}><CurrencyDisplay value={record.amount} /></td>
+                            <td style={{ fontWeight: 600 }}>
+                              {isSuperAdmin ? (
+                                <CurrencyDisplay value={record.amount} />
+                              ) : record.originalCurrency ? (
+                                <CurrencyDisplay value={record.originalAmount || record.amount} symbol={getCurrencySymbol(record.originalCurrency)} />
+                              ) : (
+                                <CurrencyDisplay value={record.amount} />
+                              )}
+                            </td>
                             <td>
                               <span className={`badge ${getStatusBadge(record.status)}`} style={{ textTransform: 'capitalize' }}>
                                 <i className={`fa-solid ${getStatusIcon(record.status)}`} style={{ marginRight: '3px' }}></i>
@@ -1562,7 +1600,7 @@ export default function Subscriptions() {
                       const expanded = isRowExpanded('hist', idx);
                       const mainCols = [
                         { render: (r) => <span style={{ fontWeight: 500, textTransform: 'capitalize', fontSize: '13px' }}>{r.planName}</span> },
-                        { render: (r) => <CurrencyDisplay value={r.amount} /> },
+                        { render: (r) => isSuperAdmin ? <CurrencyDisplay value={r.amount} /> : <CurrencyDisplay value={r.originalAmount || r.amount} symbol={getCurrencySymbol(r.originalCurrency) || getCurrentSymbol()} /> },
                         { render: (r) => <span className={`badge ${getStatusBadge(r.status)}`} style={{ textTransform: 'capitalize', fontSize: '10px' }}>{getStatusLabel(r.status)}</span> },
                       ];
                       const detailRows = [

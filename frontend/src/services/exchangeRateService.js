@@ -1,13 +1,15 @@
 /**
  * Exchange Rate Service
  * 
- * Fetches live exchange rates from the free Frankfurter API (https://api.frankfurter.app).
+ * Fetches live exchange rates from the free exchangerate.fun API (https://api.exchangerate.fun).
+ * The API uses USD as the base currency, so cross-rates are calculated for INR → target currency.
  * Caches rates in localStorage with a 12-hour refresh interval.
- * All amounts are always stored in the pharmacy's base currency.
- * This service only provides DISPLAY conversion, never modifies stored values.
+ * All amounts are always stored in the pharmacy's base currency (INR).
+ * This service only provides DISPLAY conversion and subscription amount conversion,
+ * never modifies stored values.
  */
 
-const API_BASE = 'https://api.frankfurter.app';
+const API_BASE = 'https://api.exchangerate.fun/latest?base=USD';
 const CACHE_KEY = 'pharmacy_exchange_rates';
 const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 hours
 const DEFAULT_CURRENCY = 'INR';
@@ -71,15 +73,18 @@ function setCachedRates(baseCurrency, rates, lastUpdated) {
 }
 
 /**
- * Fetch live exchange rates from Frankfurter API.
+ * Fetch live exchange rates from exchangerate.fun API.
+ * The API always uses USD as the base currency.
+ * We then convert the rates to use INR as the base for our system.
+ * 
  * @param {string} baseCurrency - 3-letter base currency code (e.g., 'INR')
  * @param {string[]} targetCurrencies - Array of target currency codes (e.g., ['USD', 'EUR', 'BDT'])
  * @returns {Promise<Object>} { rates: {USD: 0.012, ...}, lastUpdated: ISO string }
  */
 async function fetchLiveRates(baseCurrency, targetCurrencies) {
-  // Frankfurter API: /latest?from=BASE&to=TARGET1,TARGET2,...
-  const toParam = targetCurrencies.join(',');
-  const url = `${API_BASE}/latest?from=${baseCurrency}&to=${toParam}`;
+  // exchangerate.fun always uses USD as base
+  // Fetch all rates with USD as base
+  const url = API_BASE;
 
   const response = await fetch(url);
 
@@ -89,9 +94,45 @@ async function fetchLiveRates(baseCurrency, targetCurrencies) {
 
   const data = await response.json();
 
-  // Frankfurter returns: { amount: 1, base: "INR", date: "2026-07-15", rates: { USD: 0.012, ... } }
+  // exchangerate.fun returns: { base: "USD", date: "2026-07-15", rates: { INR: 83.5, USD: 1, BDT: 109.5, ... } }
+  const rawRates = data.rates || {};
+  
+  // Get the USD→INR rate to convert all rates to INR base
+  const usdToInrRate = rawRates['INR'];
+  
+  if (!usdToInrRate || usdToInrRate <= 0) {
+    throw new Error('INR rate not available from exchangerate.fun API');
+  }
+
+  // If baseCurrency is INR (our default), convert all USD-based rates to INR-based rates
+  // Formula: INR_to_target = target_from_USD / INR_from_USD
+  let convertedRates = {};
+  
+  if (baseCurrency === 'INR') {
+    for (const code of targetCurrencies) {
+      if (rawRates[code] !== undefined && rawRates[code] > 0) {
+        // 1 INR = X target currency
+        convertedRates[code] = rawRates[code] / usdToInrRate;
+      }
+    }
+    // INR to INR is always 1
+    convertedRates['INR'] = 1;
+  } else {
+    // For other base currencies, calculate accordingly
+    const usdToBaseRate = rawRates[baseCurrency];
+    if (!usdToBaseRate || usdToBaseRate <= 0) {
+      throw new Error(`Base currency ${baseCurrency} rate not available`);
+    }
+    for (const code of targetCurrencies) {
+      if (rawRates[code] !== undefined && rawRates[code] > 0) {
+        convertedRates[code] = rawRates[code] / usdToBaseRate;
+      }
+    }
+    convertedRates[baseCurrency] = 1;
+  }
+
   return {
-    rates: data.rates || {},
+    rates: convertedRates,
     lastUpdated: data.date ? new Date(data.date + 'T00:00:00Z').toISOString() : new Date().toISOString(),
   };
 }
@@ -113,6 +154,11 @@ export async function getExchangeRates(baseCurrency, targetCurrencies) {
   const targets = targetCurrencies && targetCurrencies.length > 0
     ? targetCurrencies
     : POPULAR_CURRENCIES.map(c => c.code);
+
+  // Ensure INR is included since we need it for cross-rate calculation
+  if (!targets.includes('INR')) {
+    targets.push('INR');
+  }
 
   // Check cache first
   const cached = getCachedRates();
