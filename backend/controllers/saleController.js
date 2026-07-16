@@ -741,7 +741,7 @@ export const getSaleStats = async (req, res, next) => {
     // Recent sales
     const recentSales = await Sale.find({ pharmacyId, isDeleted: false, status: activeStatus })
       .sort({ createdAt: -1 }).limit(5)
-      .select('invoiceNumber customerName grandTotal paymentMethod saleDate');
+      .select('invoiceNumber customerName grandTotal paidAmount dueAmount paymentMethod saleDate');
 
     return ApiResponse.success(res, {
       totalAmount: totalSale[0]?.total || 0,

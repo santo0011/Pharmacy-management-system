@@ -1,14 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSubscriptionStatus } from '../redux/slices/dashboardSlice';
+import { fetchSettings } from '../redux/slices/settingSlice';
 import { confirmAction } from '../utils/sweetAlert';
 import { notificationService } from '../services/notificationService';
+import { profileService } from '../services/profileService';
+import { setPharmacyCurrency, getCurrencyFromCountry, getCurrencySymbol } from '../utils/currency';
+import GlobalSearch from '../components/common/GlobalSearch';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
+  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const { user, logout } = useAuth();
   const dispatch = useDispatch();
   const location = useLocation();
@@ -36,7 +41,17 @@ export default function MainLayout() {
     }
   }, [location.pathname]);
 
+  // Track when subscription status has been loaded at least once
   useEffect(() => {
+    if (subscriptionStatus !== null) {
+      setSubscriptionLoaded(true);
+    }
+  }, [subscriptionStatus]);
+
+  useEffect(() => {
+    // Load platform settings (currency, etc.)
+    dispatch(fetchSettings());
+    
     if (user?.role === 'admin') {
       dispatch(fetchSubscriptionStatus());
       const interval = setInterval(() => {
@@ -45,6 +60,27 @@ export default function MainLayout() {
       return () => clearInterval(interval);
     }
   }, [dispatch, user]);
+
+  // Load pharmacy profile to set the pharmacy-level currency
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      const loadPharmacyCurrency = async () => {
+        try {
+          const { data } = await profileService.getPharmacyProfile();
+          if (data?.data) {
+            const p = data.data;
+            // Set pharmacy-level currency (overrides platform default)
+            const currency = p.currency || 'INR';
+            const symbol = p.currencySymbol || getCurrencySymbol(currency);
+            setPharmacyCurrency(currency, symbol);
+          }
+        } catch (err) {
+          // Silently fail — platform default will be used
+        }
+      };
+      loadPharmacyCurrency();
+    }
+  }, [user]);
 
   // Fetch unread notification count
   useEffect(() => {
@@ -83,10 +119,58 @@ export default function MainLayout() {
     return titles[path] || path.charAt(1).toUpperCase() + path.slice(2);
   };
 
-  const isExpired = subscriptionStatus?.status === 'expired';
+  // Determine if subscription is expired:
+  // - status is 'expired', OR
+  // - daysRemaining is defined AND <= 0, OR
+  // - status is 'no_subscription' (no active records at all)
+  const isExpired = subscriptionStatus?.status === 'expired' 
+    || (subscriptionStatus?.daysRemaining !== undefined && subscriptionStatus?.daysRemaining <= 0)
+    || subscriptionStatus?.status === 'no_subscription';
+    
   const isExpiringSoon = subscriptionStatus?.status === 'expiring_soon';
   const isSubRoute = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
-  const isAllowedRoute = location.pathname === '/' || location.pathname === '/subscriptions' || location.pathname === '/profile';
+  
+  // Only Dashboard and Subscription pages are allowed when expired
+  const isAllowedRoute = location.pathname === '/' || location.pathname === '/subscriptions' || location.pathname === '/subscription-expired';
+  
+  // Redirect to subscription-expired page if subscription is expired and on a restricted route
+  useEffect(() => {
+    if (subscriptionLoaded && isExpired && !isAllowedRoute && user?.role === 'admin') {
+      // Use window.location to force a full redirect (works across refresh/login/logout)
+      if (location.pathname !== '/subscription-expired') {
+        window.location.href = '/subscription-expired';
+      }
+    }
+  }, [subscriptionLoaded, isExpired, isAllowedRoute, user, location.pathname]);
+
+  // Show loading spinner while subscription status is being fetched on initial load
+  // This prevents users from seeing restricted pages before the check completes
+  if (user?.role === 'admin' && !subscriptionLoaded) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#f8fafc',
+        fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '3px solid #e2e8f0',
+            borderTopColor: '#3b82f6',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 16px',
+          }}></div>
+          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Checking subscription status...</p>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   // Filter nav items based on user role
   const getFilteredNavItems = () => {
@@ -306,6 +390,10 @@ export default function MainLayout() {
               <i className="fa-solid fa-user"></i>
               <span>Account</span>
             </div>
+            <NavLink to="/profile" className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')} onClick={() => setSidebarOpen(false)}>
+              <i className="fa-solid fa-id-card"></i>
+              <span>Pharmacy Profile</span>
+            </NavLink>
             <a className="sidebar-logout-link" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }}>
               <i className="fa-solid fa-right-from-bracket"></i>
               <span>Logout</span>
@@ -325,8 +413,9 @@ export default function MainLayout() {
               {user?.pharmacy?.pharmacyName || (user?.role === 'super_admin' ? 'Super Admin' : getPageTitle())}
             </h4>
           </div>
-          <div className="header-right">
-            <NavLink to="/notifications" className="notification-bell" style={{ position: 'relative', marginRight: '8px', color: 'var(--gray-500)', fontSize: '18px' }}>
+          <div className="header-right" style={{ gap: '12px' }}>
+            <GlobalSearch />
+            <NavLink to="/notifications" className="notification-bell" style={{ position: 'relative', color: 'var(--gray-500)', fontSize: '18px' }}>
               <i className="fa-solid fa-bell"></i>
               {notifCount > 0 && (
                 <span className="notif-badge">

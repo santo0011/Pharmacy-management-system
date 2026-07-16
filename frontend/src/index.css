@@ -512,14 +512,14 @@ a {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 20px 10px 44px;
+  padding: 10px 20px;
   color: #94a3b8;
   transition: all 0.2s ease;
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   text-decoration: none;
-  margin: 1px 0;
+  margin: 1px 8px;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -789,6 +789,12 @@ a {
   box-shadow: var(--shadow);
   overflow: hidden;
   width: 100%;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .card-header {
@@ -829,6 +835,12 @@ a {
   display: flex;
   align-items: center;
   gap: 16px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .stat-icon {
@@ -1493,6 +1505,40 @@ input[type="number"]:focus {
   color: var(--danger) !important;
 }
 
+.item-batch-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.batches-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  height: 18px;
+  line-height: 1;
+}
+
+.batches-badge.in-stock {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.batches-badge.low {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.item-expiry {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
 .search-dropdown-empty {
   padding: 12px 14px;
   color: var(--gray-500);
@@ -1635,7 +1681,7 @@ input[type="number"]:focus {
 @media (min-width: 1200px) {
   .sale-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 480px;
+    grid-template-columns: minmax(0, 1fr) 400px;
     gap: 24px;
     align-items: start;
   }
@@ -1645,7 +1691,7 @@ input[type="number"]:focus {
 @media (min-width: 992px) and (max-width: 1199px) {
   .sale-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: minmax(0, 1fr) 320px;
     gap: 20px;
     align-items: start;
   }
@@ -1701,6 +1747,41 @@ input[type="number"]:focus {
   border-radius: var(--radius);
   font-size: 15px;
   transition: all 0.2s;
+}
+
+.btn-add-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 38px;
+  white-space: nowrap;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--primary), #06b6d4);
+  color: white;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.2);
+  flex-shrink: 0;
+}
+
+.btn-add-item:hover {
+  background: linear-gradient(135deg, var(--primary-dark), #0891b2);
+  box-shadow: 0 3px 10px rgba(14, 165, 233, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-add-item:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(14, 165, 233, 0.25);
+}
+
+.btn-add-item i {
+  font-size: 12px;
 }
 
 .search-box-wrapper .search-input-wrap input:focus {
@@ -1919,6 +2000,12 @@ input[type="number"]:focus {
   padding: 16px;
   border-radius: 10px;
   border: 1px solid;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.summary-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .summary-item-green {
@@ -2219,28 +2306,6 @@ input[type="number"]:focus {
   }
 }
 
-/* ===== Dashboard Recent Sales Table ===== */
-.recent-sales-table {
-  display: block;
-  width: 100%;
-}
-
-/* Desktop: make Recent Sales table fill full card width */
-@media (min-width: 769px) {
-  .dashboard-recent-sales-body {
-    padding: 4px 20px !important;
-  }
-
-  .dashboard-recent-sales-body .table-container {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .dashboard-recent-sales-body .dashboard-table {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-}
 
 /* ===== Customer Mobile Expandable Table ===== */
 .customer-desktop-table {
@@ -2475,12 +2540,79 @@ input[type="number"]:focus {
   word-break: break-word;
 }
 
-.recent-sales-table {
-  display: table;
+/* ===== Dashboard Recent Sales Responsive ===== */
+/* Desktop: show table, hide mobile cards */
+.dashboard-recent-sales-body .recent-sales-table {
+  display: block;
 }
 
-.recent-sales-mobile {
+.dashboard-recent-sales-body .recent-sales-mobile {
   display: none;
+}
+
+/* Enhanced Dashboard - Desktop: hide mobile expandable table */
+.dashboard-recent-sales-mobile {
+  display: none !important;
+}
+
+/* Mobile: show cards, hide table */
+@media (max-width: 768px) {
+  .dashboard-recent-sales-body .recent-sales-table,
+  .recent-sales-table {
+    display: none !important;
+  }
+  
+  .dashboard-recent-sales-body .recent-sales-mobile {
+    display: block !important;
+  }
+
+  /* Enhanced Dashboard - Mobile: show mobile expandable table */
+  .dashboard-recent-sales-mobile {
+    display: block !important;
+  }
+  .dashboard-recent-sales-mobile .dashboard-recent-sales-mobile-table {
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-item {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 12px 14px;
+    transition: all 0.2s ease;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-item:last-child {
+    margin-bottom: 0;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-customer {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gray-800);
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .sale-card-amount {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--primary);
+  }
+  .dashboard-recent-sales-body .recent-sales-mobile .view-details-btn {
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
 }
 
 .sale-card-item {
@@ -4339,6 +4471,12 @@ input[type="number"]:focus {
   border-radius: var(--radius);
   margin-bottom: 12px;
   overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.purchase-item-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .purchase-item-card-header {
@@ -4588,6 +4726,24 @@ input[type="number"]:focus {
 
 .due-invoice-item:last-child {
   border-bottom: none;
+}
+
+.due-invoices-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #fee2e2;
+  border-top: 1px solid #fecaca;
+  font-size: 13px;
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.due-invoices-total-amount {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--danger);
 }
 
 .due-invoice-item:hover {
@@ -5407,4 +5563,966 @@ input[type="number"]:focus {
   text-align: right;
   flex: 1;
   word-break: break-word;
+}
+
+/* ===== Global Search - Hide on Mobile ===== */
+@media (max-width: 768px) {
+  .global-search-container {
+    display: none !important;
+  }
+}
+
+/* ===== Dashboard Expired Medicines - Desktop/Mobile Toggle ===== */
+.dashboard-expired-desktop-table {
+  display: block;
+}
+
+.dashboard-expired-mobile-table {
+  display: none;
+}
+
+/* ===== Dashboard Tables - Mobile Responsive ===== */
+@media (max-width: 768px) {
+  /* Dashboard sections - stack properly */
+  .dashboard-tables-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Expired medicines - switch to mobile view */
+  .dashboard-expired-desktop-table {
+    display: none;
+  }
+
+  .dashboard-expired-mobile-table {
+    display: block;
+  }
+
+  .dashboard-expired-mobile-table .btn-sm {
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .dashboard-expired-mobile-table .btn-sm i {
+    font-size: 14px;
+  }
+
+  /* Expired medicines table - card layout on mobile */
+  .dashboard-table-scroll {
+    overflow-x: auto;
+  }
+
+  .dashboard-table th,
+  .dashboard-table td {
+    white-space: nowrap;
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+  }
+
+  /* Recent sales table on mobile */
+  .dashboard-recent-sales-desktop {
+    display: none;
+  }
+
+  .dashboard-recent-sales-mobile {
+    display: block;
+  }
+
+  .dashboard-recent-sales-mobile-table {
+    width: 100%;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-mobile-row {
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-mobile-row:hover {
+    background: var(--gray-50);
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-mobile-row td {
+    border-bottom: none !important;
+    vertical-align: middle;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-row {
+    display: table-row;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-cell {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-inner {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+    padding: 0 14px;
+    background: #fff;
+    border-radius: 8px;
+    margin: 0 4px 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-row-open .sale-detail-inner {
+    max-height: 300px;
+    padding: 10px 14px;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--gray-100);
+    gap: 10px;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-item:last-child {
+    border-bottom: none;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-label {
+    font-size: 12px;
+    color: var(--gray-500);
+    font-weight: 500;
+    flex-shrink: 0;
+    min-width: 70px;
+  }
+
+  .dashboard-recent-sales-mobile-table .sale-detail-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-800);
+    text-align: right;
+    flex: 1;
+    word-break: break-word;
+  }
+
+  /* Expired medicines - mobile summary widgets */
+  .dashboard-tables-row + .card [style*="grid-template-columns"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+}
+
+/* =============================================
+   REDESIGNED LOGIN PAGE
+   ============================================= */
+
+/* Page Container */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Background Decorative Circles */
+.login-bg-decoration {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.login-bg-circle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.08;
+}
+
+.login-bg-circle-1 {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, #0ea5e9, transparent);
+  top: -200px;
+  right: -100px;
+  animation: loginFloat 8s ease-in-out infinite;
+}
+
+.login-bg-circle-2 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, #06b6d4, transparent);
+  bottom: -100px;
+  left: -100px;
+  animation: loginFloat 10s ease-in-out infinite reverse;
+}
+
+.login-bg-circle-3 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, #3b82f6, transparent);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: loginFloat 12s ease-in-out infinite;
+}
+
+@keyframes loginFloat {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(30px, -30px); }
+}
+
+/* Main Container */
+.login-container {
+  display: flex;
+  width: 100%;
+  max-width: 1100px;
+  max-height: 95vh;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* =============================================
+   LEFT SIDE - BRANDING
+   ============================================= */
+.login-branding {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(6, 182, 212, 0.04));
+  position: relative;
+  overflow: hidden;
+}
+
+.login-branding-content {
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+}
+
+/* Floating Icons */
+.login-float {
+  position: absolute;
+  font-size: 24px;
+  color: rgba(14, 165, 233, 0.15);
+  animation: loginFloatIcon 6s ease-in-out infinite;
+}
+
+.login-float-1 {
+  top: -20px;
+  right: 0;
+  font-size: 32px;
+  animation-delay: 0s;
+}
+
+.login-float-2 {
+  top: 40px;
+  left: -30px;
+  font-size: 28px;
+  animation-delay: 1.5s;
+}
+
+.login-float-3 {
+  bottom: 60px;
+  right: -20px;
+  font-size: 26px;
+  animation-delay: 3s;
+}
+
+.login-float-4 {
+  bottom: -10px;
+  left: 20px;
+  font-size: 22px;
+  animation-delay: 4.5s;
+}
+
+@keyframes loginFloatIcon {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.15; }
+  50% { transform: translateY(-15px) rotate(5deg); opacity: 0.25; }
+}
+
+/* Branding Logo */
+.login-branding-logo {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.login-branding-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.3);
+  animation: loginPulse 3s ease-in-out infinite;
+}
+
+@keyframes loginPulse {
+  0%, 100% { box-shadow: 0 8px 32px rgba(14, 165, 233, 0.3); }
+  50% { box-shadow: 0 8px 48px rgba(14, 165, 233, 0.5); }
+}
+
+.login-branding-icon i {
+  font-size: 32px;
+  color: #fff;
+}
+
+.login-branding-logo h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 8px;
+  letter-spacing: -0.5px;
+}
+
+.login-branding-tagline {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Feature Highlights */
+.login-features {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
+.login-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.3s ease;
+}
+
+.login-feature:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(14, 165, 233, 0.2);
+  transform: translateX(4px);
+}
+
+.login-feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(14, 165, 233, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.login-feature-icon i {
+  font-size: 18px;
+  color: #0ea5e9;
+}
+
+.login-feature-text h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 3px;
+}
+
+.login-feature-text p {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Developer Credit */
+.login-developer {
+  margin-top: auto;
+}
+
+.login-developer-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.login-developer-divider span {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.login-developer-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.login-developer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(6, 182, 212, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.login-developer-avatar i {
+  font-size: 18px;
+  color: #0ea5e9;
+}
+
+.login-developer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.login-developer-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.login-developer-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.login-developer-role {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* =============================================
+   RIGHT SIDE - LOGIN FORM
+   ============================================= */
+.login-form-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background: #fff;
+}
+
+.login-form-card {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* Form Header */
+.login-form-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.login-form-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.25);
+}
+
+.login-form-logo i {
+  font-size: 26px;
+  color: #fff;
+}
+
+.login-form-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+
+.login-form-header p {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Form */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-input-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.login-input-group label i {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.login-input-wrapper {
+  position: relative;
+}
+
+.login-input-wrapper input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  outline: none;
+  font-family: inherit;
+}
+
+.login-input-wrapper input::placeholder {
+  color: #94a3b8;
+}
+
+.login-input-wrapper input:focus {
+  border-color: #0ea5e9;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.login-password-wrapper {
+  position: relative;
+}
+
+.login-password-wrapper input {
+  padding-right: 44px;
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 16px;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-password-toggle:hover {
+  color: #64748b;
+}
+
+/* Submit Button */
+.login-submit-btn {
+  width: 100%;
+  padding: 13px 24px;
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+  margin-top: 4px;
+}
+
+.login-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(14, 165, 233, 0.4);
+}
+
+.login-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Form Footer */
+.login-form-footer {
+  text-align: center;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.login-form-footer p {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* =============================================
+   MOBILE RESPONSIVE
+   ============================================= */
+/* Mobile Developer Credit - hidden on desktop */
+.login-mobile-developer {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .login-container {
+    flex-direction: column;
+    max-width: 480px;
+    background: #fff;
+    border: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Hide branding section on mobile */
+  .login-branding {
+    display: none;
+  }
+
+  .login-form-section {
+    padding: 24px 24px 16px;
+    background: #fff;
+  }
+
+  .login-form-card {
+    max-width: 100%;
+  }
+
+  .login-form-header {
+    margin-bottom: 20px;
+  }
+
+  .login-form-header h2 {
+    font-size: 20px;
+  }
+
+  .login-form-header p {
+    font-size: 13px;
+  }
+
+  .login-form-logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    margin: 0 auto 10px;
+  }
+
+  .login-form-logo i {
+    font-size: 20px;
+  }
+
+  .login-form {
+    gap: 14px;
+  }
+
+  .login-input-wrapper input {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  .login-submit-btn {
+    padding: 11px 20px;
+    font-size: 14px;
+  }
+
+  .login-form-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+  }
+
+  .login-form-footer p {
+    font-size: 11px;
+  }
+
+  /* Show developer credit on mobile */
+  .login-mobile-developer {
+    display: block;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #f1f5f9;
+    text-align: center;
+  }
+
+  .login-mobile-dev-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+  }
+
+  .login-mobile-dev-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(6, 182, 212, 0.08));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .login-mobile-dev-avatar i {
+    font-size: 14px;
+    color: #0ea5e9;
+  }
+
+  .login-mobile-dev-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .login-mobile-dev-label {
+    font-size: 9px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .login-mobile-dev-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .login-mobile-dev-role {
+    font-size: 10px;
+    color: #94a3b8;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 0;
+    background: #fff;
+  }
+
+  .login-container {
+    max-width: 100%;
+    border-radius: 0;
+    min-height: 0;
+    box-shadow: none;
+  }
+
+  .login-form-section {
+    padding: 24px 18px 12px;
+    min-height: 0;
+    align-items: flex-start;
+    padding-top: 36px;
+  }
+
+  .login-form-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .login-form-logo i {
+    font-size: 18px;
+  }
+
+  .login-form-header h2 {
+    font-size: 18px;
+  }
+
+  .login-form-header p {
+    font-size: 12px;
+  }
+
+  .login-form {
+    gap: 12px;
+  }
+
+  .login-input-group label {
+    font-size: 12px;
+  }
+
+  .login-input-wrapper input {
+    padding: 9px 12px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+
+  .login-submit-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+
+  .login-form-footer {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+
+  .login-form-footer p {
+    font-size: 10px;
+  }
+
+  .login-mobile-developer {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+
+  .login-mobile-dev-content {
+    padding: 6px 10px;
+  }
+}
+
+/* =============================================
+   CURRENCY DISPLAY ANIMATION CONTROL
+   =============================================
+   Currency animations ONLY in cards.
+   Disabled in tables, lists, drawers, modals, dropdowns, and other non-card containers.
+   ============================================= */
+
+/* Disable currency display animation inside tables */
+table .currency-display,
+table .currency-display *,
+table .currency-display-symbol,
+table .currency-display-amount,
+.table-container .currency-display,
+.table-container .currency-display *,
+.dashboard-table .currency-display,
+.dashboard-table .currency-display *,
+.history-table .currency-display,
+.history-table .currency-display *,
+.payment-history-table-wrapper .currency-display,
+.payment-history-table-wrapper .currency-display *,
+.due-invoices-list .currency-display,
+.due-invoices-list .currency-display *,
+.dashboard-recent-sales-mobile-table .currency-display,
+.dashboard-recent-sales-mobile-table .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
+}
+
+/* Disable currency display animation inside drawers */
+.drawer .currency-display,
+.drawer .currency-display *,
+.drawer-body .currency-display,
+.drawer-body .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
+}
+
+/* Disable currency display animation inside modals */
+.modal .currency-display,
+.modal .currency-display *,
+.modal-body .currency-display,
+.modal-body .currency-display *,
+.modal-content .currency-display,
+.modal-content .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
+}
+
+/* Disable currency display animation inside lists and list items */
+.cart-item-row .currency-display,
+.cart-item-row .currency-display *,
+.sale-card-item .currency-display,
+.sale-card-item .currency-display *,
+.customer-detail-item .currency-display,
+.customer-detail-item .currency-display *,
+.report-detail-item .currency-display,
+.report-detail-item .currency-display *,
+.detail-row .currency-display,
+.detail-row .currency-display *,
+.sale-detail-field .currency-display,
+.sale-detail-field .currency-display *,
+.purchase-item-card-field .currency-display,
+.purchase-item-card-field .currency-display * {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  animation: none !important;
+}
+
+/* =============================================
+   CURRENCY DISPLAY — CARD COMPACT HOVER
+   Smooth, professional hover effect for
+   compact card amounts.
+   ============================================= */
+
+/* Cards — subtle hover indicator on compact amounts */
+.card .currency-display[title]:hover .currency-display-amount,
+.stat-card .currency-display[title]:hover .currency-display-amount,
+.summary-item .currency-display[title]:hover .currency-display-amount,
+.purchase-item-card .currency-display[title]:hover .currency-display-amount,
+.dashboard-summary-grid .currency-display[title]:hover .currency-display-amount,
+.report-card .currency-display[title]:hover .currency-display-amount,
+.summary-cards-grid .currency-display[title]:hover .currency-display-amount {
+  opacity: 0.75;
+}
+
+/* Also target inline-style summary cards that use the compact card pattern */
+.card .currency-display[title]:hover .currency-display-symbol,
+.stat-card .currency-display[title]:hover .currency-display-symbol,
+.summary-item .currency-display[title]:hover .currency-display-symbol,
+.purchase-item-card .currency-display[title]:hover .currency-display-symbol,
+.dashboard-summary-grid .currency-display[title]:hover .currency-display-symbol,
+.report-card .currency-display[title]:hover .currency-display-symbol,
+.summary-cards-grid .currency-display[title]:hover .currency-display-symbol {
+  opacity: 0.75;
+}
+
+/* Smooth transition for both elements */
+.currency-display .currency-display-amount,
+.currency-display .currency-display-symbol {
+  -webkit-transition: opacity 200ms ease;
+  -moz-transition: opacity 200ms ease;
+  -o-transition: opacity 200ms ease;
+  transition: opacity 200ms ease;
 }

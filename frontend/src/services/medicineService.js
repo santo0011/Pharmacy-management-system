@@ -15,4 +15,8 @@ export const medicineService = {
   checkBarcode: (barcode, excludeId = null) => API.post('/medicines/check-barcode', { barcode, excludeId }),
   lookupBarcode: (barcode) => API.post('/medicines/lookup-barcode', { barcode }),
   bulkImport: (data) => API.post('/medicines/bulk-import', data),
+  // Substitute management
+  getSubstitutes: (id) => API.get(`/medicines/${id}/substitutes`),
+  updateSubstitutes: (id, substituteIds) => API.put(`/medicines/${id}/substitutes`, { substituteIds }),
+  getSubstituteSuggestions: (medicineId, requiredQty = 1) => API.get(`/medicines/substitute-suggestions/${medicineId}`, { params: { requiredQty } }),
 };

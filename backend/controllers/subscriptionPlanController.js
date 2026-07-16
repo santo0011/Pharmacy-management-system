@@ -7,7 +7,7 @@ import ApiResponse from '../utils/apiResponse.js';
 // @access  Private/SuperAdmin
 export const createPlan = async (req, res, next) => {
   try {
-    const { planName, price, duration, durationUnit, description, features, maxStaff, maxBranches } = req.body;
+    const { planName, price, duration, durationUnit, description, features, maxStaff, maxBranches, priceCurrency, priceInINR } = req.body;
 
     const existing = await SubscriptionPlan.findOne({ planName: { $regex: `^${planName}$`, $options: 'i' }, isDeleted: false });
     if (existing) {
@@ -23,6 +23,8 @@ export const createPlan = async (req, res, next) => {
       features: features || [],
       maxStaff: maxStaff || null,
       maxBranches: maxBranches || null,
+      priceCurrency: priceCurrency || 'INR',
+      priceInINR: priceInINR || price,
       createdBy: req.user._id,
     });
 
@@ -106,7 +108,7 @@ export const updatePlan = async (req, res, next) => {
       return ApiResponse.error(res, 'Subscription plan not found', 404);
     }
 
-    const { planName, price, duration, durationUnit, description, features, maxStaff, maxBranches } = req.body;
+    const { planName, price, duration, durationUnit, description, features, maxStaff, maxBranches, priceCurrency, priceInINR } = req.body;
 
     if (planName && planName.toLowerCase() !== plan.planName.toLowerCase()) {
       const existing = await SubscriptionPlan.findOne({
@@ -127,6 +129,8 @@ export const updatePlan = async (req, res, next) => {
     if (features !== undefined) plan.features = features;
     if (maxStaff !== undefined) plan.maxStaff = maxStaff;
     if (maxBranches !== undefined) plan.maxBranches = maxBranches;
+    if (priceCurrency !== undefined) plan.priceCurrency = priceCurrency;
+    if (priceInINR !== undefined) plan.priceInINR = priceInINR;
 
     const updatedPlan = await plan.save();
     return ApiResponse.success(res, updatedPlan, 'Subscription plan updated successfully');

@@ -8,6 +8,8 @@ import {
   assignPharmacyAdmin,
   togglePharmacyStatus,
   updateSubscription,
+  getMyPharmacyProfile,
+  updateMyPharmacyProfile,
   getMyInvoiceSettings,
   updateMyInvoiceSettings,
 } from '../controllers/pharmacyController.js';
@@ -20,6 +22,8 @@ const router = express.Router();
 router.use(protect);
 
 // Admin self-service routes (no super_admin restriction)
+router.get('/my/profile', pharmacyScope, getMyPharmacyProfile);
+router.put('/my/profile', pharmacyScope, updateMyPharmacyProfile);
 router.get('/my/invoice-settings', pharmacyScope, getMyInvoiceSettings);
 router.put('/my/invoice-settings', pharmacyScope, updateMyInvoiceSettings);
 

@@ -13,6 +13,17 @@ const subscriptionPlanSchema = mongoose.Schema(
       required: [true, 'Price is required'],
       min: [0, 'Price cannot be negative'],
     },
+    priceCurrency: {
+      type: String,
+      default: 'INR',
+      enum: ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'],
+    },
+    priceInINR: {
+      type: Number,
+      default: function() {
+        return this.price; // Default: price is already in INR
+      },
+    },
     duration: {
       type: Number,
       required: [true, 'Duration is required'],

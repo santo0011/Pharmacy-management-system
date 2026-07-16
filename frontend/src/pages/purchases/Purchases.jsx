@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchPurchases, deletePurchase, fetchPurchaseStats } from '../../redux/slices/purchaseSlice';
@@ -62,7 +63,7 @@ export default function Purchases() {
       <tbody key={purchase._id || idx}>
         <tr className="sales-mobile-row" onClick={() => toggleRow(idx)}>
           <td><span style={{ fontWeight: 500, fontSize: '13px' }}>{purchase.invoiceNumber}</span></td>
-          <td><span style={{ fontWeight: 600, fontSize: '13px' }}>₹{purchase.grandTotal?.toFixed(2)}</span></td>
+          <td><span style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={purchase.grandTotal} /></span></td>
           <td className="sales-expand-cell">
             <button className="sales-expand-btn"><i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i></button>
           </td>
@@ -84,12 +85,12 @@ export default function Purchases() {
               </div>
               <div className="sales-detail-item">
                 <span className="sales-detail-label">Paid</span>
-                <span className="sales-detail-value">₹{purchase.paidAmount?.toFixed(2)}</span>
+                <span className="sales-detail-value"><CurrencyDisplay value={purchase.paidAmount} /></span>
               </div>
               <div className="sales-detail-item">
                 <span className="sales-detail-label">Due</span>
                 <span className="sales-detail-value" style={{ color: purchase.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
-                  ₹{purchase.dueAmount?.toFixed(2)}
+                  <CurrencyDisplay value={purchase.dueAmount} />
                 </span>
               </div>
               <div className="sales-detail-item">
@@ -146,22 +147,22 @@ export default function Purchases() {
       <div className="dashboard-summary-grid" style={{ marginBottom: '20px' }}>
         <div className="summary-item summary-item-blue">
           <div className="summary-label">Total Purchases</div>
-          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalAmount || 0} decimals={2} compact /></div>
+          <div className="summary-value summary-value-blue" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.totalAmount || 0} /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalPurchases || 0} invoices</div>
         </div>
         <div className="summary-item summary-item-green">
           <div className="summary-label">Total Paid</div>
-          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalPaid || 0} decimals={2} compact /></div>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>This month: ₹{(stats?.monthlyAmount || 0).toFixed(2)}</div>
+          <div className="summary-value summary-value-green" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.totalPaid || 0} /></div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>This month: <CurrencyDisplay value={stats?.monthlyAmount || 0} /></div>
         </div>
         <div className="summary-item summary-item-red">
           <div className="summary-label">Outstanding Due</div>
-          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.totalDue || 0} decimals={2} compact /></div>
+          <div className="summary-value summary-value-red" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.totalDue || 0} /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.totalPurchases || 0} total invoices</div>
         </div>
         <div className="summary-item summary-item-gray">
           <div className="summary-label">Yearly Purchases</div>
-          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}>₹<AnimatedCounter value={stats?.yearlyAmount || 0} decimals={2} compact /></div>
+          <div className="summary-value summary-value-dark" style={{ fontSize: '22px' }}><CurrencyDisplay value={stats?.yearlyAmount || 0} /></div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>{stats?.yearlyPurchases || 0} purchases this year</div>
         </div>
       </div>
@@ -241,10 +242,10 @@ export default function Purchases() {
                           <td>{p.supplierName || p.supplier?.supplierName || '-'}</td>
                           <td style={{ fontSize: '13px' }}>{new Date(p.purchaseDate).toLocaleDateString()}</td>
                           <td>{p.items?.length || 0}</td>
-                          <td style={{ fontWeight: 600 }}>₹{p.grandTotal?.toFixed(2)}</td>
-                          <td>₹{p.paidAmount?.toFixed(2)}</td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={p.grandTotal} /></td>
+                          <td><CurrencyDisplay value={p.paidAmount} /></td>
                           <td style={{ color: p.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
-                            ₹{p.dueAmount?.toFixed(2)}
+                            <CurrencyDisplay value={p.dueAmount} />
                           </td>
                           <td>{paymentStatusBadge(p.paymentStatus)}</td>
                           <td>{statusBadge(p.status)}</td>
@@ -258,11 +259,6 @@ export default function Purchases() {
                                   <i className="fa-solid fa-edit"></i>
                                 </button>
                               )}
-                              {/* {p.dueAmount > 0 && (
-                                <button className="btn btn-success btn-sm" onClick={() => navigate(`/purchases/${p._id}`)} title="Pay">
-                                  <i className="fa-solid fa-money-bill"></i>
-                                </button>
-                              )} */}
                               <button className="btn btn-danger btn-sm" onClick={() => handleDelete(p._id)} title="Delete">
                                 <i className="fa-solid fa-trash"></i>
                               </button>

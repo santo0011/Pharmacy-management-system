@@ -3,9 +3,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createSale, updateSale, fetchSale, clearSelectedSale } from '../../redux/slices/saleSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
+import { medicineService } from '../../services/medicineService';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { customerService } from '../../services/customerService';
 import PortalDropdown from '../../components/common/PortalDropdown';
+import BarcodeScanner from '../../components/common/BarcodeScanner';
 
 export default function SaleForm() {
   const dispatch = useDispatch();
@@ -31,6 +35,10 @@ export default function SaleForm() {
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [scanning, setScanning] = useState(false);
+
+  // Substitute suggestion states
+  const [substituteModal, setSubstituteModal] = useState(null); // { originalItem, suggestions, index }
+  const [loadingSubstitutes, setLoadingSubstitutes] = useState(false);
 
   // Customer search states
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -159,9 +167,12 @@ export default function SaleForm() {
   useEffect(() => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const now = new Date();
       const results = medicines?.filter(m =>
         (m.medicineName?.toLowerCase().includes(q) || m.barcode?.includes(q) || m.genericName?.toLowerCase().includes(q)) &&
-        m.currentStock > 0
+        m.currentStock > 0 &&
+        // Exclude expired medicines
+        m.expiryDate && new Date(m.expiryDate) > now
       ) || [];
       setSearchResults(results.slice(0, 10));
       setShowDropdown(true);
@@ -228,34 +239,14 @@ export default function SaleForm() {
     searchRef.current?.focus();
   };
 
-  const handleScanBarcode = async () => {
-    setScanning(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      stream.getTracks().forEach(t => t.stop());
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode('pos-scanner');
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 5, qrbox: { width: 200, height: 100 } },
-        async (decodedText) => {
-          await scanner.stop();
-          scanner.clear();
-          setScanning(false);
-          const med = medicines?.find(m => m.barcode === decodedText && m.currentStock > 0);
-          if (med) {
-            addItem(med);
-          } else {
-            showError('Medicine not found for this barcode');
-          }
-        },
-        () => { }
-      );
-    } catch (err) {
-      setScanning(false);
-      showError('Scanner failed. Please search manually.');
+  const handleScanResult = useCallback((decodedText) => {
+    const med = medicines?.find(m => m.barcode === decodedText && m.currentStock > 0);
+    if (med) {
+      addItem(med);
+    } else {
+      showError('Medicine not found for this barcode');
     }
-  };
+  }, [medicines]);
 
   const updateItem = (index, field, value) => {
     setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
@@ -340,7 +331,7 @@ export default function SaleForm() {
     const dueAfterPayment = Math.max(0, finalGrandTotal - paid);
     const confirmed = await confirmAction(
       `${isEditing ? 'Update' : 'Complete'} Sale`,
-      `Customer: ${customerName}\nItems: ${items.length}\nTotal: ₹${currentBillGrandTotal.toFixed(2)}\nPrevious Due: ₹${calcPreviousDue().toFixed(2)}\nFinal Grand Total: ₹${finalGrandTotal.toFixed(2)}\nPaid: ₹${paid.toFixed(2)}\nDue: ₹${dueAfterPayment.toFixed(2)}\nMethod: ${paymentMethod}`,
+      `Customer: ${customerName}\nItems: ${items.length}\nTotal: ${getCurrentSymbol()} ${currentBillGrandTotal.toFixed(2)}\nPrevious Due: ${getCurrentSymbol()} ${calcPreviousDue().toFixed(2)}\nFinal Grand Total: ${getCurrentSymbol()} ${finalGrandTotal.toFixed(2)}\nPaid: ${getCurrentSymbol()} ${paid.toFixed(2)}\nDue: ${getCurrentSymbol()} ${dueAfterPayment.toFixed(2)}\nMethod: ${paymentMethod}`,
       `Yes, ${isEditing ? 'Update' : 'Complete'}`
     );
     if (!confirmed) {
@@ -433,7 +424,7 @@ export default function SaleForm() {
 
       // Validate paidForNewInvoice doesn't exceed the new invoice grand total
       if (paidForNewInvoice > currentBillGrandTotal) {
-        showError(`Total paid (₹${paid.toFixed(2)}) minus previous due allocation (₹${previousDuePayments.reduce((s,p)=>s+p.amount,0).toFixed(2)}) = ₹${paidForNewInvoice.toFixed(2)} exceeds the current bill total (₹${currentBillGrandTotal.toFixed(2)})`);
+        showError(`Total paid (${getCurrentSymbol()} ${paid.toFixed(2)}) minus previous due allocation (${getCurrentSymbol()} ${previousDuePayments.reduce((s,p)=>s+p.amount,0).toFixed(2)}) = ${getCurrentSymbol()} ${paidForNewInvoice.toFixed(2)} exceeds the current bill total (${getCurrentSymbol()} ${currentBillGrandTotal.toFixed(2)})`);
         setSubmitting(false);
         return;
       }
@@ -455,7 +446,7 @@ export default function SaleForm() {
         // Send the total amount paid by the customer
         paidAmount: paid,
         paymentMethod,
-        notes: selectedDueInvoices.length > 0 && customerDueInfo ? `Previous due of ₹${calcPreviousDue().toFixed(2)} included` : '',
+        notes: selectedDueInvoices.length > 0 && customerDueInfo ? `Previous due of ${getCurrentSymbol()} ${calcPreviousDue().toFixed(2)} included` : '',
       };
 
       // Add previous due payments array with FIFO allocation
@@ -525,7 +516,7 @@ export default function SaleForm() {
                             <div className="item-details">{med.genericName} | {med.barcode}</div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div className="item-price">₹{med.sellingPrice}</div>
+                            <div className="item-price"><CurrencyDisplay value={med.sellingPrice} /></div>
                             <div className={`item-stock ${med.currentStock <= 10 ? 'low' : ''}`}>Stock: {med.currentStock}</div>
                           </div>
                         </div>
@@ -535,11 +526,17 @@ export default function SaleForm() {
                     )}
                   </PortalDropdown>
                 </div>
-                <button type="button" className="btn btn-info" onClick={handleScanBarcode} disabled={scanning} style={{ height: '46px', whiteSpace: 'nowrap' }}>
-                  {scanning ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-camera"></i>} Scan
+                <button type="button" className="btn btn-info" onClick={() => setScanning(true)} style={{ height: '46px', whiteSpace: 'nowrap' }}>
+                  <i className="fa-solid fa-camera"></i> Scan
                 </button>
               </div>
-              {scanning && <div id="pos-scanner" style={{ width: '100%', maxWidth: '300px', marginTop: '8px' }}></div>}
+              <BarcodeScanner
+                open={scanning}
+                onScan={handleScanResult}
+                onClose={() => setScanning(false)}
+                scannerId="pos-scanner"
+                stopAfterScan={true}
+              />
             </div>
           </div>
 
@@ -700,13 +697,13 @@ export default function SaleForm() {
                       <span className="due-invoice-number">{inv.invoiceNumber}</span>
                       <span className="due-invoice-date">{new Date(inv.saleDate).toLocaleDateString()}</span>
                       <div className="due-invoice-payment-details">
-                        <span>Total: ₹{(inv.grandTotal || 0).toFixed(2)}</span>
-                        <span>Paid: ₹{(inv.paidAmount || 0).toFixed(2)}</span>
-                        <span className="due-invoice-remaining">Due: ₹{(inv.dueAmount || 0).toFixed(2)}</span>
+                        <span>Total: <CurrencyDisplay value={inv.grandTotal || 0} /></span>
+                        <span>Paid: <CurrencyDisplay value={inv.paidAmount || 0} /></span>
+                        <span className="due-invoice-remaining">Due: <CurrencyDisplay value={inv.dueAmount || 0} /></span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                      <span className="due-invoice-amount">₹{inv.dueAmount.toFixed(2)}</span>
+                      <span className="due-invoice-amount"><CurrencyDisplay value={inv.dueAmount} /></span>
                       <span className={`badge ${inv.paymentStatus === 'paid' ? 'badge-success' : inv.paymentStatus === 'partial' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '10px' }}>
                         {inv.paymentStatus || 'due'}
                       </span>
@@ -726,7 +723,7 @@ export default function SaleForm() {
                 color: '#991b1b',
               }}>
                 <span>Total Due</span>
-                <span>₹{customerDueInfo.totalDue.toFixed(2)}</span>
+                <span><CurrencyDisplay value={customerDueInfo.totalDue} /></span>
               </div>
             </div>
           )}
@@ -748,15 +745,23 @@ export default function SaleForm() {
                         <th style={{ width: '90px' }}>Price</th>
                         <th style={{ width: '60px' }}>Disc</th>
                         <th style={{ width: '90px' }}>Total</th>
+                        <th style={{ width: '30px' }}></th>
                         <th style={{ width: '40px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((item, idx) => (
-                        <tr key={idx}>
+                        <tr key={idx} className={item.quantity > item.currentStock ? 'stock-warning-row' : ''}>
                           <td>
                             <div style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</div>
-                            <div className="gst-label">Stock: {item.currentStock}</div>
+                            <div className={`gst-label ${item.quantity > item.currentStock ? 'text-danger' : ''}`}>
+                              Stock: {item.currentStock}
+                              {item.quantity > item.currentStock && (
+                                <span style={{ color: 'var(--danger)', fontWeight: 600, marginLeft: '4px' }}>
+                                  <i className="fa-solid fa-exclamation-triangle"></i> Insufficient
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td>
                             <input type="number" min="1" max={item.currentStock} value={item.quantity}
@@ -773,7 +778,31 @@ export default function SaleForm() {
                           <td className="gst-label">
                             {item.gst > 0 && <div>GST: {item.gst}%</div>}
                           </td>
-                          <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{calcItemTotal(item).toFixed(2)}</td>
+                          <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={calcItemTotal(item)} /></td>
+                          <td>
+                            <button className="btn btn-sm btn-outline-info" 
+                              onClick={async () => {
+                                setLoadingSubstitutes(true);
+                                try {
+                                  const qty = Number(item.quantity) || 1;
+                                  const { data } = await medicineService.getSubstituteSuggestions(item.medicineId, qty);
+                                  if (data.data && data.data.suggestions && data.data.suggestions.length > 0) {
+                                    setSubstituteModal({ originalItem: item, suggestions: data.data.suggestions, index: idx });
+                                  } else {
+                                    showError('No substitute suggestions found for this medicine');
+                                  }
+                                } catch (err) {
+                                  showError('Failed to fetch substitute suggestions');
+                                } finally {
+                                  setLoadingSubstitutes(false);
+                                }
+                              }}
+                              disabled={loadingSubstitutes}
+                              title="Find substitutes"
+                              style={{ padding: '4px 6px', fontSize: '11px' }}>
+                              <i className="fa-solid fa-exchange-alt"></i>
+                            </button>
+                          </td>
                           <td>
                             <button className="btn btn-danger btn-sm" onClick={() => removeItem(idx)} style={{ padding: '4px 8px' }}>
                               <i className="fa-solid fa-times"></i>
@@ -804,7 +833,7 @@ export default function SaleForm() {
                       <span className="cart-item-name">{item.medicineName}</span>
                       <span className="cart-item-quantity"> × {item.quantity}</span>
                     </div>
-                    <span className="cart-item-total">₹{calcItemTotal(item).toFixed(2)}</span>
+                    <span className="cart-item-total"><CurrencyDisplay value={calcItemTotal(item)} /></span>
                   </div>
                 ))}
               </div>
@@ -812,17 +841,17 @@ export default function SaleForm() {
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="summary-row">
-                <span className="summary-label">Subtotal:</span><span className="summary-value">₹{calcSubtotal().toFixed(2)}</span>
+                <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={calcSubtotal()} /></span>
               </div>
               <div className="summary-row">
-                <span className="summary-label">Tax (GST):</span><span className="summary-value">₹{calcTax().toFixed(2)}</span>
+                <span className="summary-label">Tax (GST):</span><span className="summary-value"><CurrencyDisplay value={calcTax()} /></span>
               </div>
               <div className="summary-row" style={{ alignItems: 'center' }}>
                 <span className="summary-label">Discount:</span>
                 <div className="inline-discount">
                   <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
                   <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
-                    <option value="fixed">₹</option>
+                    <option value="fixed">{getCurrentSymbol()}</option>
                     <option value="percentage">%</option>
                   </select>
                 </div>
@@ -831,27 +860,27 @@ export default function SaleForm() {
               {/* Current Bill Total */}
               <div className="summary-row" style={{ fontWeight: 500 }}>
                 <span className="summary-label">Current Bill:</span>
-                <span className="summary-value">₹{currentBillTotal.toFixed(2)}</span>
+                <span className="summary-value"><CurrencyDisplay value={currentBillTotal} /></span>
               </div>
 
               {/* Previous Due Row - only shown when included */}
               {calcPreviousDue() > 0 && (
                 <div className="summary-row" style={{ color: '#c2410c', fontWeight: 600 }}>
                   <span className="summary-label"><i className="fa-solid fa-exclamation-triangle"></i> Previous Due:</span>
-                  <span className="summary-value">+ ₹{calcPreviousDue().toFixed(2)}</span>
+                  <span className="summary-value">+ <CurrencyDisplay value={calcPreviousDue()} /></span>
                 </div>
               )}
 
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="grand-total-row" style={{ marginBottom: '10px' }}>
-                <span>Final Grand Total:</span><span>₹{gt.toFixed(2)}</span>
+                <span>Final Grand Total:</span><span><CurrencyDisplay value={gt} /></span>
               </div>
 
               {/* Previous Due - separate note */}
               {calcPreviousDue() > 0 && (
                 <div style={{ fontSize: '11px', color: '#9a3412', marginBottom: '8px', padding: '4px 8px', background: '#fff7ed', borderRadius: '4px', textAlign: 'center' }}>
-                  <i className="fa-solid fa-info-circle"></i> Previous due of ₹{calcPreviousDue().toFixed(2)} added to invoice
+                  <i className="fa-solid fa-info-circle"></i> Previous due of <CurrencyDisplay value={calcPreviousDue()} /> added to invoice
                 </div>
               )}
 
@@ -873,7 +902,7 @@ export default function SaleForm() {
                   const val = Number(e.target.value);
                   const finalTotal = calcGrandTotal();
                   if (val > finalTotal) {
-                    showError(`Paid amount (₹${val.toFixed(2)}) cannot exceed Final Grand Total (₹${finalTotal.toFixed(2)})`);
+                    showError(`Paid amount (${getCurrentSymbol()} ${val.toFixed(2)}) cannot exceed Final Grand Total (${getCurrentSymbol()} ${finalTotal.toFixed(2)})`);
                     return;
                   }
                   setPaidAmount(e.target.value);
@@ -884,7 +913,7 @@ export default function SaleForm() {
 
               {Number(paidAmount) > 0 && (
                 <div className={`due-row ${Number(paidAmount) >= calcGrandTotal() ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
-                  <span>Change/Due:</span><span className="due-value">₹{Math.abs(gt - Number(paidAmount)).toFixed(2)}</span>
+                  <span>Change/Due:</span><span className="due-value"><CurrencyDisplay value={Math.abs(gt - Number(paidAmount))} /></span>
                 </div>
               )}
 
@@ -895,12 +924,108 @@ export default function SaleForm() {
                 style={{ marginTop: '12px', padding: '10px', fontSize: '15px', fontWeight: 700 }}
               >
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-                {submitting ? ' Processing...' : ` ₹${gt.toFixed(2)} • ${isEditing ? 'Update Sale' : 'Complete Sale'}`}
+                {submitting ? ' Processing...' : ` ${getCurrentSymbol()} ${gt.toFixed(2)} • ${isEditing ? 'Update Sale' : 'Complete Sale'}`}
               </button>
             </div>
           </div>
         </div>
       </div>
+      {/* Substitute Suggestions Modal */}
+      {substituteModal && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 5000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px',
+        }} onClick={() => setSubstituteModal(null)}>
+          <div className="substitute-modal" style={{
+            background: '#fff', borderRadius: '12px', maxWidth: '600px',
+            width: '100%', maxHeight: '80vh', overflow: 'auto',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div className="substitute-modal-header" style={{
+              padding: '16px 20px', borderBottom: '1px solid var(--gray-200)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <h5 style={{ margin: 0 }}>
+                <i className="fa-solid fa-exchange-alt" style={{ color: 'var(--info)' }}></i>
+                {' '}Substitute Suggestions
+              </h5>
+              <button className="btn btn-sm btn-light" onClick={() => setSubstituteModal(null)}
+                style={{ border: 'none', fontSize: '18px', cursor: 'pointer' }}>
+                <i className="fa-solid fa-times"></i>
+              </button>
+            </div>
+            <div className="substitute-modal-body" style={{ padding: '16px 20px' }}>
+              <div style={{ marginBottom: '12px', fontSize: '13px', color: '#666' }}>
+                <strong>Original:</strong> {substituteModal.originalItem.medicineName}
+                {' '}× {substituteModal.originalItem.quantity}
+                <span style={{ marginLeft: '8px', color: 'var(--danger)' }}>
+                  (Stock: {substituteModal.originalItem.currentStock})
+                </span>
+              </div>
+              <p style={{ fontSize: '13px', color: '#888', marginBottom: '12px' }}>
+                Select a substitute medicine below. It will replace the original item in the bill.
+              </p>
+              <div className="suggestion-list">
+                {substituteModal.suggestions.map((suggestion, si) => (
+                  <div key={suggestion._id} className="suggestion-item" style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '12px 14px', marginBottom: '8px',
+                    border: '1px solid var(--gray-200)', borderRadius: '8px',
+                    background: '#fafafa',
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{suggestion.medicineName}</div>
+                      <div style={{ fontSize: '12px', color: '#888' }}>
+                        {suggestion.genericName && <span>{suggestion.genericName} | </span>}
+                        {suggestion.brand?.name && <span>{suggestion.brand.name} | </span>}
+                        {suggestion.category?.name && <span>{suggestion.category.name}</span>}
+                      </div>
+                      <div style={{ fontSize: '12px', marginTop: '2px' }}>
+                        <span style={{ color: 'var(--success)', fontWeight: 500 }}>
+                          Stock: {suggestion.currentStock} {suggestion.unit}
+                        </span>
+                        {' | '}
+                        <span style={{ fontWeight: 500 }}><CurrencyDisplay value={suggestion.sellingPrice} /></span>
+                        {suggestion.gst > 0 && <span> (GST: {suggestion.gst}%)</span>}
+                      </div>
+                    </div>
+                    <button className="btn btn-sm btn-primary" onClick={() => {
+                      // Replace the original item with the substitute
+                      const newItems = [...items];
+                      newItems[substituteModal.index] = {
+                        medicineId: suggestion._id,
+                        medicineName: suggestion.medicineName,
+                        batchNumber: suggestion.batchNumber || '',
+                        quantity: Number(substituteModal.originalItem.quantity),
+                        sellingPrice: suggestion.sellingPrice || 0,
+                        purchasePrice: suggestion.purchasePrice || 0,
+                        gst: suggestion.gst || 0,
+                        discount: 0,
+                        discountType: 'fixed',
+                        currentStock: suggestion.currentStock || 0,
+                      };
+                      setItems(newItems);
+                      setSubstituteModal(null);
+                    }} style={{ whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                      <i className="fa-solid fa-check"></i> Use This
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="substitute-modal-footer" style={{
+              padding: '12px 20px', borderTop: '1px solid var(--gray-200)',
+              display: 'flex', justifyContent: 'flex-end', gap: '8px',
+            }}>
+              <button className="btn btn-secondary" onClick={() => setSubstituteModal(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
 import { fetchCategories } from '../../redux/slices/categorySlice';
 import { fetchBrands } from '../../redux/slices/brandSlice';
 import { fetchSuppliers } from '../../redux/slices/supplierSlice';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -16,6 +17,12 @@ export default function Medicines() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { items, total, loading } = useSelector((state) => state.medicines);
+
+  // Parse URL query params for pre-applied filters
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlExpired = urlParams.get('expired');
+  const urlLowStock = urlParams.get('lowStock');
+  const urlExpiringSoon = urlParams.get('expiringSoon');
   const { items: categories } = useSelector((state) => state.categories);
   const { items: brands } = useSelector((state) => state.brands);
   const { items: suppliers } = useSelector((state) => state.suppliers);
@@ -28,9 +35,9 @@ export default function Medicines() {
     brand: '',
     supplier: '',
     status: '',
-    expired: '',
-    lowStock: '',
-    expiringSoon: '',
+    expired: urlExpired || '',
+    lowStock: urlLowStock || '',
+    expiringSoon: urlExpiringSoon || '',
     sort: 'newest',
   });
   const [expandedRows, setExpandedRows] = useState({});
@@ -150,11 +157,11 @@ export default function Medicines() {
               </div>
               <div className="sales-detail-item">
                 <span className="sales-detail-label">Purchase Price</span>
-                <span className="sales-detail-value">₹{med.purchasePrice?.toFixed(2)}</span>
+                <span className="sales-detail-value"><CurrencyDisplay value={med.purchasePrice} /></span>
               </div>
               <div className="sales-detail-item">
                 <span className="sales-detail-label">Selling Price</span>
-                <span className="sales-detail-value">₹{med.sellingPrice?.toFixed(2)}</span>
+                <span className="sales-detail-value"><CurrencyDisplay value={med.sellingPrice} /></span>
               </div>
               <div className="sales-detail-item">
                 <span className="sales-detail-label">Expiry</span>
@@ -341,7 +348,7 @@ export default function Medicines() {
                     </thead>
                     <tbody>
                       {items.map((med) => (
-                        <tr key={med._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${med._id}`)}>
+                        <tr key={med._id} style={{ cursor: 'pointer' }} >
                           <td onClick={(e) => e.stopPropagation()}>
                             {med.medicineImage ? (
                               <img src={med.medicineImage} alt={med.medicineName} className="image-preview" style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
@@ -355,8 +362,8 @@ export default function Medicines() {
                             {med.medicineName}
                             {med.genericName && <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{med.genericName}</div>}
                           </td>
-                          <td>₹{med.purchasePrice?.toFixed(2)}</td>
-                          <td>₹{med.sellingPrice?.toFixed(2)}</td>
+                          <td><CurrencyDisplay value={med.purchasePrice} /></td>
+                          <td><CurrencyDisplay value={med.sellingPrice} /></td>
                           <td>
                             <span className={`badge ${isLowStock(med.currentStock, med.minStockAlert) ? 'badge-danger' : 'badge-success'}`}>
                               {med.currentStock} {med.unit}

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import Drawer from './Drawer';
+import CurrencyDisplay from './CurrencyDisplay';
 import { customerService } from '../../services/customerService';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
+import { formatCurrency, getCurrentSymbol } from '../../utils/currency';
 
 const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave' },
@@ -64,7 +66,7 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
     // Show confirmation before processing payment
     const confirmed = await confirmAction(
       'Confirm Payment',
-      `Invoice: ${invoice?.invoiceNumber || ''}\nAmount: ₹${Number(amount).toFixed(2)}\nPayment Method: ${methodLabel}`,
+      `Invoice: ${invoice?.invoiceNumber || ''}\nAmount: ${getCurrentSymbol()} ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nPayment Method: ${methodLabel}`,
       'Yes, Collect Payment'
     );
     if (!confirmed) return;
@@ -96,7 +98,7 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
     // Show confirmation before processing full payment
     const confirmed = await confirmAction(
       'Confirm Full Payment',
-      `Invoice: ${invoice.invoiceNumber}\nAmount: ₹${Number(invoice.dueAmount).toFixed(2)}\nPayment Method: ${methodLabel}`,
+      `Invoice: ${invoice.invoiceNumber}\nAmount: ${getCurrentSymbol()} ${Number(invoice.dueAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nPayment Method: ${methodLabel}`,
       'Yes, Pay Full Amount'
     );
     if (!confirmed) return;
@@ -144,7 +146,7 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
                   <div className="text-right" style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase' }}>Total Outstanding</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: '#dc2626' }}>
-                      ₹{totalOutstandingDue.toFixed(2)}
+                      <CurrencyDisplay value={totalOutstandingDue} />
                     </div>
                   </div>
                 </div>
@@ -204,15 +206,15 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
                       }}>
                         <div>
                           <div style={{ color: '#888', fontSize: '11px' }}>Invoice Amount</div>
-                          <div style={{ fontWeight: 600 }}>₹{Number(invoice.grandTotal).toFixed(2)}</div>
+                          <div style={{ fontWeight: 600 }}><CurrencyDisplay value={invoice.grandTotal} /></div>
                         </div>
                         <div>
                           <div style={{ color: '#888', fontSize: '11px' }}>Paid Amount</div>
-                          <div style={{ fontWeight: 600, color: '#16a34a' }}>₹{Number(invoice.paidAmount).toFixed(2)}</div>
+                          <div style={{ fontWeight: 600, color: '#16a34a' }}><CurrencyDisplay value={invoice.paidAmount} /></div>
                         </div>
                         <div>
                           <div style={{ color: '#888', fontSize: '11px' }}>Remaining Due</div>
-                          <div style={{ fontWeight: 700, color: '#dc2626' }}>₹{Number(invoice.dueAmount).toFixed(2)}</div>
+                          <div style={{ fontWeight: 700, color: '#dc2626' }}><CurrencyDisplay value={invoice.dueAmount} /></div>
                         </div>
                       </div>
 
@@ -225,7 +227,7 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
                           {invoice.payments.map((p, idx) => (
                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
                               <span>{new Date(p.paymentDate).toLocaleDateString()} - {p.paymentMethod}</span>
-                              <span style={{ fontWeight: 600 }}>₹{Number(p.amount).toFixed(2)}</span>
+                              <span style={{ fontWeight: 600 }}><CurrencyDisplay value={p.amount} /></span>
                             </div>
                           ))}
                         </div>
@@ -279,7 +281,7 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
                                 color: '#888',
                                 fontWeight: 600,
                                 fontSize: '14px',
-                              }}>₹</span>
+                              }}>{getCurrentSymbol()}</span>
                               <input
                                 type="number"
                                 placeholder="Enter amount"
@@ -287,7 +289,7 @@ export default function PaymentDrawer({ isOpen, onClose, customer, onPaymentComp
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   if (Number(val) > invoice.dueAmount) {
-                                    showError(`Maximum payable is ₹${invoice.dueAmount.toFixed(2)}`);
+                                    showError(`Maximum payable is ${getCurrentSymbol()} ${Number(invoice.dueAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
                                     return;
                                   }
                                   setPayments(prev => ({ ...prev, [invoice._id]: val }));

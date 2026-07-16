@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -8,6 +9,7 @@ import { fetchSaleStats } from '../../redux/slices/saleSlice';
 import { fetchPurchaseStats } from '../../redux/slices/purchaseSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
 import { notificationService } from '../../services/notificationService';
+import { formatCurrency, getCurrentSymbol } from '../../utils/currency';
 import {
   Chart as ChartJS,
   ArcElement,
@@ -48,6 +50,7 @@ export default function EnhancedDashboard() {
   const purchaseStats = useSelector((state) => state.purchases?.stats);
   const { items: medicines } = useSelector((state) => state.medicines);
   const [expiringSoon, setExpiringSoon] = useState([]);
+  const [expandedInvoice, setExpandedInvoice] = useState(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
@@ -213,7 +216,9 @@ export default function EnhancedDashboard() {
   // ===== PHARMACY DASHBOARD =====
   const totalMedicines = phData?.totalMedicines || 0;
   const lowStockCount = phData?.lowStockMedicines || 0;
+  const expiredCount = phData?.expiredMedicines || 0;
   const lowStockItems = phData?.lowStockItems || [];
+  const expiredMedicinesList = phData?.expiredMedicinesList || [];
 
   // Sale stats
   const dailySales = saleStats?.dailySales || [];
@@ -236,7 +241,7 @@ export default function EnhancedDashboard() {
   const dailySalesChart = dailySales.length > 0 ? {
     labels: dailySales.map(d => { const p = d.date.split('-'); return `${p[2]}/${p[1]}`; }),
     datasets: [{
-      label: 'Sales (₹)',
+      label: `Sales (${getCurrentSymbol()})`,
       data: dailySales.map(d => d.amount),
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -252,7 +257,7 @@ export default function EnhancedDashboard() {
   const monthlyRevenueChart = revenueByMonth.length > 0 ? {
     labels: revenueByMonth.map(m => m.month),
     datasets: [{
-      label: 'Revenue (₹)',
+      label: `Revenue (${getCurrentSymbol()})`,
       data: revenueByMonth.map(m => m.amount),
       backgroundColor: 'rgba(34, 197, 94, 0.7)',
       borderColor: '#22c55e',
@@ -320,7 +325,7 @@ export default function EnhancedDashboard() {
         </div>
       </div>
 
-      {/* Stats Cards - 6 cards in a single grid for consistent 2-per-row on mobile */}
+      {/* Stats Cards - 7 cards in grid, Low Stock & Expired combined */}
       <div className="stats-grid" style={{ marginBottom: '24px' }}>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-pills"></i></div>
@@ -328,23 +333,37 @@ export default function EnhancedDashboard() {
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
           <div className="stat-icon green"><i className="fa-solid fa-coins"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={totalRevenue} decimals={2} compact /></h3><p>Total Revenue</p></div>
+          <div className="stat-info">
+            <h3><CurrencyDisplay value={totalRevenue} /></h3>
+            <p>Total Revenue</p>
+          </div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-icon blue"><i className="fa-solid fa-receipt"></i></div>
           <div className="stat-info"><h3><AnimatedCounter value={totalSales} /></h3><p>Total Sales Count</p></div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #22c55e' }}>
-          <div className="stat-icon green"><i className="fa-solid fa-indian-rupee-sign"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={todayAmount} decimals={2} compact /></h3><p>Today's Sales ({todaySales})</p></div>
+          <div className="stat-icon green"><i className="fa-solid fa-money-bill-wave"></i></div>
+          <div className="stat-info">
+            <h3><CurrencyDisplay value={todayAmount} /></h3>
+            <p>Today's Sales ({todaySales})</p>
+          </div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
           <div className="stat-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}><i className="fa-solid fa-chart-line"></i></div>
-          <div className="stat-info"><h3>₹<AnimatedCounter value={monthlyAmount} decimals={2} compact /></h3><p>Monthly Revenue</p></div>
+          <div className="stat-info">
+            <h3><CurrencyDisplay value={monthlyAmount} /></h3>
+            <p>Monthly Revenue</p>
+          </div>
         </div>
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="stat-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><i className="fa-solid fa-triangle-exclamation"></i></div>
-          <div className="stat-info"><h3><AnimatedCounter value={lowStockCount} /></h3><p>Low Stock Items</p></div>
+          <div className="stat-info">
+            <h3 style={{ fontSize: '20px', whiteSpace: 'nowrap' }}>
+              <AnimatedCounter value={lowStockCount} /> / <span style={{ color: '#ef4444' }}><AnimatedCounter value={expiredCount} /></span>
+            </h3>
+            <p>Low Stock / Expired</p>
+          </div>
         </div>
       </div>
 
@@ -363,7 +382,9 @@ export default function EnhancedDashboard() {
         <div className="card">
           <div className="card-header">
             <h5><i className="fa-solid fa-coins" style={{ marginRight: '8px', color: '#22c55e' }}></i>Monthly Revenue</h5>
-            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>₹{monthlyAmount.toFixed(2)} this month</span>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+              <CurrencyDisplay value={monthlyAmount} /> this month
+            </span>
           </div>
           <div className="card-body card-body-chart">
             {monthlyRevenueChart ? <Bar data={monthlyRevenueChart} options={chartOptions} />
@@ -406,7 +427,9 @@ export default function EnhancedDashboard() {
                     <div key={i} className="payment-method-item">
                       <div className="payment-method-row">
                         <span className="payment-method-name">{p.method}</span>
-                        <span className="payment-method-amount">₹{p.total.toFixed(2)} ({pct}%)</span>
+                        <span className="payment-method-amount">
+                          <CurrencyDisplay value={p.total} /> ({pct}%)
+                        </span>
                       </div>
                       <div className="payment-progress-bar">
                         <div className="payment-progress-fill" style={{ width: `${pct}%`, background: colors[i % colors.length] }}></div>
@@ -420,92 +443,371 @@ export default function EnhancedDashboard() {
         </div>
       </div>
 
-      {/* Low Stock & Upcoming Expiry Tables */}
-      <div className="dashboard-tables-row">
-        <div className="card">
-          <div className="card-header">
-            <h5><i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Low Stock Items</h5>
-            {lowStockItems.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
+      {/* Inventory Alerts Section - Professional 2+1 Layout */}
+      <div style={{ marginBottom: '20px' }}>
+
+        {/* Expired Medicines - Full Width with Summary Widgets */}
+        <div className="card" style={{ border: '1px solid #fecaca', borderTop: '3px solid #ef4444', marginTop: '20px' }}>
+          <div className="card-header" style={{ background: '#fef2f2' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <i className="fa-solid fa-clock" style={{ color: '#ef4444' }}></i>
+                Expired Medicines
+                {expiredMedicinesList.length > 0 && (
+                  <span className="badge" style={{ background: '#ef4444', color: '#fff', fontSize: '10px' }}>{expiredMedicinesList.length}</span>
+                )}
+              </h5>
+            </div>
+            {expiredMedicinesList.length > 0 && <button className="btn btn-danger btn-sm" onClick={() => navigate('/medicines?expired=true')}><i className="fa-solid fa-eye"></i> View All</button>}
           </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            {lowStockItems.length > 0 ? (
-              <div className="table-container dashboard-table-scroll">
-                <table className="dashboard-table">
-                  <thead><tr><th>Medicine</th><th>Stock</th><th>Price</th></tr></thead>
-                  <tbody>
-                    {lowStockItems.slice(0, 8).map((item) => (
-                      <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
-                        <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
-                        <td><span className="badge badge-danger">{item.currentStock} {item.unit || 'units'}</span></td>
-                        <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{item.sellingPrice?.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+          {/* Summary Widgets Row */}
+          {expiredMedicinesList.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', padding: '14px 16px', background: '#fafafa', borderBottom: '1px solid #fecaca' }}>
+              <div style={{ textAlign: 'center', padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Total Expired</div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: '#dc2626', marginTop: '2px' }}><AnimatedCounter value={expiredMedicinesList.length} duration={800} /></div>
               </div>
+              <div style={{ textAlign: 'center', padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Total Stock Lost</div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: '#dc2626', marginTop: '2px' }}>
+                  <AnimatedCounter value={expiredMedicinesList.reduce((sum, m) => sum + (m.currentStock || 0), 0)} duration={800} />
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Worst Case</div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: '#dc2626', marginTop: '2px' }}>
+                  {expiredMedicinesList.length > 0 ? (
+                    <span>{Math.max(...expiredMedicinesList.map(m => Math.floor((new Date() - new Date(m.expiryDate)) / (1000 * 60 * 60 * 24))))} days</span>
+                  ) : '0'}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Affected Items</div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: '#dc2626', marginTop: '2px' }}>
+                  <AnimatedCounter value={expiredMedicinesList.filter(m => m.currentStock > 0).length} duration={800} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="card-body" style={{ padding: 0 }}>
+            {expiredMedicinesList.length > 0 ? (
+              <>
+                {/* Desktop table */}
+                <div className="dashboard-expired-desktop-table">
+                  <div className="table-container">
+                    <table className="dashboard-table">
+                      <thead>
+                        <tr>
+                          <th>Medicine</th>
+                          <th>Batch</th>
+                          <th>Expiry Date</th>
+                          <th>Stock</th>
+                          <th>Days Expired</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expiredMedicinesList.map((item) => {
+                          const expiryDate = new Date(item.expiryDate);
+                          const daysExpired = Math.floor((new Date() - expiryDate) / (1000 * 60 * 60 * 24));
+                          const isCritical = daysExpired > 90;
+                          const isWarning = daysExpired > 30;
+                          return (
+                            <tr key={item._id} style={{ cursor: 'pointer', background: isCritical ? '#fef2f2' : isWarning ? '#fffbeb' : 'transparent' }} >
+                              <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
+                              <td style={{ fontSize: '12px', color: '#64748b' }}>{item.batchNumber || '-'}</td>
+                              <td><span className="badge badge-danger">{expiryDate.toLocaleDateString()}</span></td>
+                              <td style={{ fontWeight: 600, color: item.currentStock > 0 ? '#dc2626' : '#94a3b8' }}>{item.currentStock} {item.unit || 'units'}</td>
+                              <td>
+                                <span className="badge" style={{
+                                  background: isCritical ? '#fef2f2' : isWarning ? '#fffbeb' : '#f0fdf4',
+                                  color: isCritical ? '#dc2626' : isWarning ? '#d97706' : '#16a34a',
+                                  border: `1px solid ${isCritical ? '#fecaca' : isWarning ? '#fde68a' : '#bbf7d0'}`,
+                                  fontWeight: 600,
+                                }}>
+                                  {daysExpired} day{daysExpired !== 1 ? 's' : ''}
+                                </span>
+                              </td>
+                              <td>
+                                {isCritical ? (
+                                  <span className="badge badge-danger">Critical</span>
+                                ) : isWarning ? (
+                                  <span className="badge badge-warning">Warning</span>
+                                ) : (
+                                  <span className="badge badge-info">Recent</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Mobile expandable rows */}
+                <div className="dashboard-expired-mobile-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Medicine</th>
+                        <th>Days Expired</th>
+                        <th className="sales-expand-th"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expiredMedicinesList.map((item, idx) => {
+                        const expiryDate = new Date(item.expiryDate);
+                        const daysExpired = Math.floor((new Date() - expiryDate) / (1000 * 60 * 60 * 24));
+                        const isCritical = daysExpired > 90;
+                        const isWarning = daysExpired > 30;
+                        const expanded = expandedInvoice === `expired-${idx}`;
+                        return (
+                          <>
+                            <tr key={`mobile-${item._id}`} className="sales-mobile-row" onClick={() => setExpandedInvoice(prev => prev === `expired-${idx}` ? null : `expired-${idx}`)}>
+                              <td>
+                                <span style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</span>
+                              </td>
+                              <td>
+                                <span className="badge" style={{
+                                  background: isCritical ? '#fef2f2' : isWarning ? '#fffbeb' : '#f0fdf4',
+                                  color: isCritical ? '#dc2626' : isWarning ? '#d97706' : '#16a34a',
+                                  border: `1px solid ${isCritical ? '#fecaca' : isWarning ? '#fde68a' : '#bbf7d0'}`,
+                                  fontWeight: 600, fontSize: '12px',
+                                }}>
+                                  {daysExpired}d
+                                </span>
+                              </td>
+                              <td className="sales-expand-cell">
+                                <button className="sales-expand-btn">
+                                  <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
+                                </button>
+                              </td>
+                            </tr>
+                            <tr className={`sales-detail-row ${expanded ? 'sales-detail-row-open' : ''}`}>
+                              <td colSpan={3} className="sales-detail-cell">
+                                <div className="sales-detail-inner">
+                                  <div className="sales-detail-item">
+                                    <span className="sales-detail-label">Batch</span>
+                                    <span className="sales-detail-value" style={{ fontSize: '12px', color: '#64748b' }}>{item.batchNumber || '-'}</span>
+                                  </div>
+                                  <div className="sales-detail-item">
+                                    <span className="sales-detail-label">Expiry</span>
+                                    <span className="sales-detail-value"><span className="badge badge-danger">{expiryDate.toLocaleDateString()}</span></span>
+                                  </div>
+                                  <div className="sales-detail-item">
+                                    <span className="sales-detail-label">Stock</span>
+                                    <span className="sales-detail-value" style={{ fontWeight: 600, color: item.currentStock > 0 ? '#dc2626' : '#94a3b8' }}>{item.currentStock} {item.unit || 'units'}</span>
+                                  </div>
+                                  <div className="sales-detail-item">
+                                    <span className="sales-detail-label">Status</span>
+                                    <span className="sales-detail-value">
+                                      {isCritical ? (
+                                        <span className="badge badge-danger">Critical</span>
+                                      ) : isWarning ? (
+                                        <span className="badge badge-warning">Warning</span>
+                                      ) : (
+                                        <span className="badge badge-info">Recent</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          </>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             ) : (
-              <div className="empty-state" style={{ padding: '30px' }}>
-                <i className="fa-solid fa-check-circle" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
-                <p style={{ color: '#22c55e', fontWeight: 500 }}>All products are well stocked</p>
+              <div className="empty-state" style={{ padding: '40px' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                  <i className="fa-solid fa-check-circle" style={{ fontSize: '32px', color: '#22c55e' }}></i>
+                </div>
+                <h4 style={{ margin: '0 0 4px', color: '#166534' }}>No Expired Medicines</h4>
+                <p style={{ margin: 0, color: '#6b7280', fontSize: '13px' }}>All medicines in your inventory are within their expiry date.</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-header">
-            <h5><i className="fa-solid fa-clock" style={{ marginRight: '8px', color: '#f59e0b' }}></i>Upcoming Expiry (30 days)</h5>
-            {expiringSoon.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
+
+        <div className="dashboard-tables-row" style={{ marginBottom: '16px' }}>
+          {/* Low Stock Card */}
+          <div className="card" style={{ flex: '1', minWidth: '280px' }}>
+            <div className="card-header" style={{ borderBottom: '2px solid #fef3c7' }}>
+              <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}></span>
+                Low Stock Items
+                {lowStockItems.length > 0 && (
+                  <span className="badge badge-warning" style={{ fontSize: '10px', marginLeft: '4px' }}>{lowStockItems.length}</span>
+                )}
+              </h5>
+              {lowStockItems.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {lowStockItems.length > 0 ? (
+                <div className="table-container dashboard-table-scroll">
+                  <table className="dashboard-table">
+                    <thead><tr><th>Medicine</th><th>Stock</th><th>Price</th></tr></thead>
+                    <tbody>
+                      {lowStockItems.slice(0, 8).map((item) => (
+                        <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
+                          <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
+                          <td><span className="badge badge-danger">{item.currentStock} {item.unit || 'units'}</span></td>
+                          <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={item.sellingPrice} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-state" style={{ padding: '30px' }}>
+                  <i className="fa-solid fa-check-circle" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
+                  <p style={{ color: '#22c55e', fontWeight: 500 }}>All products are well stocked</p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            {expiringSoon.length > 0 ? (
-              <div className="table-container dashboard-table-scroll">
-                <table className="dashboard-table">
-                  <thead><tr><th>Medicine</th><th>Expiry</th><th>Stock</th></tr></thead>
-                  <tbody>
-                    {expiringSoon.map((item) => (
-                      <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
-                        <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
-                        <td><span className="badge badge-warning">{new Date(item.expiryDate).toLocaleDateString()}</span></td>
-                        <td style={{ fontWeight: 600 }}>{item.currentStock} {item.unit || 'units'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="empty-state" style={{ padding: '30px' }}>
-                <i className="fa-solid fa-calendar-check" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
-                <p style={{ color: '#22c55e', fontWeight: 500 }}>No medicines expiring soon</p>
-              </div>
-            )}
+
+          {/* Upcoming Expiry Card */}
+          <div className="card" style={{ flex: '1', minWidth: '280px' }}>
+            <div className="card-header" style={{ borderBottom: '2px solid #fef3c7' }}>
+              <h5 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}></span>
+                Upcoming Expiry (30 days)
+                {expiringSoon.length > 0 && (
+                  <span className="badge badge-warning" style={{ fontSize: '10px', marginLeft: '4px' }}>{expiringSoon.length}</span>
+                )}
+              </h5>
+              {expiringSoon.length > 0 && <button className="btn btn-warning btn-sm" onClick={() => navigate('/medicines')}><i className="fa-solid fa-eye"></i> View All</button>}
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {expiringSoon.length > 0 ? (
+                <div className="table-container dashboard-table-scroll">
+                  <table className="dashboard-table">
+                    <thead><tr><th>Medicine</th><th>Expiry</th><th>Stock</th></tr></thead>
+                    <tbody>
+                      {expiringSoon.map((item) => (
+                        <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
+                          <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
+                          <td><span className="badge badge-warning">{new Date(item.expiryDate).toLocaleDateString()}</span></td>
+                          <td style={{ fontWeight: 600 }}>{item.currentStock} {item.unit || 'units'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-state" style={{ padding: '30px' }}>
+                  <i className="fa-solid fa-calendar-check" style={{ fontSize: '36px', color: '#22c55e', marginBottom: '10px' }}></i>
+                  <p style={{ color: '#22c55e', fontWeight: 500 }}>No medicines expiring soon</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
       </div>
 
       {/* Recent Sales */}
       {saleStats?.recentSales?.length > 0 && (
-        <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card" style={{ marginTop: '20px', border: '1px solid #c7bcbc', borderTop: '3px solid #a39999' }}>
           <div className="card-header">
             <h5><i className="fa-solid fa-receipt" style={{ marginRight: '8px', color: '#3b82f6' }}></i>Recent Sales</h5>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}><i className="fa-solid fa-arrow-right"></i> View All</button>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
-            <div className="table-container">
-              <table>
-                <thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Payment</th><th>Date</th></tr></thead>
+            {/* Desktop table */}
+            <div className="dashboard-recent-sales-desktop">
+              <div className="table-container">
+                <table>
+                  <thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Payment</th><th>Date</th></tr></thead>
+                  <tbody>
+                    {saleStats.recentSales.map((s) => (
+                      <tr key={s._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/sales/${s._id}`)}>
+                        <td style={{ fontWeight: 500, fontSize: '13px' }}>{s.invoiceNumber}</td>
+                        <td>{s.customerName}</td>
+                        <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
+                        <td style={{ color: '#22c55e', fontWeight: 500 }}><CurrencyDisplay value={s.paidAmount} /></td>
+                        <td style={{ color: s.dueAmount > 0 ? '#ef4444' : '#22c55e', fontWeight: 500 }}><CurrencyDisplay value={s.dueAmount} /></td>
+                        <td><span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{s.paymentMethod}</span></td>
+                        <td style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile expandable rows */}
+            <div className="dashboard-recent-sales-mobile">
+              <table className="dashboard-recent-sales-mobile-table">
+                <thead>
+                  <tr>
+                    <th>Invoice / Customer</th>
+                    <th>Total</th>
+                    <th className="sales-expand-th"></th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {saleStats.recentSales.map((s) => (
-                    <tr key={s._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/sales/${s._id}`)}>
-                      <td style={{ fontWeight: 500, fontSize: '13px' }}>{s.invoiceNumber}</td>
-                      <td>{s.customerName}</td>
-                      <td style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</td>
-                      <td style={{ color: '#22c55e', fontWeight: 500 }}>₹{s.paidAmount?.toFixed(2)}</td>
-                      <td style={{ color: s.dueAmount > 0 ? '#ef4444' : '#22c55e', fontWeight: 500 }}>₹{s.dueAmount?.toFixed(2)}</td>
-                      <td><span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{s.paymentMethod}</span></td>
-                      <td style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
+                  {saleStats.recentSales.map((s, idx) => {
+                    const expanded = expandedInvoice === `recent-sale-${idx}`;
+                    return (
+                      <>
+                        <tr key={`mobile-${s._id}`} className="sales-mobile-row" onClick={() => setExpandedInvoice(prev => prev === `recent-sale-${idx}` ? null : `recent-sale-${idx}`)}>
+                          <td>
+                            <span style={{ fontWeight: 500, fontSize: '13px' }}>{s.invoiceNumber}</span>
+                            <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>{s.customerName}</div>
+                          </td>
+                          <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
+                          <td className="sales-expand-cell">
+                            <button className="sales-expand-btn">
+                              <i className={`fa-solid fa-chevron-${expanded ? 'up' : 'down'}`}></i>
+                            </button>
+                          </td>
+                        </tr>
+                        <tr className={`sales-detail-row ${expanded ? 'sales-detail-row-open' : ''}`}>
+                          <td colSpan={3} className="sales-detail-cell">
+                            <div className="sales-detail-inner">
+                              <div className="sales-detail-item">
+                                <span className="sales-detail-label">Invoice</span>
+                                <span className="sales-detail-value" style={{ fontWeight: 500 }}>{s.invoiceNumber}</span>
+                              </div>
+                              <div className="sales-detail-item">
+                                <span className="sales-detail-label">Customer</span>
+                                <span className="sales-detail-value">{s.customerName}</span>
+                              </div>
+                              <div className="sales-detail-item">
+                                <span className="sales-detail-label">Total</span>
+                                <span className="sales-detail-value" style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></span>
+                              </div>
+                              <div className="sales-detail-item">
+                                <span className="sales-detail-label">Paid</span>
+                                <span className="sales-detail-value" style={{ color: '#22c55e', fontWeight: 600 }}><CurrencyDisplay value={s.paidAmount} /></span>
+                              </div>
+                              <div className="sales-detail-item">
+                                <span className="sales-detail-label">Due</span>
+                                <span className="sales-detail-value" style={{ color: s.dueAmount > 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}><CurrencyDisplay value={s.dueAmount} /></span>
+                              </div>
+                              <div className="sales-detail-item">
+                                <span className="sales-detail-label">Payment</span>
+                                <span className="sales-detail-value"><span className="badge badge-info" style={{ textTransform: 'capitalize', fontSize: '11px' }}>{s.paymentMethod}</span></span>
+                              </div>
+                              <div className="sales-detail-item">
+                                <span className="sales-detail-label">Date</span>
+                                <span className="sales-detail-value" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{new Date(s.saleDate).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -515,5 +817,3 @@ export default function EnhancedDashboard() {
     </div>
   );
 }
-
-

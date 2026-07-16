@@ -220,10 +220,10 @@ export default function Brands() {
             title="Bulk Import Brands"
             entityName="brands"
             endpoint="/brands/bulk-import"
-            sampleFormat="Name, Description\nCipla, Cipla pharmaceuticals\nSun Pharma, Sun pharmaceutical products\nDr Reddys, Dr Reddys medicines"
+            headerIncluded={false}
             fields={[
-              { key: 'name', label: 'Name', required: true, sample: 'Cipla' },
-              { key: 'description', label: 'Description', required: false, sample: 'Cipla pharmaceuticals' },
+              { key: 'name', label: 'Brand Name', required: true, sample: 'Square Pharma' },
+              { key: 'description', label: 'Description', required: false, sample: 'Pharmaceutical company' },
             ]}
             onComplete={() => loadBrands()}
           />
@@ -268,9 +268,9 @@ export default function Brands() {
                         <tr key={brand._id}>
                           <td>
                             {brand.logo ? (
-                              <img src={brand.logo} alt={brand.name} className="image-preview" />
+                              <img src={brand.logo} alt={brand.name} style={{ width: '36px', height: '36px', borderRadius: '4px', objectFit: 'cover' }} />
                             ) : (
-                              <div className="image-preview" style={{ background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
+                              <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)' }}>
                                 <i className="fa-solid fa-building"></i>
                               </div>
                             )}

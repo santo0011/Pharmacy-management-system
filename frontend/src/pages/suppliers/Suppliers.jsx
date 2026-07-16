@@ -215,13 +215,14 @@ export default function Suppliers() {
             title="Bulk Import Suppliers"
             entityName="suppliers"
             endpoint="/suppliers/bulk-import"
-            sampleFormat="Supplier Name, Company Name, Phone, Email, GST Number\nABC Pharma, ABC Pharmaceuticals, 9876543210, abc@pharma.com, 27AABC1234D1Z5\nXYZ Medicos, XYZ Medical Supplies, 9876543211, info@xyzmed.com, 27XYZ1234D1Z5"
+            headerIncluded={false}
             fields={[
-              { key: 'supplierName', label: 'Supplier Name', required: true, sample: 'ABC Pharma' },
-              { key: 'companyName', label: 'Company Name', required: false, sample: 'ABC Pharmaceuticals' },
-              { key: 'phone', label: 'Phone', required: false, sample: '9876543210' },
-              { key: 'email', label: 'Email', required: false, sample: 'abc@pharma.com' },
-              { key: 'gstNumber', label: 'GST Number', required: false, sample: '27AABC1234D1Z5' },
+              { key: 'supplierName', label: 'Supplier Name', required: true, sample: 'Santo Suppliers' },
+              { key: 'companyName', label: 'Company Name', required: true, sample: 'Santo Pharma' },
+              { key: 'phone', label: 'Phone', required: true, sample: '9876543210' },
+              { key: 'email', label: 'Email', required: true, sample: 'santo@example.com' },
+              { key: 'address', label: 'Address', required: false, sample: 'Kolkata' },
+              { key: 'gstNumber', label: 'GST Number', required: false, sample: '19ABCDE1234F1Z5' },
             ]}
             onComplete={() => loadSuppliers()}
           />
@@ -281,14 +282,17 @@ export default function Suppliers() {
                             </label>
                           </td>
                           <td>
-                            <div className="action-buttons">
-                              <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(supplier)}>
-                                <i className="fa-solid fa-edit"></i>
-                              </button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(supplier._id)}>
-                                <i className="fa-solid fa-trash"></i>
-                              </button>
-                            </div>
+                    <div className="action-buttons">
+                      <button className="btn btn-info btn-sm" onClick={() => window.location.href = `/suppliers/${supplier._id}/ledger`} title="View Ledger">
+                        <i className="fa-solid fa-book"></i>
+                      </button>
+                      <button className="btn btn-warning btn-sm" onClick={() => openEditDrawer(supplier)}>
+                        <i className="fa-solid fa-edit"></i>
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(supplier._id)}>
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                    </div>
                           </td>
                         </tr>
                       ))}

@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createPurchase, updatePurchase, fetchPurchase, clearSelectedPurchase, fetchSupplierDueInvoices } from '../../redux/slices/purchaseSlice';
 import { fetchSuppliers } from '../../redux/slices/supplierSlice';
 import { fetchMedicines } from '../../redux/slices/medicineSlice';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 
 export default function PurchaseForm() {
@@ -18,12 +20,12 @@ export default function PurchaseForm() {
   const [supplier, setSupplier] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
-  const [items, setItems] = useState([{ medicineId: '', medicineName: '', batchNumber: '', quantity: 1, purchasePrice: 0, sellingPrice: 0, mrp: 0, expiryDate: '', gst: 0, barcode: '' }]);
+  const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage');
   const [shippingCost, setShippingCost] = useState(0);
   const [otherCost, setOtherCost] = useState(0);
-  const [paidAmount, setPaidAmount] = useState(0);
+  const [paidAmount, setPaidAmount] = useState();
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -52,12 +54,8 @@ export default function PurchaseForm() {
       const result = await dispatch(fetchSupplierDueInvoices(supplierId)).unwrap();
       setSupplierData(result);
       setDueInvoices(result.dueInvoices || []);
-      // Auto-select all due invoices
-      if (result.dueInvoices?.length > 0) {
-        setSelectedDueInvoices(result.dueInvoices.map(inv => inv._id));
-      } else {
-        setSelectedDueInvoices([]);
-      }
+      // Let user manually select due invoices
+      setSelectedDueInvoices([]);
     } catch (err) {
       setSupplierData(null);
       setDueInvoices([]);
@@ -202,14 +200,14 @@ export default function PurchaseForm() {
 
     const paid = Number(paidAmount) || calcGrandTotal();
     if (paid > totalPayable) {
-      showError(`Payment amount cannot exceed the total payable amount of ₹${totalPayable.toFixed(2)}.`);
+      showError(`Payment amount cannot exceed the total payable amount of ${getCurrentSymbol()} ${totalPayable.toFixed(2)}.`);
       return;
     }
 
     // Show payment confirmation before completing the purchase
     const confirmed = await confirmAction(
       `${isEditing ? 'Update' : 'Complete'} Purchase`,
-      `Supplier: ${selectedSupplier?.supplierName || supplierName || 'N/A'}\nItems: ${items.length}\nGrand Total: ₹${gt.toFixed(2)}\nPrevious Due: ₹${previousDue.toFixed(2)}\nTotal Payable: ₹${totalPayable.toFixed(2)}\nPaid: ₹${paid.toFixed(2)}\nRemaining Due: ₹${Math.max(0, totalPayable - paid).toFixed(2)}\nMethod: ${paymentMethod}`,
+      `Supplier: ${selectedSupplier?.supplierName || supplierName || 'N/A'}\nItems: ${items.length}\nGrand Total: ${getCurrentSymbol()} ${gt.toFixed(2)}\nPrevious Due: ${getCurrentSymbol()} ${previousDue.toFixed(2)}\nTotal Payable: ${getCurrentSymbol()} ${totalPayable.toFixed(2)}\nPaid: ${getCurrentSymbol()} ${paid.toFixed(2)}\nRemaining Due: ${getCurrentSymbol()} ${Math.max(0, totalPayable - paid).toFixed(2)}\nMethod: ${paymentMethod}`,
       `Yes, ${isEditing ? 'Update' : 'Complete'}`
     );
     if (!confirmed) {
@@ -304,42 +302,6 @@ export default function PurchaseForm() {
                 </div>
               </div>
 
-              {/* Supplier Financial Summary */}
-              {/* {selectedSupplier && (
-                <div className="supplier-financial-summary">
-                  <div className="supplier-summary-grid">
-                    <div className="supplier-summary-item">
-                      <span className="supplier-summary-label">Total Purchases</span>
-                      <span className="supplier-summary-value">{supplierData?.summary?.totalPurchases || selectedSupplier.totalPurchases || 0}</span>
-                    </div>
-                    <div className="supplier-summary-item">
-                      <span className="supplier-summary-label">Total Spent</span>
-                      <span className="supplier-summary-value">₹{(supplierData?.summary?.totalAmount || selectedSupplier.totalSpent || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="supplier-summary-item">
-                      <span className="supplier-summary-label">Total Paid</span>
-                      <span className="supplier-summary-value" style={{ color: 'var(--success)' }}>₹{(supplierData?.summary?.totalPaid || selectedSupplier.totalPaid || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="supplier-summary-item">
-                      <span className="supplier-summary-label">Outstanding Due</span>
-                      <span className="supplier-summary-value" style={{ color: previousDue > 0 ? 'var(--danger)' : 'var(--success)' }}>₹{previousDue.toFixed(2)}</span>
-                    </div>
-                    <div className="supplier-summary-item">
-                      <span className="supplier-summary-label">Unpaid Invoices</span>
-                      <span className="supplier-summary-value">{supplierData?.summary?.unpaidInvoices || 0}</span>
-                    </div>
-                    <div className="supplier-summary-item">
-                      <span className="supplier-summary-label">Last Payment</span>
-                      <span className="supplier-summary-value" style={{ fontSize: '12px' }}>
-                        {supplierData?.lastPayment?.paymentDate
-                          ? new Date(supplierData.lastPayment.paymentDate).toLocaleDateString()
-                          : 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )} */}
-
               {/* Previous Due Invoices */}
               {dueInvoices.length > 0 && !isEditing && (
                 <div className="due-invoices-section">
@@ -370,15 +332,21 @@ export default function PurchaseForm() {
                           <span className="due-invoice-number">{inv.invoiceNumber}</span>
                           <span className="due-invoice-date">{new Date(inv.purchaseDate).toLocaleDateString()}</span>
                           <div className="due-invoice-payment-details">
-                            <span>Total: ₹{(inv.grandTotal || 0).toFixed(2)}</span>
-                            <span>Paid: ₹{(inv.paidAmount || 0).toFixed(2)}</span>
-                            <span className="due-invoice-remaining">Due: ₹{(inv.dueAmount || 0).toFixed(2)}</span>
+                            <span>Total: <CurrencyDisplay value={inv.grandTotal || 0} /></span>
+                            <span>Paid: <CurrencyDisplay value={inv.paidAmount || 0} /></span>
+                            <span className="due-invoice-remaining">Due: <CurrencyDisplay value={inv.dueAmount || 0} /></span>
                           </div>
                         </div>
-                        <span className="due-invoice-amount">₹{inv.dueAmount.toFixed(2)}</span>
+                        <span className="due-invoice-amount"><CurrencyDisplay value={inv.dueAmount} /></span>
                       </div>
                     ))}
                   </div>
+                  {selectedDueInvoices.length > 0 && (
+                    <div className="due-invoices-total">
+                      <span>Selected Due Total ({selectedDueInvoices.length} invoice{selectedDueInvoices.length > 1 ? 's' : ''}):</span>
+                      <span className="due-invoices-total-amount"><CurrencyDisplay value={previousDue} /></span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -404,11 +372,16 @@ export default function PurchaseForm() {
                           className="search-dropdown-item">
                           <div>
                             <div className="item-name">{med.medicineName}</div>
-                            <div className="item-details">{med.genericName} | {med.barcode}</div>
+                            <div className="item-details">{med.genericName}</div>
+                            <div className="item-batch-info">
+                              <span className={`batches-badge ${med.currentStock <= 10 ? 'low' : 'in-stock'}`}>Stock: {med.currentStock}</span>
+                              {med.expiryDate && (
+                                <span className="item-expiry">Exp: {new Date(med.expiryDate).toLocaleDateString()}</span>
+                              )}
+                            </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div className="item-price">₹{med.sellingPrice}</div>
-                            <div className={`item-stock ${med.currentStock <= 10 ? 'low' : ''}`}>Stock: {med.currentStock}</div>
+                            <div className="item-price"><CurrencyDisplay value={med.purchasePrice} /></div>
                           </div>
                         </div>
                       ))}
@@ -416,7 +389,7 @@ export default function PurchaseForm() {
                     </div>
                   )}
                 </div>
-                <button type="button" className="btn btn-secondary" onClick={addItem} style={{ height: '46px', whiteSpace: 'nowrap' }}>
+                <button type="button" className="btn-add-item" onClick={addItem}>
                   <i className="fa-solid fa-plus"></i> Add Item
                 </button>
               </div>
@@ -452,9 +425,9 @@ export default function PurchaseForm() {
                           <td><input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} className="input-sm" style={{ width: '60px' }} /></td>
                           <td><input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} className="input-sm" style={{ width: '105px' }} /></td>
                           <td><input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} className="input-sm" style={{ width: '50px' }} /></td>
-                          <td style={{ fontWeight: 600, whiteSpace: 'nowrap', fontSize: '13px' }}>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</td>
+                          <td style={{ fontWeight: 600, whiteSpace: 'nowrap', fontSize: '13px' }}><CurrencyDisplay value={Number(item.quantity) * Number(item.purchasePrice)} /></td>
                           <td>
-                            <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} disabled={items.length === 1} style={{ padding: '4px 8px' }}>
+                            <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} style={{ padding: '4px 8px' }}>
                               <i className="fa-solid fa-times"></i>
                             </button>
                           </td>
@@ -483,7 +456,6 @@ export default function PurchaseForm() {
                         type="button"
                         className="btn btn-danger btn-sm purchase-item-card-remove"
                         onClick={() => removeItem(index)}
-                        disabled={items.length === 1}
                       >
                         <i className="fa-solid fa-times"></i>
                       </button>
@@ -519,7 +491,7 @@ export default function PurchaseForm() {
                       </div>
                       <div className="purchase-item-card-field purchase-item-card-subtotal">
                         <label>Subtotal</label>
-                        <span>₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</span>
+                        <span><CurrencyDisplay value={Number(item.quantity) * Number(item.purchasePrice)} /></span>
                       </div>
                     </div>
                   </div>
@@ -553,7 +525,7 @@ export default function PurchaseForm() {
                       <span className="cart-item-name">{item.medicineName || 'New Item'}</span>
                       <span className="cart-item-quantity"> × {item.quantity}</span>
                     </div>
-                    <span className="cart-item-total">₹{(Number(item.quantity) * Number(item.purchasePrice)).toFixed(2)}</span>
+                    <span className="cart-item-total"><CurrencyDisplay value={Number(item.quantity) * Number(item.purchasePrice)} /></span>
                   </div>
                 ))}
               </div>
@@ -561,10 +533,10 @@ export default function PurchaseForm() {
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="summary-row">
-                <span className="summary-label">Subtotal:</span><span className="summary-value">₹{calcSubtotal().toFixed(2)}</span>
+                <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={calcSubtotal()} /></span>
               </div>
               <div className="summary-row">
-                <span className="summary-label">Tax (GST):</span><span className="summary-value">₹{calcTax().toFixed(2)}</span>
+                <span className="summary-label">Tax (GST):</span><span className="summary-value"><CurrencyDisplay value={calcTax()} /></span>
               </div>
               <div className="summary-row" style={{ alignItems: 'center' }}>
                 <span className="summary-label">Discount:</span>
@@ -572,7 +544,7 @@ export default function PurchaseForm() {
                   <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
                   <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
                     <option value="percentage">%</option>
-                    <option value="fixed">₹</option>
+                    <option value="fixed">{getCurrentSymbol()}</option>
                   </select>
                 </div>
               </div>
@@ -588,14 +560,14 @@ export default function PurchaseForm() {
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="grand-total-row" style={{ marginBottom: '10px' }}>
-                <span>Grand Total:</span><span>₹{gt.toFixed(2)}</span>
+                <span>Grand Total:</span><span><CurrencyDisplay value={gt} /></span>
               </div>
 
               {/* Previous Due Display */}
               {previousDue > 0 && !isEditing && (
                 <div className="previous-due-row">
                   <span>Previous Due:</span>
-                  <span style={{ color: 'var(--danger)', fontWeight: 600 }}>₹{previousDue.toFixed(2)}</span>
+                  <span style={{ color: 'var(--danger)', fontWeight: 600 }}><CurrencyDisplay value={previousDue} /></span>
                 </div>
               )}
 
@@ -603,7 +575,7 @@ export default function PurchaseForm() {
               {previousDue > 0 && !isEditing && (
                 <div className="total-payable-row">
                   <span>Total Payable:</span>
-                  <span>₹{totalPayable.toFixed(2)}</span>
+                  <span><CurrencyDisplay value={totalPayable} /></span>
                 </div>
               )}
 
@@ -613,7 +585,7 @@ export default function PurchaseForm() {
               </div>
 
               <div className={`due-row ${Number(paidAmount) >= totalPayable ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
-                <span>Remaining Due:</span><span className="due-value">₹{Math.max(0, totalPayable - Number(paidAmount)).toFixed(2)}</span>
+                <span>Remaining Due:</span><span className="due-value"><CurrencyDisplay value={Math.max(0, totalPayable - Number(paidAmount))} /></span>
               </div>
 
               <button
@@ -624,7 +596,7 @@ export default function PurchaseForm() {
                 style={{ marginTop: '12px', padding: '10px', fontSize: '15px', fontWeight: 700 }}
               >
                 {submitting ? <i className="fa-solid fa-spinner fa-spin"></i> : null}
-                {submitting ? ' Processing...' : ` ₹${gt.toFixed(2)} • ${isEditing ? 'Update Purchase' : 'Create Purchase'}`}
+                {submitting ? ' Processing...' : ` ${getCurrentSymbol()} ${(previousDue > 0 && !isEditing ? totalPayable : gt).toFixed(2)} • ${isEditing ? 'Update Purchase' : 'Create Purchase'}`}
               </button>
             </div>
           </div>

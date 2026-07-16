@@ -11,6 +11,7 @@ import medicineReducer from './slices/medicineSlice';
 import purchaseReducer from './slices/purchaseSlice';
 import saleReducer from './slices/saleSlice';
 import dashboardReducer from './slices/dashboardSlice';
+import settingReducer from './slices/settingSlice';
 
 export const store = configureStore({
   reducer: {
@@ -26,5 +27,6 @@ export const store = configureStore({
     purchases: purchaseReducer,
     sales: saleReducer,
     dashboard: dashboardReducer,
+    settings: settingReducer,
   },
 });

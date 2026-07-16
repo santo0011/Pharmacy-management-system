@@ -12,6 +12,8 @@ import {
 } from '../../redux/slices/medicineSlice';
 import { medicineService } from '../../services/medicineService';
 import { showSuccess, showError, showWarning, showInfo } from '../../utils/sweetAlert';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import BarcodeScanner from '../../components/common/BarcodeScanner';
 import { useAuth } from '../../hooks/useAuth';
 
 const initialFormState = {
@@ -52,21 +54,20 @@ export default function MedicineForm() {
   const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Substitute medicines state
+  const [substituteIds, setSubstituteIds] = useState([]);
+  const [substituteSearchQuery, setSubstituteSearchQuery] = useState('');
+  const [substituteSearchResults, setSubstituteSearchResults] = useState([]);
+  const [showSubstituteDropdown, setShowSubstituteDropdown] = useState(false);
+  const [allMedicines, setAllMedicines] = useState([]);
+
   // Barcode scanner state
   const [showScanner, setShowScanner] = useState(false);
-  const [scannerLoading, setScannerLoading] = useState(false);
-  const [scannerError, setScannerError] = useState('');
-  const [scannerPermission, setScannerPermission] = useState(false);
-  const [availableCameras, setAvailableCameras] = useState([]);
-  const [selectedCameraId, setSelectedCameraId] = useState('');
 
   // Barcode lookup state
   const [barcodeChecking, setBarcodeChecking] = useState(false);
   const [barcodeLookupMessage, setBarcodeLookupMessage] = useState('');
 
-  const scannerInstanceRef = useRef(null);
-  const scannerContainerRef = useRef(null);
-  const isProcessingScan = useRef(false);
   const formDataRef = useRef(formData);
   const barcodeCheckInProgress = useRef(false);
 
@@ -80,12 +81,18 @@ export default function MedicineForm() {
     dispatch(fetchBrands({ limit: 100 }));
     dispatch(fetchSuppliers({ limit: 100 }));
 
+    // Load all medicines for substitute selection
+    medicineService.getMedicines({ limit: 1000 }).then(res => {
+      if (res.data?.data) {
+        setAllMedicines(res.data.data);
+      }
+    }).catch(() => {});
+
     if (isEditing && id) {
       dispatch(fetchMedicine(id));
     }
 
     return () => {
-      cleanupScanner();
       dispatch(clearSelectedMedicine());
     };
   }, [dispatch, id, isEditing]);
@@ -116,160 +123,13 @@ export default function MedicineForm() {
       if (selectedMedicine.medicineImage) {
         setImagePreview(selectedMedicine.medicineImage);
       }
+      // Load existing substitutes
+      if (selectedMedicine.substituteMedicines && selectedMedicine.substituteMedicines.length > 0) {
+        const ids = selectedMedicine.substituteMedicines.map(s => s._id || s);
+        setSubstituteIds(ids);
+      }
     }
   }, [selectedMedicine, isEditing]);
-
-  // --- Scanner Functions ---
-
-  const cleanupScanner = useCallback(async () => {
-    if (scannerInstanceRef.current) {
-      try {
-        await scannerInstanceRef.current.stop();
-        scannerInstanceRef.current.clear();
-      } catch (err) {
-        // Ignore cleanup errors
-      }
-      scannerInstanceRef.current = null;
-    }
-    setShowScanner(false);
-    setScannerLoading(false);
-    setScannerError('');
-    setScannerPermission(false);
-    setAvailableCameras([]);
-    setSelectedCameraId('');
-    isProcessingScan.current = false;
-  }, []);
-
-  const getAvailableCameras = async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
-      setAvailableCameras(videoDevices);
-      if (videoDevices.length > 0) {
-        // Prefer environment (rear) camera
-        const rearCam = videoDevices.find(
-          (d) => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear') || d.label.toLowerCase().includes('environment')
-        );
-        setSelectedCameraId(rearCam ? rearCam.deviceId : videoDevices[0].deviceId);
-      }
-      return videoDevices;
-    } catch (err) {
-      return [];
-    }
-  };
-
-  const startScanner = async () => {
-    setScannerError('');
-    setScannerLoading(true);
-    setShowScanner(true);
-    setScannerPermission(false);
-
-    try {
-      // First request camera permission explicitly
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      // Stop the test stream immediately; we just needed permission
-      stream.getTracks().forEach((track) => track.stop());
-      setScannerPermission(true);
-
-      // Get available cameras
-      await getAvailableCameras();
-
-      // Dynamically import html5-qrcode
-      const { Html5Qrcode } = await import('html5-qrcode');
-
-      if (scannerInstanceRef.current) {
-        await scannerInstanceRef.current.stop().catch(() => {});
-        scannerInstanceRef.current.clear().catch(() => {});
-        scannerInstanceRef.current = null;
-      }
-
-      // Create scanner with specific element ID
-      if (scannerContainerRef.current) {
-        scannerContainerRef.current.innerHTML = '';
-      }
-
-      scannerInstanceRef.current = new Html5Qrcode('barcode-scanner-reader');
-
-      const cameraConfig = selectedCameraId
-        ? { deviceId: { exact: selectedCameraId } }
-        : { facingMode: 'environment' };
-
-      isProcessingScan.current = false;
-
-      await scannerInstanceRef.current.start(
-        cameraConfig,
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          // Prevent duplicate scans
-          if (isProcessingScan.current) return;
-
-          isProcessingScan.current = true;
-          handleBarcodeDetected(decodedText);
-        },
-        () => {}
-      );
-
-      setScannerLoading(false);
-    } catch (err) {
-      setScannerLoading(false);
-      console.error('Scanner error:', err);
-
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setScannerError('Camera permission denied. Please allow camera access and try again, or type the barcode manually.');
-      } else if (err.name === 'NotFoundError') {
-        setScannerError('No camera found on this device. Please type the barcode manually.');
-      } else if (err.name === 'NotReadableError') {
-        setScannerError('Camera is already in use by another application. Please close other apps and try again.');
-      } else {
-        setScannerError('Failed to access camera. Please try typing the barcode manually.');
-      }
-    }
-  };
-
-  const switchCamera = async (deviceId) => {
-    setSelectedCameraId(deviceId);
-    setScannerLoading(true);
-    setScannerError('');
-
-    try {
-      if (scannerInstanceRef.current) {
-        await scannerInstanceRef.current.stop().catch(() => {});
-      }
-
-      const { Html5Qrcode } = await import('html5-qrcode');
-
-      if (scannerContainerRef.current) {
-        scannerContainerRef.current.innerHTML = '';
-      }
-
-      scannerInstanceRef.current = new Html5Qrcode('barcode-scanner-reader');
-
-      isProcessingScan.current = false;
-
-      await scannerInstanceRef.current.start(
-        { deviceId: { exact: deviceId } },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          if (isProcessingScan.current) return;
-
-          isProcessingScan.current = true;
-          handleBarcodeDetected(decodedText);
-        },
-        () => {}
-      );
-
-      setScannerLoading(false);
-    } catch (err) {
-      setScannerLoading(false);
-      setScannerError('Failed to switch camera. Please try again.');
-    }
-  };
-
-  const stopScanner = async () => {
-    await cleanupScanner();
-  };
 
   // --- Barcode Handling ---
 
@@ -285,7 +145,7 @@ export default function MedicineForm() {
       setBarcodeChecking(true);
 
       // Close scanner overlay immediately after successful scan
-      await cleanupScanner();
+      setShowScanner(false);
 
       // Lookup barcode - this checks our DB first, then external API
       const lookupResponse = await medicineService.lookupBarcode(barcode);
@@ -482,11 +342,29 @@ export default function MedicineForm() {
       });
       if (imageFile) formDataObj.append('medicineImage', imageFile);
 
+      let medicineId = id;
       if (isEditing) {
         await dispatch(updateMedicine({ id, formData: formDataObj })).unwrap();
+        // Save substitutes for existing medicine
+        if (substituteIds.length >= 0) {
+          try {
+            await medicineService.updateSubstitutes(id, substituteIds);
+          } catch (err) {
+            console.error('Failed to save substitutes:', err);
+          }
+        }
         showSuccess('Medicine updated successfully');
       } else {
-        await dispatch(createMedicine(formDataObj)).unwrap();
+        const result = await dispatch(createMedicine(formDataObj)).unwrap();
+        medicineId = result._id || result.data?._id;
+        // Save substitutes for new medicine
+        if (medicineId && substituteIds.length > 0) {
+          try {
+            await medicineService.updateSubstitutes(medicineId, substituteIds);
+          } catch (err) {
+            console.error('Failed to save substitutes:', err);
+          }
+        }
         showSuccess('Medicine created successfully');
       }
       navigate('/medicines');
@@ -608,15 +486,10 @@ export default function MedicineForm() {
                       <button
                         type="button"
                         className="btn btn-info btn-scan"
-                        onClick={startScanner}
+                        onClick={() => setShowScanner(true)}
                         title="Scan Barcode/QR"
-                        disabled={scannerLoading}
                       >
-                        {scannerLoading ? (
-                          <i className="fa-solid fa-spinner fa-spin"></i>
-                        ) : (
-                          <i className="fa-solid fa-camera"></i>
-                        )} Scan
+                        <i className="fa-solid fa-camera"></i> Scan
                       </button>
                     </div>
                     {barcodeChecking && (
@@ -643,11 +516,11 @@ export default function MedicineForm() {
                 </div>
                 <div className="form-row-2">
                   <div className="form-group">
-                    <label>Purchase Price * (₹)</label>
+                    <label>Purchase Price *</label>
                     <input type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} placeholder="0.00" min="0.01" step="0.01" required />
                   </div>
                   <div className="form-group">
-                    <label>Selling Price * (₹)</label>
+                    <label>Selling Price *</label>
                     <input type="number" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} placeholder="0.00" min="0.01" step="0.01" required />
                   </div>
                 </div>
@@ -693,6 +566,116 @@ export default function MedicineForm() {
               </div>
             </div>
 
+            {/* Substitute Medicines Section */}
+            {allMedicines.length > 0 && (
+              <div className="substitute-medicines-section" style={{ marginTop: '24px' }}>
+                <hr className="medicine-form-divider" />
+                <h4 className="medicine-form-section-title">
+                  <i className="fa-solid fa-exchange-alt"></i> Substitute Medicines
+                </h4>
+                <p style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                  Search and select alternative medicines that can be suggested when this medicine is out of stock.
+                </p>
+                <div className="substitute-search-wrapper" style={{ position: 'relative', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Search medicines to add as substitutes..."
+                    value={substituteSearchQuery}
+                    onChange={(e) => {
+                      const q = e.target.value;
+                      setSubstituteSearchQuery(q);
+                      if (q.trim()) {
+                        const filtered = allMedicines.filter(m =>
+                          m._id !== id &&
+                          !substituteIds.includes(m._id) &&
+                          (m.medicineName?.toLowerCase().includes(q.toLowerCase()) ||
+                           m.genericName?.toLowerCase().includes(q.toLowerCase()) ||
+                           m.barcode?.includes(q))
+                        ).slice(0, 8);
+                        setSubstituteSearchResults(filtered);
+                        setShowSubstituteDropdown(filtered.length > 0);
+                      } else {
+                        setSubstituteSearchResults([]);
+                        setShowSubstituteDropdown(false);
+                      }
+                    }}
+                    style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--gray-300)', width: '100%' }}
+                  />
+                  {showSubstituteDropdown && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0,
+                      background: '#fff', border: '1px solid var(--gray-200)',
+                      borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      zIndex: 100, maxHeight: '250px', overflowY: 'auto',
+                    }}>
+                      {substituteSearchResults.map(m => (
+                        <div key={m._id} onClick={() => {
+                          if (!substituteIds.includes(m._id)) {
+                            setSubstituteIds(prev => [...prev, m._id]);
+                          }
+                          setSubstituteSearchQuery('');
+                          setSubstituteSearchResults([]);
+                          setShowSubstituteDropdown(false);
+                        }} style={{
+                          padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-100)',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = ''}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 500, fontSize: '13px' }}>{m.medicineName}</div>
+                            {m.genericName && <div style={{ fontSize: '11px', color: '#888' }}>{m.genericName}</div>}
+                          </div>
+                          <div style={{ fontSize: '12px', textAlign: 'right' }}>
+                            <div><CurrencyDisplay value={m.sellingPrice} /></div>
+                            <div style={{ color: m.currentStock > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                              Stock: {m.currentStock}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Selected substitutes */}
+                {substituteIds.length > 0 && (
+                  <div className="selected-substitutes" style={{ marginTop: '8px' }}>
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 500 }}>
+                      Selected Substitutes ({substituteIds.length})
+                    </div>
+                    <div className="selected-substitutes-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {substituteIds.map(subId => {
+                        const med = allMedicines.find(m => m._id === subId);
+                        return (
+                          <div key={subId} className="selected-substitute-tag" style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            padding: '4px 10px', borderRadius: '16px',
+                            background: 'var(--primary-light, #e8f5e9)',
+                            border: '1px solid var(--primary, #4caf50)',
+                            fontSize: '12px', fontWeight: 500,
+                          }}>
+                            <span>{med?.medicineName || 'Unknown'}</span>
+                            <button type="button" onClick={() => setSubstituteIds(prev => prev.filter(id => id !== subId))} style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--danger, #dc3545)', fontSize: '14px', padding: '0 2px',
+                            }}>
+                              <i className="fa-solid fa-times"></i>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <button type="button" className="btn btn-sm btn-link" onClick={() => setSubstituteIds([])} style={{
+                      marginTop: '4px', color: 'var(--danger)', fontSize: '12px', padding: 0, border: 'none', background: 'none', cursor: 'pointer',
+                    }}>
+                      <i className="fa-solid fa-trash"></i> Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Form Actions */}
             <div className="medicine-form-actions">
               <button type="button" className="btn btn-secondary" onClick={() => navigate('/medicines')}>Cancel</button>
@@ -705,63 +688,13 @@ export default function MedicineForm() {
         </div>
       </div>
 
-      {/* Barcode Scanner Overlay */}
-      {showScanner && (
-        <div className="scanner-overlay">
-          {scannerLoading ? (
-            <div className="scanner-loading">
-              <i className="fa-solid fa-spinner fa-spin"></i>
-              <div>Accessing camera...</div>
-              <p>Please allow camera permission when prompted</p>
-            </div>
-          ) : scannerError ? (
-            <div className="scanner-error">
-              <i className="fa-solid fa-exclamation-triangle"></i>
-              <div>Camera Error</div>
-              <p>{scannerError}</p>
-              <div className="scanner-error-actions">
-                <button type="button" className="btn btn-info" onClick={startScanner}>
-                  <i className="fa-solid fa-redo"></i> Try Again
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={stopScanner}>
-                  Close
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="scanner-header">
-                <i className="fa-solid fa-camera"></i> Point camera at barcode
-              </div>
-
-              {availableCameras.length > 1 && (
-                <div className="scanner-cameras">
-                  {availableCameras.map((cam) => (
-                    <button
-                      key={cam.deviceId}
-                      type="button"
-                      className={`btn btn-sm ${cam.deviceId === selectedCameraId ? 'btn-primary' : 'btn-outline-light'}`}
-                      onClick={() => switchCamera(cam.deviceId)}
-                    >
-                      <i className="fa-solid fa-camera"></i>{' '}
-                      {cam.label || `Camera ${availableCameras.indexOf(cam) + 1}`}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div
-                id="barcode-scanner-reader"
-                ref={scannerContainerRef}
-                className="scanner-reader"
-              />
-              <button type="button" className="btn btn-danger scanner-cancel" onClick={stopScanner}>
-                <i className="fa-solid fa-times"></i> Cancel
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      <BarcodeScanner
+        open={showScanner}
+        onScan={handleBarcodeDetected}
+        onClose={() => setShowScanner(false)}
+        scannerId="barcode-scanner-reader"
+        stopAfterScan={true}
+      />
     </div>
   );
 }

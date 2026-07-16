@@ -11,6 +11,12 @@ import {
   getSupplierLedger,
   getSupplierDueInvoices,
 } from '../controllers/purchaseController.js';
+import {
+  returnPurchase,
+  getPurchaseReturns,
+  getAllReturns,
+  getSupplierReturns,
+} from '../controllers/purchaseReturnController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
 
@@ -31,6 +37,11 @@ router.route('/:id')
   .get(getPurchase)
   .put(authorize('admin', 'pharmacist'), updatePurchase)
   .delete(authorize('admin'), deletePurchase);
+
+router.get('/returns/all', authorize('admin', 'pharmacist'), getAllReturns);
+router.get('/supplier/:supplierId/returns', getSupplierReturns);
+router.get('/:id/returns', getPurchaseReturns);
+router.post('/:id/return', authorize('admin', 'pharmacist'), returnPurchase);
 
 router.route('/:id/payments')
   .get(getPurchasePayments)

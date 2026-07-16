@@ -1,0 +1,256 @@
+import mongoose from 'mongoose';
+import Sale from '../models/Sale.js';
+import SaleReturn from '../models/SaleReturn.js';
+import Medicine from '../models/Medicine.js';
+import Customer from '../models/Customer.js';
+import PaymentTransaction from '../models/PaymentTransaction.js';
+import ApiResponse from '../utils/apiResponse.js';
+
+const generateReturnNumber = async (pharmacyId) => {
+  const count = await SaleReturn.countDocuments({ pharmacyId });
+  const date = new Date();
+  const prefix = `SRET-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+  return `${prefix}-${String(count + 1).padStart(4, '0')}`;
+};
+
+const updateCustomerStats = async (customerId, pharmacyId, session) => {
+  if (!customerId) return;
+  const stats = await Sale.aggregate([
+    { $match: { customer: new mongoose.Types.ObjectId(customerId), pharmacyId: new mongoose.Types.ObjectId(pharmacyId), isDeleted: false, status: { $nin: ['cancelled', 'returned'] } } },
+    {
+      $group: {
+        _id: null,
+        totalPurchases: { $sum: 1 },
+        totalSpent: { $sum: '$grandTotal' },
+        lastPurchaseDate: { $max: '$saleDate' },
+      },
+    },
+  ]);
+  const data = stats[0] || { totalPurchases: 0, totalSpent: 0, lastPurchaseDate: null };
+  await Customer.findByIdAndUpdate(customerId, {
+    totalPurchases: data.totalPurchases,
+    totalSpent: data.totalSpent,
+    lastPurchaseDate: data.lastPurchaseDate,
+  }).session(session);
+};
+
+// @desc    Return items from a sale
+// @route   POST /api/sales/:id/return-items
+// @access  Private
+export const returnSaleItems = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { items, reason } = req.body;
+
+    if (!items || items.length === 0) {
+      return ApiResponse.error(res, 'At least one item to return is required', 400);
+    }
+
+    const sale = await Sale.findOne({
+      _id: req.params.id,
+      pharmacyId: req.pharmacyId,
+      isDeleted: false,
+      status: { $nin: ['cancelled', 'returned'] },
+    }).session(session);
+
+    if (!sale) {
+      return ApiResponse.error(res, 'Sale not found or already cancelled/returned', 404);
+    }
+
+    const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+
+    // Validate return items against sale items
+    const returnItems = [];
+    let subtotal = 0;
+
+    for (const returnItem of parsedItems) {
+      const saleItem = sale.items.find(
+        si => si.medicine.toString() === returnItem.medicineId
+      );
+
+      if (!saleItem) {
+        return ApiResponse.error(res, `Medicine "${returnItem.medicineName}" not found in this sale`, 400);
+      }
+
+      const returnQty = Number(returnItem.returnedQuantity);
+      if (returnQty <= 0) {
+        return ApiResponse.error(res, `Invalid return quantity for ${saleItem.medicineName}`, 400);
+      }
+      if (returnQty > saleItem.quantity) {
+        return ApiResponse.error(res, `Return quantity (${returnQty}) exceeds sold quantity (${saleItem.quantity}) for ${saleItem.medicineName}`, 400);
+      }
+
+      const returnAmt = returnQty * saleItem.sellingPrice;
+      subtotal += returnAmt;
+
+      returnItems.push({
+        medicine: saleItem.medicine,
+        medicineName: saleItem.medicineName,
+        batchNumber: saleItem.batchNumber || '',
+        returnedQuantity: returnQty,
+        sellingPrice: saleItem.sellingPrice,
+        returnAmount: returnAmt,
+      });
+    }
+
+    const returnNumber = await generateReturnNumber(req.pharmacyId);
+
+    // Create the return record
+    const [saleReturn] = await SaleReturn.create([{
+      returnNumber,
+      sale: sale._id,
+      saleInvoiceNumber: sale.invoiceNumber,
+      customer: sale.customer || null,
+      customerName: sale.customerName,
+      returnDate: new Date(),
+      items: returnItems,
+      subtotal,
+      totalReturnAmount: subtotal,
+      reason: reason || '',
+      pharmacyId: req.pharmacyId,
+      createdBy: req.user._id,
+    }], { session });
+
+    // Increase stock for returned items
+    for (const returnItem of returnItems) {
+      const medicine = await Medicine.findById(returnItem.medicine).session(session);
+      if (medicine) {
+        medicine.currentStock += returnItem.returnedQuantity;
+        await medicine.save({ session });
+      }
+    }
+
+    // Update sale financials
+    // Reduce paid amount proportionally
+    const returnRatio = subtotal / sale.grandTotal;
+    const paidReduction = sale.paidAmount * returnRatio;
+
+    sale.grandTotal = Math.max(0, sale.grandTotal - subtotal);
+    sale.paidAmount = Math.max(0, sale.paidAmount - paidReduction);
+    sale.dueAmount = Math.max(0, sale.grandTotal - sale.paidAmount);
+    sale.paymentStatus = sale.dueAmount <= 0 ? 'paid' : sale.paidAmount > 0 ? 'partial' : 'unpaid';
+    sale.status = 'returned';
+    sale.notes = (sale.notes ? sale.notes + ' | ' : '') + `Returned on ${new Date().toISOString().split('T')[0]}: ${returnNumber}`;
+    sale.updatedBy = req.user._id;
+    await sale.save({ session });
+
+    // Record a negative payment transaction for the return
+    if (paidReduction > 0) {
+      await PaymentTransaction.create([{
+        sale: sale._id,
+        customer: sale.customer || null,
+        pharmacyId: req.pharmacyId,
+        amount: -paidReduction,
+        previousDue: sale.dueAmount + paidReduction,
+        remainingDue: sale.dueAmount,
+        paymentMethod: 'cash',
+        notes: `Return adjustment: ${returnNumber} - ${reason || 'Items returned'}`,
+        createdBy: req.user._id,
+      }], { session });
+    }
+
+    // Update customer stats
+    if (sale.customer) {
+      await updateCustomerStats(sale.customer, req.pharmacyId, session);
+    }
+
+    await session.commitTransaction();
+
+    // Fetch the complete return record for response
+    const populatedReturn = await SaleReturn.findById(saleReturn._id)
+      .populate('items.medicine', 'medicineName genericName unit')
+      .populate('createdBy', 'name');
+
+    return ApiResponse.success(res, populatedReturn, 'Sale return processed successfully', 201);
+  } catch (error) {
+    await session.abortTransaction();
+    next(error);
+  } finally {
+    session.endSession();
+  }
+};
+
+// @desc    Get return history for a sale
+// @route   GET /api/sales/:id/returns
+// @access  Private
+export const getSaleReturns = async (req, res, next) => {
+  try {
+    const returns = await SaleReturn.find({
+      sale: req.params.id,
+      pharmacyId: req.pharmacyId,
+    })
+      .populate('items.medicine', 'medicineName genericName unit')
+      .populate('createdBy', 'name')
+      .sort({ returnDate: -1 });
+
+    return ApiResponse.success(res, returns);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all return history for a pharmacy
+// @route   GET /api/sales/returns/all
+// @access  Private
+export const getAllSaleReturns = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const { search, startDate, endDate } = req.query;
+
+    const query = { pharmacyId: req.pharmacyId };
+
+    if (search) {
+      query.$or = [
+        { returnNumber: { $regex: search, $options: 'i' } },
+        { saleInvoiceNumber: { $regex: search, $options: 'i' } },
+        { customerName: { $regex: search, $options: 'i' } },
+      ];
+    }
+    if (startDate) query.returnDate = { ...query.returnDate, $gte: new Date(startDate) };
+    if (endDate) query.returnDate = { ...query.returnDate, $lte: new Date(endDate) };
+
+    const total = await SaleReturn.countDocuments(query);
+    const returns = await SaleReturn.find(query)
+      .populate('items.medicine', 'medicineName genericName unit')
+      .populate('createdBy', 'name')
+      .sort({ returnDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return ApiResponse.paginated(res, returns, total, page, limit);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get return history for a customer
+// @route   GET /api/sales/customer/:customerId/returns
+// @access  Private
+export const getCustomerSaleReturns = async (req, res, next) => {
+  try {
+    const { customerId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const query = {
+      customer: customerId,
+      pharmacyId: req.pharmacyId,
+    };
+
+    const total = await SaleReturn.countDocuments(query);
+    const returns = await SaleReturn.find(query)
+      .populate('items.medicine', 'medicineName genericName unit')
+      .populate('createdBy', 'name')
+      .sort({ returnDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return ApiResponse.paginated(res, returns, total, page, limit);
+  } catch (error) {
+    next(error);
+  }
+};

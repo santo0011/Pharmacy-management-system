@@ -1,7 +1,9 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Pharmacy from '../models/Pharmacy.js';
 import ApiResponse from '../utils/apiResponse.js';
+import { sendEmail, buildResetEmailTemplate } from '../utils/emailService.js';
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -235,6 +237,115 @@ export const resetPassword = async (req, res, next) => {
     await user.save();
 
     return ApiResponse.success(res, null, 'Password reset successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Forgot password - send reset email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Always respond with success to avoid email enumeration
+    if (!email) {
+      return ApiResponse.success(res, null, 'If an account with that email exists, a password reset link has been sent.');
+    }
+
+    const user = await User.findOne({ email });
+
+    // Always respond the same way regardless of whether user exists
+    if (!user) {
+      return ApiResponse.success(res, null, 'If an account with that email exists, a password reset link has been sent.');
+    }
+
+    // Generate secure reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    // Hash the token before storing in DB
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    // Set expiry (default 15 minutes)
+    const expireMinutes = parseInt(process.env.RESET_TOKEN_EXPIRE_MINUTES || '15', 10);
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = new Date(Date.now() + expireMinutes * 60 * 1000);
+
+    await user.save();
+
+    // Build reset URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+
+    // Send email
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Password Reset Request - Pharmacy Management System',
+        html: buildResetEmailTemplate({
+          userName: user.name,
+          resetUrl,
+          expiresInMinutes: expireMinutes,
+        }),
+      });
+    } catch (emailError) {
+      // If email fails, clear the token to avoid orphaned tokens
+      user.resetPasswordToken = null;
+      user.resetPasswordExpire = null;
+      await user.save();
+
+      return ApiResponse.error(res, 'Failed to send reset email. Please try again later.', 500);
+    }
+
+    return ApiResponse.success(res, null, 'If an account with that email exists, a password reset link has been sent.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reset password using token from email
+// @route   POST /api/auth/reset-password/:token
+// @access  Public
+export const resetPasswordByToken = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { password, confirmPassword } = req.body;
+
+    if (!password || !confirmPassword) {
+      return ApiResponse.error(res, 'Password and confirm password are required', 400);
+    }
+
+    if (password !== confirmPassword) {
+      return ApiResponse.error(res, 'Passwords do not match', 400);
+    }
+
+    if (password.length < 6) {
+      return ApiResponse.error(res, 'Password must be at least 6 characters', 400);
+    }
+
+    // Hash the incoming token and find the user
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return ApiResponse.error(res, 'Invalid or expired reset token. Please request a new password reset.', 400);
+    }
+
+    // Set new password - pre('save') hook will hash it
+    user.password = password;
+
+    // Clear reset token fields (single-use)
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+
+    await user.save();
+
+    return ApiResponse.success(res, null, 'Password has been reset successfully. You can now log in with your new password.');
   } catch (error) {
     next(error);
   }

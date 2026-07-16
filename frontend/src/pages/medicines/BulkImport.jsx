@@ -5,6 +5,7 @@ import { fetchCategories } from '../../redux/slices/categorySlice';
 import { fetchBrands } from '../../redux/slices/brandSlice';
 import { fetchSuppliers } from '../../redux/slices/supplierSlice';
 import { medicineService } from '../../services/medicineService';
+import { confirmAction } from '../../utils/sweetAlert';
 import toast from 'react-hot-toast';
 
 // All fields mapped from the Medicine model for the import template
@@ -78,17 +79,61 @@ export default function BulkImport() {
 
   const parseData = (text) => {
     const lines = text.trim().split('\n').filter(l => l.trim());
-    if (lines.length < 2) {
-      toast.error('Include a header row and at least one data row');
+    if (lines.length < 1) {
+      toast.error('No data found to parse');
       return null;
     }
-    const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+    // Known header labels (exact match against comma-separated values)
+    const knownHeaders = [
+      'medicine name', 'batch no', 'batch number', 'purchase price', 'selling price',
+      'expiry date', 'expiry', 'stock qty', 'current stock', 'stock',
+      'generic name', 'gst', 'gst %', 'unit', 'barcode',
+      'hsn code', 'hsn', 'rack no', 'rack number', 'rack',
+      'mfg date', 'manufacturing date', 'min stock alert', 'min stock', 'description'
+    ];
+
+    const firstLineValues = parseCSVLine(lines[0]);
+    const trimmedLower = firstLineValues.map(v => v.trim().toLowerCase().replace(/[*]/g, ''));
+
+    // Detect header: check if any complete value matches a known header label
+    const hasHeader = trimmedLower.some(val => knownHeaders.includes(val));
+
+    let headers;
+    let dataStartIndex;
+
+    if (hasHeader) {
+      // First line is a header row — derive keys from header labels
+      headers = firstLineValues.map(h =>
+        h.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+      );
+      dataStartIndex = 1;
+      if (lines.length < 2) {
+        toast.error('Header row found but no data rows detected');
+        return null;
+      }
+    } else {
+      // No header — assume standard column order
+      headers = ['medicinename', 'batchno', 'purchaseprice', 'sellingprice', 'expirydate', 'currentstock', 'genericname', 'gst', 'unit', 'barcode', 'hsncode', 'racknumber', 'manufacturingdate', 'minstockalert', 'description'];
+      dataStartIndex = 0;
+    }
+
     const rows = [];
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = dataStartIndex; i < lines.length; i++) {
       const values = parseCSVLine(lines[i]);
       const row = {};
-      headers.forEach((header, idx) => { row[header] = values[idx] || ''; });
-      if (row.medicinename || row.medicinename === '') rows.push(row);
+      let valid = true;
+      headers.forEach((header, idx) => {
+        row[header] = (idx < values.length) ? values[idx].trim() : '';
+      });
+      // Validate: medicine name (first column) must be non-empty
+      const firstName = row[headers[0]];
+      if (!firstName) {
+        valid = false;
+      }
+      if (valid) {
+        rows.push(row);
+      }
     }
     return rows;
   };
@@ -159,14 +204,78 @@ export default function BulkImport() {
     toast.success('Template downloaded with your selected defaults');
   };
 
+  // Map parsed row keys to backend camelCase field names
+  const mapRowToBackend = (row) => {
+    const fieldMap = {
+      medicinename: 'medicineName',
+      'medicine name': 'medicineName',
+      'medicine name*': 'medicineName',
+      batchno: 'batchNumber',
+      'batch no': 'batchNumber',
+      'batch no*': 'batchNumber',
+      batchnumber: 'batchNumber',
+      'batch number': 'batchNumber',
+      'batch number*': 'batchNumber',
+      purchaseprice: 'purchasePrice',
+      'purchase price': 'purchasePrice',
+      'purchase price*': 'purchasePrice',
+      sellingprice: 'sellingPrice',
+      'selling price': 'sellingPrice',
+      'selling price*': 'sellingPrice',
+      expirydate: 'expiryDate',
+      'expiry date': 'expiryDate',
+      'expiry date*': 'expiryDate',
+      expiry: 'expiryDate',
+      currentstock: 'currentStock',
+      'current stock': 'currentStock',
+      'stock qty': 'currentStock',
+      stock: 'currentStock',
+      genericname: 'genericName',
+      'generic name': 'genericName',
+      gst: 'gst',
+      'gst %': 'gst',
+      'gst%': 'gst',
+      unit: 'unit',
+      barcode: 'barcode',
+      hsncode: 'hsnCode',
+      'hsn code': 'hsnCode',
+      hsn: 'hsnCode',
+      racknumber: 'rackNumber',
+      'rack number': 'rackNumber',
+      'rack no': 'rackNumber',
+      rack: 'rackNumber',
+      manufacturingdate: 'manufacturingDate',
+      'manufacturing date': 'manufacturingDate',
+      'mfg date': 'manufacturingDate',
+      minstockalert: 'minStockAlert',
+      'min stock alert': 'minStockAlert',
+      'min stock': 'minStockAlert',
+      description: 'description',
+    };
+    const mapped = {};
+    for (const [key, value] of Object.entries(row)) {
+      const backendKey = fieldMap[key.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()] || key;
+      mapped[backendKey] = value;
+    }
+    return mapped;
+  };
+
   const handleImport = async () => {
     if (parsedRows.length === 0) { toast.error('No data to import'); return; }
     if (!allSelectionsMade) { toast.error('Please complete all default selections'); return; }
 
+    // Show confirmation dialog with row count
+    const confirmed = await confirmAction(
+      'Confirm Bulk Import',
+      `You are about to import ${parsedRows.length} medicine(s) with defaults:\n\nCategory: ${selectedCategoryName}\nBrand: ${selectedBrandName}\nSupplier: ${selectedSupplierName}`,
+      `Import ${parsedRows.length} Medicine(s)`
+    );
+    if (!confirmed) return;
+
     try {
       setImporting(true);
       const payload = {
-        medicines: parsedRows,
+        medicines: parsedRows.map(mapRowToBackend),
         defaultCategory,
         defaultBrand,
         defaultSupplier,
@@ -309,6 +418,37 @@ export default function BulkImport() {
                 </button>
               </div>
 
+              {/* Example Format Display */}
+              <div style={{
+                background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px',
+                padding: '14px 16px', marginBottom: '12px', fontSize: '13px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <i className="fa-solid fa-lightbulb" style={{ color: '#f59e0b', fontSize: '15px' }}></i>
+                  <strong style={{ color: 'var(--gray-700)', fontSize: '14px' }}>Example Format</strong>
+                  <span style={{ color: 'var(--gray-500)', fontSize: '12px' }}>
+                    — Copy the format below and replace with your data
+                  </span>
+                </div>
+                <div style={{
+                  background: '#1e293b', color: '#e2e8f0', borderRadius: '6px',
+                  padding: '12px 14px', fontFamily: 'monospace', fontSize: '12px',
+                  lineHeight: '1.7', overflowX: 'auto', whiteSpace: 'nowrap',
+                }}>
+                  <div style={{ color: '#94a3b8', marginBottom: '4px', fontSize: '11px' }}>
+                    {`// Header row (column names) — keep exactly as shown below`}
+                  </div>
+                  <div>Medicine Name,Batch No,Purchase Price,Selling Price,Expiry Date,Stock,Generic Name,GST%,Unit,Barcode</div>
+                  <div style={{ color: '#94a3b8', margin: '4px 0', fontSize: '11px' }}>
+                    {`// Data row (replace values with your own medicine data)`}
+                  </div>
+                  <div style={{ color: '#22c55e' }}>Amoxicillin 250mg Capsule,BATCH-AX-101,28.50,45.00,2026-08-15,200,Amoxicillin,12,Strip,8901234567123</div>
+                  <div style={{ color: '#94a3b8', marginTop: '4px', fontSize: '11px' }}>
+                    {`// Tip: Include one medicine per row. Required fields: Medicine Name, Batch No, Purchase Price, Selling Price, Expiry Date`}
+                  </div>
+                </div>
+              </div>
+
               <textarea
                 style={{
                   width: '100%', minHeight: '180px', padding: '12px',
@@ -321,7 +461,7 @@ export default function BulkImport() {
               />
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
-                <button className="btn btn-primary" onClick={handleParsePaste}>
+                <button className="btn btn-primary" onClick={handleParsePaste} disabled={!pasteData.trim()}>
                   <i className="fa-solid fa-eye"></i> Preview Data
                 </button>
                 <button className="btn btn-secondary" onClick={() => setPasteData('')}>

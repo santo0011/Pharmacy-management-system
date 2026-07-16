@@ -25,10 +25,13 @@ import customerRoutes from './routes/customerRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import subscriptionHistoryRoutes from './routes/subscriptionHistoryRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import activityLogRoutes from './routes/activityLogRoutes.js';
 import enhancedDashboardRoutes from './routes/enhancedDashboardRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
+import countryRoutes from './routes/countryRoutes.js';
+import searchRoutes from './routes/searchRoutes.js';
 
 dotenv.config();
 
@@ -69,14 +72,38 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/subscription-history', subscriptionHistoryRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/dashboard/enhanced', enhancedDashboardRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/countries', countryRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server is running' });
+});
+
+// SMTP Test endpoint - remove in production
+app.get('/api/test-smtp', async (req, res) => {
+  try {
+    const nodemailer = (await import('nodemailer')).default;
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_PORT === '465',
+      requireTLS: true,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+    await transporter.verify();
+    res.json({ success: true, message: 'SMTP connection successful' });
+  } catch (error) {
+    res.json({ success: false, message: 'SMTP connection failed', error: error.message });
+  }
 });
 
 // Error Handler

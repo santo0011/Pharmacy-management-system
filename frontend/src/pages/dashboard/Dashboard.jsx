@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -299,7 +300,7 @@ export default function Dashboard() {
   const dailySalesChart = dailySales.length > 0 ? {
     labels: dailySales.map(d => { const p = d.date.split('-'); return `${p[2]}/${p[1]}`; }),
     datasets: [{
-      label: 'Sales (₹)',
+      label: 'Sales',
       data: dailySales.map(d => d.amount),
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -315,7 +316,7 @@ export default function Dashboard() {
   const monthlyRevenueChart = revenueByMonth.length > 0 ? {
     labels: revenueByMonth.map(m => m.month),
     datasets: [{
-      label: 'Revenue (₹)',
+      label: 'Revenue',
       data: revenueByMonth.map(m => m.amount),
       backgroundColor: 'rgba(34, 197, 94, 0.7)',
       borderColor: '#22c55e',
@@ -404,7 +405,9 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <h5><i className="fa-solid fa-coins" style={{ marginRight: '8px', color: '#22c55e' }}></i>Monthly Revenue</h5>
-            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>₹{(saleStats?.monthlyAmount || 0).toFixed(2)} this month</span>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+              <CurrencyDisplay value={saleStats?.monthlyAmount || 0} /> this month
+            </span>
           </div>
           <div className="card-body card-body-chart">
             {monthlyRevenueChart ? <Bar data={monthlyRevenueChart} options={chartOptions} />
@@ -447,7 +450,7 @@ export default function Dashboard() {
                     <div key={i} className="payment-method-item">
                       <div className="payment-method-row">
                         <span className="payment-method-name">{p.method}</span>
-                        <span className="payment-method-amount">₹{p.total.toFixed(2)} ({pct}%)</span>
+                        <span className="payment-method-amount"><CurrencyDisplay value={p.total} /> ({pct}%)</span>
                       </div>
                       <div className="payment-progress-bar">
                         <div className="payment-progress-fill" style={{ width: `${pct}%`, background: colors[i % colors.length] }}></div>
@@ -478,7 +481,7 @@ export default function Dashboard() {
                       <tr key={item._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/medicines/${item._id}`)}>
                         <td style={{ fontWeight: 500, fontSize: '13px' }}>{item.medicineName}</td>
                         <td><span className="badge badge-danger">{item.currentStock} {item.unit || 'units'}</span></td>
-                        <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{item.sellingPrice?.toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={item.sellingPrice} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -541,7 +544,7 @@ export default function Dashboard() {
                     <tr key={s._id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/sales/${s._id}`)}>
                       <td style={{ fontWeight: 500, fontSize: '13px' }}>{s.invoiceNumber}</td>
                       <td>{s.customerName}</td>
-                      <td style={{ fontWeight: 600 }}>₹{s.grandTotal?.toFixed(2)}</td>
+                      <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
                       <td><span className="badge badge-info" style={{ textTransform: 'capitalize' }}>{s.paymentMethod}</span></td>
                       <td style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
                     </tr>
@@ -556,7 +559,7 @@ export default function Dashboard() {
                   <div className="sale-card-main">
                     <div className="sale-card-info">
                       <div className="sale-card-customer">{s.customerName}</div>
-                      <div className="sale-card-amount">₹{s.grandTotal?.toFixed(2)}</div>
+                      <div className="sale-card-amount"><CurrencyDisplay value={s.grandTotal} /></div>
                     </div>
                     <button className="btn btn-sm btn-outline view-details-btn" onClick={() => setSelectedSale(s)}>
                       View Details
@@ -591,7 +594,7 @@ export default function Dashboard() {
                 </div>
                 <div className="sale-detail-field">
                   <span className="sale-detail-label">Total</span>
-                  <span className="sale-detail-value sale-detail-amount">₹{selectedSale.grandTotal?.toFixed(2)}</span>
+                  <span className="sale-detail-value sale-detail-amount"><CurrencyDisplay value={selectedSale.grandTotal} /></span>
                 </div>
                 <div className="sale-detail-field">
                   <span className="sale-detail-label">Payment</span>
@@ -604,13 +607,13 @@ export default function Dashboard() {
                 {selectedSale.discount > 0 && (
                   <div className="sale-detail-field">
                     <span className="sale-detail-label">Discount</span>
-                    <span className="sale-detail-value">₹{selectedSale.discount?.toFixed(2)}</span>
+                    <span className="sale-detail-value"><CurrencyDisplay value={selectedSale.discount} /></span>
                   </div>
                 )}
                 {selectedSale.tax > 0 && (
                   <div className="sale-detail-field">
                     <span className="sale-detail-label">Tax</span>
-                    <span className="sale-detail-value">₹{selectedSale.tax?.toFixed(2)}</span>
+                    <span className="sale-detail-value"><CurrencyDisplay value={selectedSale.tax} /></span>
                   </div>
                 )}
               </div>

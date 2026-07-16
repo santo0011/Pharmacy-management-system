@@ -1,6 +1,8 @@
 import API from './api';
 
 export const customerService = {
+  getCustomerStats: () => API.get('/customers/stats'),
+  getTopSellingCustomers: (params) => API.get('/customers/top-selling', { params }),
   getCustomers: (params) => API.get('/customers', { params }),
   getCustomer: (phoneOrId, params) => API.get(`/customers/${phoneOrId}`, { params }),
   getCustomerDues: (params) => API.get('/customers/dues', { params }),
