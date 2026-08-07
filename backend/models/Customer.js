@@ -21,6 +21,33 @@ const customerSchema = mongoose.Schema({
     type: String,
     default: '',
   },
+  state: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  stateCode: {
+    type: String,
+    default: '',
+    trim: true,
+    minlength: 2,
+    maxlength: 2,
+  },
+  gstin: {
+    type: String,
+    default: '',
+    trim: true,
+    uppercase: true,
+  },
+  customerType: {
+    type: String,
+    enum: ['retail', 'business'],
+    default: 'retail',
+  },
+  gstinVerified: {
+    type: Boolean,
+    default: false,
+  },
   pharmacyId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Pharmacy',

@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { showSuccess, showError } from '../../utils/sweetAlert';
 import { settingService } from '../../services/settingService';
 import { invoiceSettingService } from '../../services/invoiceSettingService';
 import { INVOICE_TEMPLATES, PRINT_FORMATS } from '../../utils/invoiceTemplates';
 import { useAuth } from '../../hooks/useAuth';
+import { INDIAN_STATES, getStateCodeByName } from '../../utils/indianStates';
+import { pharmacyService } from '../../services/pharmacyService';
 
 /**
  * Settings groups configuration for Super Admin.
@@ -91,8 +93,14 @@ export default function Settings() {
   });
   const [saving, setSaving] = useState(false);
   const [invoiceSaving, setInvoiceSaving] = useState(false);
+  const [gstSaving, setGstSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('general');
+  const [gstSettings, setGstSettings] = useState({ state: '', stateCode: '', defaultGstRate: 18 });
+  const [gstStateSearch, setGstStateSearch] = useState('');
+  const [gstStateDropdownOpen, setGstStateDropdownOpen] = useState(false);
+  const gstStateSearchRef = useRef(null);
+  const GST_RATE_OPTIONS = [0, 5, 12, 18, 28];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -135,8 +143,27 @@ export default function Settings() {
       }
     };
 
+    const fetchGstSettings = async () => {
+      if (isSuperAdmin) return;
+      try {
+        const { data } = await pharmacyService.getMyPharmacyProfile();
+        if (data.data) {
+          const state = data.data.state || '';
+          setGstSettings({
+            state,
+            stateCode: data.data.stateCode || getStateCodeByName(state),
+            defaultGstRate: data.data.defaultGstRate || 18,
+          });
+          setGstStateSearch(state);
+        }
+      } catch (error) {
+        // Use defaults
+      }
+    };
+
     fetchData();
     fetchInvoiceSettings();
+    fetchGstSettings();
   }, [isSuperAdmin]);
 
   const handleChange = (key, value) => {
@@ -182,6 +209,47 @@ export default function Settings() {
       setInvoiceSaving(false);
     }
   };
+
+  const handleSaveGstSettings = async (e) => {
+    e.preventDefault();
+    setGstSaving(true);
+    try {
+      const { data } = await pharmacyService.updateMyPharmacyProfile({
+        state: gstSettings.state,
+        stateCode: gstSettings.stateCode || getStateCodeByName(gstSettings.state),
+        defaultGstRate: gstSettings.defaultGstRate,
+      });
+      if (data.data) {
+        setGstSettings({
+          state: data.data.state || gstSettings.state,
+          stateCode: data.data.stateCode || gstSettings.stateCode,
+          defaultGstRate: data.data.defaultGstRate || gstSettings.defaultGstRate,
+        });
+      }
+      showSuccess('GST settings saved successfully');
+    } catch (error) {
+      showError(error.response?.data?.message || 'Failed to save GST settings');
+    } finally {
+      setGstSaving(false);
+    }
+  };
+
+  // Close GST state dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (gstStateSearchRef.current && !gstStateSearchRef.current.contains(event.target)) {
+        setGstStateDropdownOpen(false);
+      }
+    };
+    if (gstStateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [gstStateDropdownOpen]);
+
+  const filteredGstStates = INDIAN_STATES.filter(s =>
+    s.name.toLowerCase().includes(gstStateSearch.toLowerCase())
+  );
 
   const getField = (key) => {
     const meta = metaData[key] || {};
@@ -329,6 +397,124 @@ export default function Settings() {
           <div>
             <h2><i className="fa-solid fa-sliders" style={{ marginRight: '10px', color: 'var(--primary)' }}></i>Settings</h2>
             <p>Manage your pharmacy invoice preferences</p>
+          </div>
+        </div>
+
+        {/* GST Configuration */}
+        <div className="card" style={{ maxWidth: '900px', marginBottom: '20px' }}>
+          <div className="card-header">
+            <h5><i className="fa-solid fa-percent" style={{ marginRight: '8px', color: 'var(--primary)' }}></i>GST Configuration</h5>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Configure default business state and GST rate</span>
+          </div>
+          <div className="card-body">
+            <form onSubmit={handleSaveGstSettings}>
+              <div className="form-group">
+                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
+                  Default Business State <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
+                  Used to determine CGST+SGST (same state) vs IGST (different state) on sales.
+                </p>
+                <div style={{ position: 'relative' }} ref={gstStateSearchRef}>
+                  <input
+                    type="text"
+                    className="form-select"
+                    value={gstStateSearch}
+                    onChange={(e) => {
+                      setGstStateSearch(e.target.value);
+                      setGstSettings(prev => ({ ...prev, state: '', stateCode: '' }));
+                      setGstStateDropdownOpen(true);
+                    }}
+                    onFocus={() => setGstStateDropdownOpen(true)}
+                    style={{ width: '100%' }}
+                    placeholder="Search Indian state..."
+                  />
+                  {gstStateDropdownOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      background: '#fff',
+                      border: '1px solid var(--gray-200)',
+                      borderRadius: '8px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                      zIndex: 100,
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      marginTop: '4px',
+                    }}>
+                      {filteredGstStates.length > 0 ? (
+                        filteredGstStates.map(state => (
+                          <div
+                            key={state.code}
+                            onClick={() => {
+                              setGstSettings(prev => ({ ...prev, state: state.name, stateCode: state.code }));
+                              setGstStateSearch(state.name);
+                              setGstStateDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: '10px 14px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid var(--gray-100)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              background: gstSettings.state === state.name ? 'var(--primary-light)' : '#fff',
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = gstSettings.state === state.name ? 'var(--primary-light)' : '#fff'}
+                          >
+                            <span style={{ fontWeight: 500, fontSize: '13px' }}>{state.name}</span>
+                            <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Code: {state.code}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '12px 14px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+                          No states found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '20px' }}>
+                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
+                  Default GST %
+                </label>
+                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
+                  Default GST rate applied to new products when no specific rate is set.
+                </p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {GST_RATE_OPTIONS.map(rate => (
+                    <button
+                      key={rate}
+                      type="button"
+                      onClick={() => setGstSettings(prev => ({ ...prev, defaultGstRate: rate }))}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        border: `2px solid ${gstSettings.defaultGstRate === rate ? 'var(--primary)' : 'var(--gray-200)'}`,
+                        background: gstSettings.defaultGstRate === rate ? 'var(--primary-light, #f0f5ff)' : '#fff',
+                        color: gstSettings.defaultGstRate === rate ? 'var(--primary)' : 'var(--gray-700)',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {rate}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ marginTop: '20px' }} disabled={gstSaving}>
+                {gstSaving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
+                {' '}{gstSaving ? 'Saving...' : 'Save GST Settings'}
+              </button>
+            </form>
           </div>
         </div>
 

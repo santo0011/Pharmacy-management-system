@@ -32,10 +32,28 @@ const supplierSchema = mongoose.Schema(
       type: String,
       default: '',
     },
+    state: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    stateCode: {
+      type: String,
+      default: '',
+      trim: true,
+      minlength: 2,
+      maxlength: 2,
+    },
     gstNumber: {
       type: String,
       default: '',
       trim: true,
+    },
+    gstin: {
+      type: String,
+      default: '',
+      trim: true,
+      uppercase: true,
     },
     status: {
       type: Boolean,

@@ -31,6 +31,9 @@ export default function SaleForm() {
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [submitting, setSubmitting] = useState(false);
+  const [roundOffDiff, setRoundOffDiff] = useState(0); // Round-off adjustment (e.g., -0.86 or +2.14)
+  const [roundOffOptions, setRoundOffOptions] = useState([]); // Generated round-off option cards
+  const [selectedRoundOffIndex, setSelectedRoundOffIndex] = useState(0); // 0 = Exact
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -283,8 +286,78 @@ export default function SaleForm() {
       .reduce((sum, inv) => sum + (inv.dueAmount || 0), 0);
   };
 
-  // Final Grand Total displayed in UI (includes previous due if toggled)
-  const calcGrandTotal = () => calcCurrentBillTotal() + calcPreviousDue();
+  // Round-off option generation based on current bill total
+  const generateRoundOffOptions = (total) => {
+    if (!total || isNaN(total) || total <= 0) return [];
+    const exact = Number(total.toFixed(2));
+    const options = [];
+    const sym = getCurrentSymbol();
+
+    // 1. Exact
+    options.push({ value: exact, diff: 0, isExact: true, label: 'Exact' });
+
+    // 2. Round down to nearest whole rupee
+    const floorVal = Math.floor(exact);
+    if (floorVal !== exact) {
+      options.push({ value: floorVal, diff: Number((floorVal - exact).toFixed(2)), isExact: false, label: 'Round Down' });
+    }
+
+    // 3. Round up to nearest whole rupee
+    const ceilVal = Math.ceil(exact);
+    if (ceilVal !== exact && !options.some(o => o.value === ceilVal)) {
+      options.push({ value: ceilVal, diff: Number((ceilVal - exact).toFixed(2)), isExact: false, label: `Nearest ${sym}1` });
+    }
+
+    // 4. Determine the step unit based on bill size
+    // Small bills (< 100): step by 5
+    // Medium bills (< 1000): step by 5
+    // Large bills (>= 1000): step by 50
+    const step = exact >= 1000 ? 50 : 5;
+
+    // 5. Generate a progression of round-up amounts
+    // Start from the next multiple of `step` above (or at) the exact total,
+    // then increment by `step` for each additional card.
+    let baseVal = Math.ceil(exact / step) * step;
+    let guard = 0;
+    while (options.length < 6 && guard < 10) {
+      guard++;
+      // If the base value is already below exact (e.g., floor rounded), adjust it up
+      if (baseVal <= exact && options.length > 1) {
+        baseVal = Math.ceil((exact + 0.01) / step) * step;
+      }
+      if (!options.some(o => o.value === baseVal)) {
+        options.push({
+          value: baseVal,
+          diff: Number((baseVal - exact).toFixed(2)),
+          isExact: false,
+          label: baseVal === Math.ceil(exact) ? `Nearest ${sym}1` : (step >= 50 ? `Nearest ${sym}${step}` : `Round ${sym}${step}`),
+        });
+      }
+      baseVal += step;
+    }
+
+    // Cap at 6 options for compact display
+    return options.slice(0, 6);
+  };
+
+  // Regenerate round-off options whenever the current bill total changes
+  useEffect(() => {
+    const total = calcCurrentBillTotal();
+    const opts = generateRoundOffOptions(total);
+    setRoundOffOptions(opts);
+    // Reset to Exact (index 0) whenever the bill total changes
+    setSelectedRoundOffIndex(0);
+    setRoundOffDiff(0);
+  }, [calcSubtotal(), calcTax(), calcDiscount()]);
+
+  // Calculate the rounded bill total (current bill + round-off adjustment, before previous due)
+  const calcRoundedBillTotal = () => {
+    const raw = calcCurrentBillTotal();
+    return Number((raw + Number(roundOffDiff || 0)).toFixed(2));
+  };
+
+  // Final Grand Total displayed in UI (includes round-off + previous due if toggled)
+  const calcGrandTotal = () => calcRoundedBillTotal() + calcPreviousDue();
 
   const calcNetDue = () => Math.max(0, calcGrandTotal() - Number(paidAmount || 0));
 
@@ -310,6 +383,9 @@ export default function SaleForm() {
       setDiscountType(selectedSale.discountType || 'percentage');
       setPaidAmount(selectedSale.paidAmount || 0);
       setPaymentMethod(selectedSale.paymentMethod || 'cash');
+      // Preserve the existing round-off amount when editing
+      const existingRoundOff = Number(selectedSale.roundOffAmount) || 0;
+      setRoundOffDiff(existingRoundOff);
       // Previous due is not editable on existing sales — skip loading
     }
   }, [selectedSale, isEditing]);
@@ -323,7 +399,7 @@ export default function SaleForm() {
     }
 
     // Compute the current bill total (without previous due) for backend submission
-    const currentBillGrandTotal = calcCurrentBillTotal();
+    const currentBillGrandTotal = calcRoundedBillTotal();
     const finalGrandTotal = calcGrandTotal();
     const paid = Number(paidAmount) || 0;
 
@@ -443,6 +519,13 @@ export default function SaleForm() {
         })),
         discount: Number(discount),
         discountType,
+        // Round-off adjustment (0 for exact, positive/negative otherwise)
+        roundOffAmount: Number(roundOffDiff) || 0,
+        // Customer GST details for inter-state/intra-state determination
+        customerStateCode: customerRef?.stateCode || '',
+        customerState: customerRef?.state || '',
+        customerGstin: customerRef?.gstin || '',
+        customerType: customerRef?.customerType || 'retail',
         // Send the total amount paid by the customer
         paidAmount: paid,
         paymentMethod,
@@ -862,6 +945,42 @@ export default function SaleForm() {
                 <span className="summary-label">Current Bill:</span>
                 <span className="summary-value"><CurrencyDisplay value={currentBillTotal} /></span>
               </div>
+
+              {/* Round Off Options - Selectable Cards */}
+              {items.length > 0 && roundOffOptions.length > 0 && (
+                <div className="round-off-section">
+                  <div className="round-off-header">
+                    <span><i className="fa-solid fa-circle-dollar"></i> Round Off</span>
+                    {roundOffDiff !== 0 && (
+                      <span className={`round-off-badge ${roundOffDiff > 0 ? 'up' : 'down'}`}>
+                        {roundOffDiff > 0 ? '+' : ''}{roundOffDiff.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="round-off-cards">
+                    {roundOffOptions.map((opt, idx) => {
+                      const isSelected = selectedRoundOffIndex === idx;
+                      const diffText = opt.isExact ? 'Exact' : `${opt.diff > 0 ? '+' : ''}${opt.diff.toFixed(2)}`;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={`round-off-card ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedRoundOffIndex(idx);
+                            setRoundOffDiff(opt.diff);
+                          }}
+                        >
+                          <span className="round-off-value"><CurrencyDisplay value={opt.value} /></span>
+                          <span className={`round-off-diff ${opt.diff > 0 ? 'up' : opt.diff < 0 ? 'down' : 'exact'}`}>
+                            {opt.isExact ? 'Exact' : `${opt.diff > 0 ? '+' : ''}${opt.diff.toFixed(2)}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Previous Due Row - only shown when included */}
               {calcPreviousDue() > 0 && (

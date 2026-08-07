@@ -8,8 +8,15 @@ const returnItemSchema = mongoose.Schema({
   },
   medicineName: { type: String, required: true },
   batchNumber: { type: String, default: '' },
+  hsnCode: { type: String, default: '' },
   returnedQuantity: { type: Number, required: true, min: 1 },
   sellingPrice: { type: Number, required: true, min: 0 },
+  taxableAmount: { type: Number, default: 0 },
+  gst: { type: Number, default: 0 },
+  cgstAmount: { type: Number, default: 0 },
+  sgstAmount: { type: Number, default: 0 },
+  igstAmount: { type: Number, default: 0 },
+  gstAmount: { type: Number, default: 0 },
   returnAmount: { type: Number, required: true, min: 0 },
 });
 
@@ -38,6 +45,11 @@ const saleReturnSchema = mongoose.Schema({
   },
   items: [returnItemSchema],
   subtotal: { type: Number, required: true, default: 0 },
+  taxableAmount: { type: Number, default: 0 },
+  cgstAmount: { type: Number, default: 0 },
+  sgstAmount: { type: Number, default: 0 },
+  igstAmount: { type: Number, default: 0 },
+  totalGst: { type: Number, default: 0 },
   totalReturnAmount: { type: Number, required: true, default: 0 },
   reason: { type: String, default: '' },
   pharmacyId: {

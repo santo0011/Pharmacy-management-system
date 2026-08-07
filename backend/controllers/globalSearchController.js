@@ -39,9 +39,11 @@ export const globalSearch = async (req, res, next) => {
           { categoryName: regex },
           { brandName: regex },
           { batchNumber: regex },
+          { hsnCode: regex },
+          { barcode: regex },
         ],
       })
-        .select('medicineName genericName categoryName brandName batchNumber currentStock sellingPrice')
+        .select('medicineName genericName categoryName brandName batchNumber hsnCode barcode currentStock sellingPrice gst')
         .limit(limit)
         .lean(),
 
@@ -53,9 +55,11 @@ export const globalSearch = async (req, res, next) => {
           { name: regex },
           { phone: regex },
           { customerId: regex },
+          { gstin: regex },
+          { state: regex },
         ],
       })
-        .select('name phone customerId totalSpent totalDue')
+        .select('name phone customerId gstin state stateCode customerType totalSpent totalDue')
         .limit(limit)
         .lean(),
 
@@ -67,9 +71,12 @@ export const globalSearch = async (req, res, next) => {
           { companyName: regex },
           { phone: regex },
           { email: regex },
+          { gstin: regex },
+          { gstNumber: regex },
+          { state: regex },
         ],
       })
-        .select('supplierName companyName phone email totalDue')
+        .select('supplierName companyName phone email gstin gstNumber state stateCode totalDue')
         .limit(limit)
         .lean(),
 

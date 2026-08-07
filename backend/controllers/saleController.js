@@ -2,10 +2,18 @@ import mongoose from 'mongoose';
 import Sale from '../models/Sale.js';
 import Medicine from '../models/Medicine.js';
 import Customer from '../models/Customer.js';
+import Pharmacy from '../models/Pharmacy.js';
 import Purchase from '../models/Purchase.js';
 import SaleEditHistory from '../models/SaleEditHistory.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import ApiResponse from '../utils/apiResponse.js';
+import {
+  calculateItemGST,
+  calculateInvoiceGST,
+  getStateCode,
+  getStateCodeFromGSTIN,
+  isIntraState,
+} from '../utils/gstHelper.js';
 
 const generateInvoiceNumber = async (pharmacyId) => {
   const count = await Sale.countDocuments({ pharmacyId });
@@ -128,7 +136,7 @@ export const createSale = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { customer, customerName, customerPhone, customerAddress, saleDate, items, discount, discountType, paidAmount, paymentMethod, notes, previousDuePayments } = req.body;
+    const { customer, customerName, customerPhone, customerAddress, saleDate, items, discount, discountType, paidAmount, paymentMethod, notes, previousDuePayments, roundOffAmount } = req.body;
 
     if (!items || items.length === 0) return ApiResponse.error(res, 'At least one item is required', 400);
     if (!customerName || customerName.trim() === '' || customerName.trim() === 'Walk-in Customer') {
@@ -138,8 +146,38 @@ export const createSale = async (req, res, next) => {
     const invoiceNumber = await generateInvoiceNumber(req.pharmacyId);
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
 
+    // Get pharmacy state code for GST calculation
+    const pharmacy = await Pharmacy.findById(req.pharmacyId).session(session);
+    const pharmacyStateCode = pharmacy?.stateCode || getStateCode(pharmacy?.state) || '';
+
+    // Determine customer state code
+    let customerDoc = null;
+    let customerStateCode = '';
+    let customerGstin = '';
+    let customerType = 'retail';
+
+    if (customer) {
+      customerDoc = await Customer.findOne({ _id: customer, pharmacyId: req.pharmacyId, isDeleted: false }).session(session);
+      if (customerDoc) {
+        customerStateCode = customerDoc.stateCode || getStateCode(customerDoc.state) || getStateCodeFromGSTIN(customerDoc.gstin) || '';
+        customerGstin = customerDoc.gstin || '';
+        customerType = customerDoc.customerType || 'retail';
+      }
+    }
+
+    // If no customer doc, try to derive state from request body
+    if (!customerStateCode) {
+      customerStateCode = req.body.customerStateCode || getStateCode(req.body.customerState) || '';
+    }
+
+    const intraState = isIntraState(pharmacyStateCode, customerStateCode);
+
     let subtotal = 0;
     let taxAmount = 0;
+    let cgstTotal = 0;
+    let sgstTotal = 0;
+    let igstTotal = 0;
+    let taxableTotal = 0;
     const saleItems = [];
 
     for (const item of parsedItems) {
@@ -156,36 +194,70 @@ export const createSale = async (req, res, next) => {
       const gstPct = Number(item.gst) || medicine.gst || 0;
       const itemDiscount = Number(item.discount) || 0;
       const itemDiscountType = item.discountType || 'fixed';
-      const itemSubtotal = qty * unitPrice;
-      const itemDiscountAmt = itemDiscountType === 'percentage' ? itemSubtotal * (itemDiscount / 100) : itemDiscount;
-      const itemTotal = itemSubtotal - itemDiscountAmt;
-      const gstAmt = itemTotal * (gstPct / 100);
+      const isTaxInclusive = medicine.taxInclusive || false;
 
-      subtotal += itemSubtotal;
-      taxAmount += gstAmt;
+      // Use centralized GST helper for item calculation
+      const calc = calculateItemGST({
+        quantity: qty,
+        price: unitPrice,
+        gstPct,
+        discount: itemDiscount,
+        discountType: itemDiscountType,
+        isTaxInclusive,
+        pharmacyStateCode,
+        otherPartyStateCode: customerStateCode,
+      });
+
+      subtotal += calc.rawSubtotal;
+      taxAmount += calc.gstAmount;
+      cgstTotal += calc.cgst;
+      sgstTotal += calc.sgst;
+      igstTotal += calc.igst;
+      taxableTotal += calc.taxableAmount;
 
       saleItems.push({
         medicine: medicine._id,
         medicineName: medicine.medicineName,
         batchNumber: item.batchNumber || medicine.batchNumber || '',
+        hsnCode: medicine.hsnCode || '',
         quantity: qty,
-        sellingPrice: unitPrice,
+        sellingPrice: calc.unitPrice,
         purchasePrice: medicine.purchasePrice || 0,
         mrp: item.mrp || medicine.sellingPrice || 0,
         discount: itemDiscount,
         discountType: itemDiscountType,
-        discountAmount: itemDiscountAmt,
-        subtotal: itemSubtotal,
+        discountAmount: calc.discountAmount,
+        subtotal: calc.rawSubtotal,
+        taxableAmount: calc.taxableAmount,
         gst: gstPct,
-        gstAmount: gstAmt,
-        total: itemTotal + gstAmt,
+        cgstAmount: calc.cgst,
+        sgstAmount: calc.sgst,
+        igstAmount: calc.igst,
+        gstAmount: calc.gstAmount,
+        total: calc.total,
       });
     }
 
     const overallDiscount = Number(discount) || 0;
     const overallDiscountType = discountType || 'fixed';
-    const discountAmount = overallDiscountType === 'percentage' ? subtotal * (overallDiscount / 100) : overallDiscount;
-    const newInvoiceGrandTotal = subtotal + taxAmount - discountAmount;
+    const discountAmount = overallDiscountType === 'percentage' ? taxableTotal * (overallDiscount / 100) : overallDiscount;
+
+    // Recalculate GST after overall discount
+    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
+    const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
+    const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
+
+    let finalCgst = 0, finalSgst = 0, finalIgst = 0;
+    if (intraState) {
+      finalCgst = Number((finalGst / 2).toFixed(2));
+      finalSgst = Number((finalGst - finalCgst).toFixed(2));
+    } else {
+      finalIgst = finalGst;
+    }
+
+    const rawInvoiceTotal = finalTaxable + finalGst;
+    const roundOff = Number(roundOffAmount) || 0;
+    const newInvoiceGrandTotal = Number((rawInvoiceTotal + roundOff).toFixed(2));
 
     // totalPaidFromCustomer = the actual cash/amount the customer gives (this may include payment for previous due + new invoice)
     const totalPaidFromCustomer = Number(paidAmount) || newInvoiceGrandTotal;
@@ -239,12 +311,6 @@ export const createSale = async (req, res, next) => {
     }
     const dueForNewInvoice = newInvoiceGrandTotal - paidForNewInvoice;
 
-    // If customer ref is provided, look up the customer
-    let customerDoc = null;
-    if (customer) {
-      customerDoc = await Customer.findOne({ _id: customer, pharmacyId: req.pharmacyId, isDeleted: false }).session(session);
-    }
-
     const [sale] = await Sale.create([{
       invoiceNumber,
       customer: customerDoc?._id || null,
@@ -257,7 +323,16 @@ export const createSale = async (req, res, next) => {
       discount: overallDiscount,
       discountType: overallDiscountType,
       discountAmount,
-      taxAmount,
+      taxableAmount: finalTaxable,
+      taxAmount: finalGst,
+      cgstAmount: finalCgst,
+      sgstAmount: finalSgst,
+      igstAmount: finalIgst,
+      isIntraState: intraState,
+      customerStateCode,
+      customerGstin,
+      customerType,
+      roundOffAmount: roundOff,
       grandTotal: newInvoiceGrandTotal,
       previousDueAmount: oldInvoiceTotalPaid,
       previousDuePaid: oldInvoiceTotalPaid,
@@ -373,7 +448,7 @@ export const updateSale = async (req, res, next) => {
       await revertStock(sale.items, req.pharmacyId, session);
     }
 
-    const { customerName, customerPhone, items, discount, discountType, paidAmount, paymentMethod, notes, reason } = req.body;
+    const { customerName, customerPhone, items, discount, discountType, paidAmount, paymentMethod, notes, reason, roundOffAmount } = req.body;
 
     if (!items || items.length === 0) {
       // Re-deduct since we already reverted
@@ -383,8 +458,18 @@ export const updateSale = async (req, res, next) => {
 
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
 
+    // Get pharmacy state code for GST calculation
+    const pharmacy = await Pharmacy.findById(req.pharmacyId).session(session);
+    const pharmacyStateCode = pharmacy?.stateCode || getStateCode(pharmacy?.state) || '';
+    const customerStateCode = sale.customerStateCode || '';
+    const intraState = isIntraState(pharmacyStateCode, customerStateCode);
+
     let subtotal = 0;
     let taxAmount = 0;
+    let cgstTotal = 0;
+    let sgstTotal = 0;
+    let igstTotal = 0;
+    let taxableTotal = 0;
     const saleItems = [];
 
     for (const item of parsedItems) {
@@ -408,36 +493,70 @@ export const updateSale = async (req, res, next) => {
       const gstPct = Number(item.gst) || medicine.gst || 0;
       const itemDiscount = Number(item.discount) || 0;
       const itemDiscountType = item.discountType || 'fixed';
-      const itemSubtotal = qty * unitPrice;
-      const itemDiscountAmt = itemDiscountType === 'percentage' ? itemSubtotal * (itemDiscount / 100) : itemDiscount;
-      const itemTotal = itemSubtotal - itemDiscountAmt;
-      const gstAmt = itemTotal * (gstPct / 100);
+      const isTaxInclusive = medicine.taxInclusive || false;
 
-      subtotal += itemSubtotal;
-      taxAmount += gstAmt;
+      // Use centralized GST helper
+      const calc = calculateItemGST({
+        quantity: qty,
+        price: unitPrice,
+        gstPct,
+        discount: itemDiscount,
+        discountType: itemDiscountType,
+        isTaxInclusive,
+        pharmacyStateCode,
+        otherPartyStateCode: customerStateCode,
+      });
+
+      subtotal += calc.rawSubtotal;
+      taxAmount += calc.gstAmount;
+      cgstTotal += calc.cgst;
+      sgstTotal += calc.sgst;
+      igstTotal += calc.igst;
+      taxableTotal += calc.taxableAmount;
 
       saleItems.push({
         medicine: medicine._id,
         medicineName: medicine.medicineName,
         batchNumber: item.batchNumber || medicine.batchNumber || '',
+        hsnCode: medicine.hsnCode || '',
         quantity: qty,
-        sellingPrice: unitPrice,
+        sellingPrice: calc.unitPrice,
         purchasePrice: medicine.purchasePrice || 0,
         mrp: item.mrp || medicine.sellingPrice || 0,
         discount: itemDiscount,
         discountType: itemDiscountType,
-        discountAmount: itemDiscountAmt,
-        subtotal: itemSubtotal,
+        discountAmount: calc.discountAmount,
+        subtotal: calc.rawSubtotal,
+        taxableAmount: calc.taxableAmount,
         gst: gstPct,
-        gstAmount: gstAmt,
-        total: itemTotal + gstAmt,
+        cgstAmount: calc.cgst,
+        sgstAmount: calc.sgst,
+        igstAmount: calc.igst,
+        gstAmount: calc.gstAmount,
+        total: calc.total,
       });
     }
 
     const overallDiscount = Number(discount) || 0;
     const overallDiscountType = discountType || 'fixed';
-    const discountAmount = overallDiscountType === 'percentage' ? subtotal * (overallDiscount / 100) : overallDiscount;
-    const grandTotal = subtotal + taxAmount - discountAmount;
+    const discountAmount = overallDiscountType === 'percentage' ? taxableTotal * (overallDiscount / 100) : overallDiscount;
+
+    // Recalculate GST after overall discount
+    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
+    const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
+    const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
+
+    let finalCgst = 0, finalSgst = 0, finalIgst = 0;
+    if (intraState) {
+      finalCgst = Number((finalGst / 2).toFixed(2));
+      finalSgst = Number((finalGst - finalCgst).toFixed(2));
+    } else {
+      finalIgst = finalGst;
+    }
+
+    const rawInvoiceTotal = finalTaxable + finalGst;
+    const roundOff = Number(roundOffAmount) || 0;
+    const grandTotal = Number((rawInvoiceTotal + roundOff).toFixed(2));
     const paid = Number(paidAmount) !== undefined ? Number(paidAmount) : grandTotal;
     const due = grandTotal - paid;
 
@@ -449,7 +568,13 @@ export const updateSale = async (req, res, next) => {
       discount: overallDiscount,
       discountType: overallDiscountType,
       discountAmount,
-      taxAmount,
+      taxableAmount: finalTaxable,
+      taxAmount: finalGst,
+      cgstAmount: finalCgst,
+      sgstAmount: finalSgst,
+      igstAmount: finalIgst,
+      isIntraState: intraState,
+      roundOffAmount: roundOff,
       grandTotal,
       paidAmount: paid,
       dueAmount: Math.max(0, due),

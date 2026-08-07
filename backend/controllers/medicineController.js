@@ -150,7 +150,8 @@ export const createMedicine = async (req, res, next) => {
     const {
       medicineName, genericName, category, brand, supplier, hsnCode,
       batchNumber, barcode, manufacturingDate, expiryDate,
-      purchasePrice, sellingPrice, gst, currentStock, minStockAlert,
+      purchasePrice, sellingPrice, gst, taxType, taxInclusive, medicineType, manufacturer, mrp,
+      currentStock, minStockAlert,
       unit, rackNumber, description, status
     } = req.body;
 
@@ -190,6 +191,11 @@ export const createMedicine = async (req, res, next) => {
       purchasePrice,
       sellingPrice,
       gst: gst || 0,
+      taxType: taxType || 'intra',
+      taxInclusive: taxInclusive || false,
+      medicineType: medicineType || 'Allopathic',
+      manufacturer: manufacturer || '',
+      mrp: mrp || 0,
       currentStock: currentStock || 0,
       minStockAlert: minStockAlert || 10,
       unit: unit || 'Tablet',
@@ -223,7 +229,8 @@ export const updateMedicine = async (req, res, next) => {
     const {
       medicineName, genericName, category, brand, supplier, hsnCode,
       batchNumber, barcode, manufacturingDate, expiryDate,
-      purchasePrice, sellingPrice, gst, currentStock, minStockAlert,
+      purchasePrice, sellingPrice, gst, taxType, taxInclusive, medicineType, manufacturer, mrp,
+      currentStock, minStockAlert,
       unit, rackNumber, description, status
     } = req.body;
 

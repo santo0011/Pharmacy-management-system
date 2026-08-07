@@ -80,7 +80,7 @@ export default function SaleDetail() {
     const monetaryFields = [
       'subtotal', 'taxAmount', 'discountAmount', 'discount', 'grandTotal',
       'paidAmount', 'dueAmount', 'sellingPrice', 'price', 'total',
-      'amount', 'previousDue', 'remainingDue',
+      'amount', 'previousDue', 'remainingDue', 'roundOff',
     ];
     const fieldLower = (field || '').toLowerCase();
     return monetaryFields.some(mf => fieldLower.includes(mf));
@@ -168,8 +168,24 @@ export default function SaleDetail() {
         <div className="card-body">
           <div style={{ maxWidth: '400px' }}>
             <InfoRow label="Subtotal" value={<CurrencyDisplay value={sale.subtotal} />} />
-            <InfoRow label="Tax (GST)" value={<CurrencyDisplay value={sale.taxAmount} />} />
             <InfoRow label="Discount" value={<CurrencyDisplay value={sale.discountAmount} />} />
+            <InfoRow label="Taxable Amount" value={<CurrencyDisplay value={sale.taxableAmount} />} />
+            {sale.isIntraState !== false ? (
+              <>
+                <InfoRow label="CGST" value={<CurrencyDisplay value={sale.cgstAmount} />} />
+                <InfoRow label="SGST" value={<CurrencyDisplay value={sale.sgstAmount} />} />
+              </>
+            ) : (
+              <InfoRow label="IGST" value={<CurrencyDisplay value={sale.igstAmount} />} />
+            )}
+            <InfoRow label="Total GST" value={<CurrencyDisplay value={sale.taxAmount} />} />
+            {Number(sale.roundOffAmount) !== 0 && (
+              <InfoRow label="Round Off" value={
+                <span style={{ color: sale.roundOffAmount > 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                  {sale.roundOffAmount > 0 ? '+' : ''}<CurrencyDisplay value={sale.roundOffAmount} />
+                </span>
+              } />
+            )}
             <div style={{ display: 'flex', padding: '12px 0', borderTop: '2px solid var(--gray-200)', fontWeight: 700, fontSize: '16px', color: 'var(--primary-color)' }}>
               <div style={{ width: '160px' }}>Grand Total</div>
               <div><CurrencyDisplay value={sale.grandTotal} /></div>

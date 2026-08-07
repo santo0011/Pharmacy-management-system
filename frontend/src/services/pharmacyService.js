@@ -9,4 +9,6 @@ export const pharmacyService = {
   assignAdmin: (id, userId) => API.post(`/pharmacies/${id}/assign-admin`, { userId }),
   toggleStatus: (id, status) => API.patch(`/pharmacies/${id}/status`, { status }),
   updateSubscription: (id, data) => API.put(`/pharmacies/${id}/subscription`, data),
+  getMyPharmacyProfile: () => API.get('/pharmacies/my/profile'),
+  updateMyPharmacyProfile: (data) => API.put('/pharmacies/my/profile', data),
 };

@@ -2,8 +2,15 @@ import mongoose from 'mongoose';
 import Purchase from '../models/Purchase.js';
 import Medicine from '../models/Medicine.js';
 import Supplier from '../models/Supplier.js';
+import Pharmacy from '../models/Pharmacy.js';
 import PurchasePayment from '../models/PurchasePayment.js';
 import ApiResponse from '../utils/apiResponse.js';
+import {
+  calculateItemGST,
+  getStateCode,
+  getStateCodeFromGSTIN,
+  isIntraState,
+} from '../utils/gstHelper.js';
 
 const generateInvoiceNumber = async (pharmacyId) => {
   const count = await Purchase.countDocuments({ pharmacyId });
@@ -201,8 +208,32 @@ export const createPurchase = async (req, res, next) => {
     const invoiceNumber = await generateInvoiceNumber(req.pharmacyId);
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
 
+    // Get pharmacy state code for GST calculation
+    const pharmacy = await Pharmacy.findById(req.pharmacyId).session(session);
+    const pharmacyStateCode = pharmacy?.stateCode || getStateCode(pharmacy?.state) || '';
+
+    // Get supplier state code
+    let supplierStateCode = '';
+    let supplierGstin = '';
+    if (supplier) {
+      const supplierDoc = await Supplier.findById(supplier).session(session);
+      if (supplierDoc) {
+        supplierStateCode = supplierDoc.stateCode || getStateCode(supplierDoc.state) || getStateCodeFromGSTIN(supplierDoc.gstin) || '';
+        supplierGstin = supplierDoc.gstin || '';
+      }
+    }
+    if (!supplierStateCode) {
+      supplierStateCode = req.body.supplierStateCode || getStateCode(req.body.supplierState) || '';
+    }
+
+    const intraState = isIntraState(pharmacyStateCode, supplierStateCode);
+
     let subtotal = 0;
     let taxAmount = 0;
+    let cgstTotal = 0;
+    let sgstTotal = 0;
+    let igstTotal = 0;
+    let taxableTotal = 0;
     const purchaseItems = [];
 
     for (const item of parsedItems) {
@@ -227,6 +258,11 @@ export const createPurchase = async (req, res, next) => {
           purchasePrice: item.purchasePrice,
           sellingPrice: item.sellingPrice,
           gst: item.gst || 0,
+          hsnCode: item.hsnCode || '',
+          taxInclusive: item.taxInclusive || false,
+          medicineType: item.medicineType || 'Allopathic',
+          manufacturer: item.manufacturer || '',
+          mrp: item.mrp || 0,
           currentStock: item.quantity,
           minStockAlert: 10,
           unit: item.unit || 'Tablet',
@@ -239,30 +275,64 @@ export const createPurchase = async (req, res, next) => {
       const qty = Number(item.quantity);
       const price = Number(item.purchasePrice);
       const gstPct = Number(item.gst) || 0;
-      const itemSubtotal = qty * price;
-      const gstAmt = itemSubtotal * (gstPct / 100);
+      const isTaxInclusive = medicine.taxInclusive || false;
 
-      subtotal += itemSubtotal;
-      taxAmount += gstAmt;
+      // Use centralized GST helper
+      const calc = calculateItemGST({
+        quantity: qty,
+        price,
+        gstPct,
+        discount: 0,
+        discountType: 'fixed',
+        isTaxInclusive,
+        pharmacyStateCode,
+        otherPartyStateCode: supplierStateCode,
+      });
+
+      subtotal += calc.rawSubtotal;
+      taxAmount += calc.gstAmount;
+      cgstTotal += calc.cgst;
+      sgstTotal += calc.sgst;
+      igstTotal += calc.igst;
+      taxableTotal += calc.taxableAmount;
 
       purchaseItems.push({
         medicine: medicine._id,
         medicineName: medicine.medicineName,
         batchNumber: item.batchNumber || medicine.batchNumber,
+        hsnCode: medicine.hsnCode || '',
         quantity: qty,
-        purchasePrice: price,
+        purchasePrice: calc.unitPrice,
         sellingPrice: Number(item.sellingPrice) || medicine.sellingPrice,
         mrp: Number(item.mrp) || 0,
         expiryDate: item.expiryDate,
         manufacturingDate: item.manufacturingDate || null,
-        subtotal: itemSubtotal,
+        subtotal: calc.rawSubtotal,
+        taxableAmount: calc.taxableAmount,
         gst: gstPct,
-        gstAmount: gstAmt,
+        cgstAmount: calc.cgst,
+        sgstAmount: calc.sgst,
+        igstAmount: calc.igst,
+        gstAmount: calc.gstAmount,
       });
     }
 
-    const discountAmount = discountType === 'percentage' ? subtotal * (Number(discount) / 100) : Number(discount) || 0;
-    const grandTotal = subtotal + taxAmount + Number(shippingCost || 0) + Number(otherCost || 0) - discountAmount;
+    const discountAmount = discountType === 'percentage' ? taxableTotal * (Number(discount) / 100) : Number(discount) || 0;
+
+    // Recalculate GST after overall discount
+    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
+    const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
+    const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
+
+    let finalCgst = 0, finalSgst = 0, finalIgst = 0;
+    if (intraState) {
+      finalCgst = Number((finalGst / 2).toFixed(2));
+      finalSgst = Number((finalGst - finalCgst).toFixed(2));
+    } else {
+      finalIgst = finalGst;
+    }
+
+    const grandTotal = Number((finalTaxable + finalGst + Number(shippingCost || 0) + Number(otherCost || 0)).toFixed(2));
     const paid = Number(paidAmount) || grandTotal;
     const due = grandTotal - paid;
 
@@ -276,7 +346,14 @@ export const createPurchase = async (req, res, next) => {
       discount: Number(discount) || 0,
       discountType: discountType || 'fixed',
       discountAmount,
-      taxAmount,
+      taxableAmount: finalTaxable,
+      taxAmount: finalGst,
+      cgstAmount: finalCgst,
+      sgstAmount: finalSgst,
+      igstAmount: finalIgst,
+      isIntraState: intraState,
+      supplierStateCode,
+      supplierGstin,
       shippingCost: Number(shippingCost) || 0,
       otherCost: Number(otherCost) || 0,
       grandTotal,
@@ -351,8 +428,19 @@ export const updatePurchase = async (req, res, next) => {
     const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, notes, selectedDueInvoices } = req.body;
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
 
+    // Get pharmacy state code for GST calculation
+    const pharmacy = await Pharmacy.findById(req.pharmacyId).session(session);
+    const pharmacyStateCode = pharmacy?.stateCode || getStateCode(pharmacy?.state) || '';
+    const supplierStateCode = purchase.supplierStateCode || '';
+
+    const intraState = isIntraState(pharmacyStateCode, supplierStateCode);
+
     let subtotal = 0;
     let taxAmount = 0;
+    let cgstTotal = 0;
+    let sgstTotal = 0;
+    let igstTotal = 0;
+    let taxableTotal = 0;
     const purchaseItems = [];
 
     for (const item of parsedItems) {
@@ -367,6 +455,7 @@ export const updatePurchase = async (req, res, next) => {
           purchasePrice: item.purchasePrice,
           sellingPrice: item.sellingPrice,
           gst: item.gst || 0,
+          hsnCode: item.hsnCode || '',
           currentStock: 0,
           pharmacyId: req.pharmacyId,
           createdBy: req.user._id,
@@ -377,29 +466,64 @@ export const updatePurchase = async (req, res, next) => {
       const qty = Number(item.quantity);
       const price = Number(item.purchasePrice);
       const gstPct = Number(item.gst) || 0;
-      const itemSubtotal = qty * price;
-      const gstAmt = itemSubtotal * (gstPct / 100);
-      subtotal += itemSubtotal;
-      taxAmount += gstAmt;
+      const isTaxInclusive = medicine.taxInclusive || false;
+
+      // Use centralized GST helper
+      const calc = calculateItemGST({
+        quantity: qty,
+        price,
+        gstPct,
+        discount: 0,
+        discountType: 'fixed',
+        isTaxInclusive,
+        pharmacyStateCode,
+        otherPartyStateCode: supplierStateCode,
+      });
+
+      subtotal += calc.rawSubtotal;
+      taxAmount += calc.gstAmount;
+      cgstTotal += calc.cgst;
+      sgstTotal += calc.sgst;
+      igstTotal += calc.igst;
+      taxableTotal += calc.taxableAmount;
 
       purchaseItems.push({
         medicine: medicine._id,
         medicineName: medicine.medicineName,
         batchNumber: item.batchNumber || medicine.batchNumber,
+        hsnCode: medicine.hsnCode || '',
         quantity: qty,
-        purchasePrice: price,
+        purchasePrice: calc.unitPrice,
         sellingPrice: Number(item.sellingPrice) || medicine.sellingPrice,
         mrp: Number(item.mrp) || 0,
         expiryDate: item.expiryDate,
         manufacturingDate: item.manufacturingDate || null,
-        subtotal: itemSubtotal,
+        subtotal: calc.rawSubtotal,
+        taxableAmount: calc.taxableAmount,
         gst: gstPct,
-        gstAmount: gstAmt,
+        cgstAmount: calc.cgst,
+        sgstAmount: calc.sgst,
+        igstAmount: calc.igst,
+        gstAmount: calc.gstAmount,
       });
     }
 
-    const discountAmount = discountType === 'percentage' ? subtotal * (Number(discount) / 100) : Number(discount) || 0;
-    const grandTotal = subtotal + taxAmount + Number(shippingCost || 0) + Number(otherCost || 0) - discountAmount;
+    const discountAmount = discountType === 'percentage' ? taxableTotal * (Number(discount) / 100) : Number(discount) || 0;
+
+    // Recalculate GST after overall discount
+    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
+    const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
+    const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
+
+    let finalCgst = 0, finalSgst = 0, finalIgst = 0;
+    if (intraState) {
+      finalCgst = Number((finalGst / 2).toFixed(2));
+      finalSgst = Number((finalGst - finalCgst).toFixed(2));
+    } else {
+      finalIgst = finalGst;
+    }
+
+    const grandTotal = Number((finalTaxable + finalGst + Number(shippingCost || 0) + Number(otherCost || 0)).toFixed(2));
     const paid = Number(paidAmount) || grandTotal;
     const due = grandTotal - paid;
 
@@ -414,7 +538,12 @@ export const updatePurchase = async (req, res, next) => {
       discount: Number(discount) || 0,
       discountType: discountType || 'fixed',
       discountAmount,
-      taxAmount,
+      taxableAmount: finalTaxable,
+      taxAmount: finalGst,
+      cgstAmount: finalCgst,
+      sgstAmount: finalSgst,
+      igstAmount: finalIgst,
+      isIntraState: intraState,
       shippingCost: Number(shippingCost) || 0,
       otherCost: Number(otherCost) || 0,
       grandTotal,

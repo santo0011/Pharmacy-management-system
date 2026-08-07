@@ -20,6 +20,9 @@ export const getSuppliers = async (req, res, next) => {
         { companyName: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
+        { gstin: { $regex: search, $options: 'i' } },
+        { gstNumber: { $regex: search, $options: 'i' } },
+        { state: { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -55,7 +58,7 @@ export const getSupplier = async (req, res, next) => {
 // @access  Private
 export const createSupplier = async (req, res, next) => {
   try {
-    const { supplierName, companyName, phone, email, address, gstNumber, status } = req.body;
+    const { supplierName, companyName, phone, email, address, gstNumber, gstin, state, stateCode, status } = req.body;
 
     const existingSupplier = await Supplier.findOne({ email, pharmacyId: req.pharmacyId });
     if (existingSupplier) {
@@ -69,6 +72,9 @@ export const createSupplier = async (req, res, next) => {
       email,
       address,
       gstNumber,
+      gstin: gstin || gstNumber || '',
+      state: state || '',
+      stateCode: stateCode || '',
       pharmacyId: req.pharmacyId,
       status: status !== undefined ? status : true,
     });
@@ -84,7 +90,7 @@ export const createSupplier = async (req, res, next) => {
 // @access  Private
 export const updateSupplier = async (req, res, next) => {
   try {
-    const { supplierName, companyName, phone, email, address, gstNumber, status } = req.body;
+    const { supplierName, companyName, phone, email, address, gstNumber, gstin, state, stateCode, status } = req.body;
 
     const supplier = await Supplier.findOne({ _id: req.params.id, pharmacyId: req.pharmacyId });
     if (!supplier) {
@@ -104,6 +110,9 @@ export const updateSupplier = async (req, res, next) => {
     supplier.email = email || supplier.email;
     supplier.address = address !== undefined ? address : supplier.address;
     supplier.gstNumber = gstNumber !== undefined ? gstNumber : supplier.gstNumber;
+    supplier.gstin = gstin !== undefined ? gstin : (supplier.gstin || gstNumber || supplier.gstNumber);
+    supplier.state = state !== undefined ? state : supplier.state;
+    supplier.stateCode = stateCode !== undefined ? stateCode : supplier.stateCode;
     supplier.status = status !== undefined ? status : supplier.status;
 
     const updatedSupplier = await supplier.save();

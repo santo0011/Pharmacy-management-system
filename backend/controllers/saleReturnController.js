@@ -63,6 +63,11 @@ export const returnSaleItems = async (req, res, next) => {
     // Validate return items against sale items
     const returnItems = [];
     let subtotal = 0;
+    let taxableTotal = 0;
+    let cgstTotal = 0;
+    let sgstTotal = 0;
+    let igstTotal = 0;
+    let gstTotal = 0;
 
     for (const returnItem of parsedItems) {
       const saleItem = sale.items.find(
@@ -81,22 +86,42 @@ export const returnSaleItems = async (req, res, next) => {
         return ApiResponse.error(res, `Return quantity (${returnQty}) exceeds sold quantity (${saleItem.quantity}) for ${saleItem.medicineName}`, 400);
       }
 
-      const returnAmt = returnQty * saleItem.sellingPrice;
+      // Calculate proportional return amounts based on ratio
+      const qtyRatio = returnQty / saleItem.quantity;
+      const returnAmt = Number((returnQty * saleItem.sellingPrice).toFixed(2));
+      const returnTaxable = Number(((saleItem.taxableAmount || saleItem.subtotal || 0) * qtyRatio).toFixed(2));
+      const returnCgst = Number(((saleItem.cgstAmount || 0) * qtyRatio).toFixed(2));
+      const returnSgst = Number(((saleItem.sgstAmount || 0) * qtyRatio).toFixed(2));
+      const returnIgst = Number(((saleItem.igstAmount || 0) * qtyRatio).toFixed(2));
+      const returnGst = Number(((saleItem.gstAmount || 0) * qtyRatio).toFixed(2));
+
       subtotal += returnAmt;
+      taxableTotal += returnTaxable;
+      cgstTotal += returnCgst;
+      sgstTotal += returnSgst;
+      igstTotal += returnIgst;
+      gstTotal += returnGst;
 
       returnItems.push({
         medicine: saleItem.medicine,
         medicineName: saleItem.medicineName,
         batchNumber: saleItem.batchNumber || '',
+        hsnCode: saleItem.hsnCode || '',
         returnedQuantity: returnQty,
         sellingPrice: saleItem.sellingPrice,
+        taxableAmount: returnTaxable,
+        gst: saleItem.gst || 0,
+        cgstAmount: returnCgst,
+        sgstAmount: returnSgst,
+        igstAmount: returnIgst,
+        gstAmount: returnGst,
         returnAmount: returnAmt,
       });
     }
 
     const returnNumber = await generateReturnNumber(req.pharmacyId);
 
-    // Create the return record
+    // Create the return record (with full GST reversal data)
     const [saleReturn] = await SaleReturn.create([{
       returnNumber,
       sale: sale._id,
@@ -106,7 +131,12 @@ export const returnSaleItems = async (req, res, next) => {
       returnDate: new Date(),
       items: returnItems,
       subtotal,
-      totalReturnAmount: subtotal,
+      taxableAmount: Number(taxableTotal.toFixed(2)),
+      cgstAmount: Number(cgstTotal.toFixed(2)),
+      sgstAmount: Number(sgstTotal.toFixed(2)),
+      igstAmount: Number(igstTotal.toFixed(2)),
+      totalGst: Number(gstTotal.toFixed(2)),
+      totalReturnAmount: Number(subtotal.toFixed(2)),
       reason: reason || '',
       pharmacyId: req.pharmacyId,
       createdBy: req.user._id,

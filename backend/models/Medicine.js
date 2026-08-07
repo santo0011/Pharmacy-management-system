@@ -31,6 +31,13 @@ const medicineSchema = mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+      validate: {
+        validator: function (v) {
+          if (!v) return true;
+          return /^\d{4}(\d{2})?(\d{2})?$/.test(v.trim());
+        },
+        message: 'HSN code must be 4, 6, or 8 digits',
+      },
     },
     batchNumber: {
       type: String,
@@ -63,7 +70,32 @@ const medicineSchema = mongoose.Schema(
       type: Number,
       default: 0,
       min: 0,
-      max: 100,
+      max: 40,
+    },
+    taxType: {
+      type: String,
+      enum: ['intra', 'inter'],
+      default: 'intra',
+    },
+    taxInclusive: {
+      type: Boolean,
+      default: false,
+      description: 'Whether selling price includes GST (tax-inclusive pricing)',
+    },
+    medicineType: {
+      type: String,
+      enum: ['Allopathic', 'Ayurvedic', 'Homeopathic', 'Unani', 'Siddha', 'Veterinary', 'Medical Device', 'Other'],
+      default: 'Allopathic',
+    },
+    manufacturer: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    mrp: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     currentStock: {
       type: Number,

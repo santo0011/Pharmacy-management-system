@@ -3,7 +3,9 @@ import Sale from '../models/Sale.js';
 import Customer from '../models/Customer.js';
 import CustomerEditHistory from '../models/CustomerEditHistory.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
+import Pharmacy from '../models/Pharmacy.js';
 import ApiResponse from '../utils/apiResponse.js';
+import { getStateCode } from '../utils/gstHelper.js';
 
 // @desc    Search customers by name or phone (autocomplete)
 // @route   GET /api/customers/search
@@ -22,9 +24,10 @@ export const searchCustomers = async (req, res, next) => {
       $or: [
         { name: regex },
         { phone: regex },
+        { gstin: regex },
       ],
     })
-      .select('customerId name phone address totalPurchases totalSpent lastPurchaseDate')
+      .select('customerId name phone address state stateCode gstin customerType totalPurchases totalSpent lastPurchaseDate')
       .limit(10)
       .sort({ totalPurchases: -1 });
 
@@ -39,7 +42,7 @@ export const searchCustomers = async (req, res, next) => {
 // @access  Private
 export const createCustomer = async (req, res, next) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, state, stateCode, gstin, customerType } = req.body;
 
     if (!name || !name.trim()) {
       return ApiResponse.error(res, 'Customer name is required', 400);
@@ -71,10 +74,26 @@ export const createCustomer = async (req, res, next) => {
       finalPhone = `CUST-NP-${count + 1}`;
     }
 
+    // If state is not provided, use Default Business State from pharmacy settings
+    let finalState = state || '';
+    let finalStateCode = stateCode || '';
+
+    if (!finalState) {
+      const pharmacy = await Pharmacy.findById(req.pharmacyId);
+      if (pharmacy?.state) {
+        finalState = pharmacy.state;
+        finalStateCode = pharmacy.stateCode || getStateCode(pharmacy.state) || '';
+      }
+    }
+
     const customer = await Customer.create({
       name: name.trim(),
       phone: finalPhone,
       address: address || '',
+      state: finalState,
+      stateCode: finalStateCode || getStateCode(finalState) || '',
+      gstin: gstin || '',
+      customerType: customerType || 'retail',
       pharmacyId: req.pharmacyId,
     });
 
@@ -103,6 +122,8 @@ export const getCustomers = async (req, res, next) => {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
+        { gstin: { $regex: search, $options: 'i' } },
+        { state: { $regex: search, $options: 'i' } },
       ];
 
       // Also search by invoice number in Sales collection
@@ -176,6 +197,8 @@ export const getCustomers = async (req, res, next) => {
         customerId: primary.customerId,
         customerName: primary.name,
         customerPhone: primary.phone,
+        state: primary.state || '',
+        stateCode: primary.stateCode || '',
         mergedCount: customersInGroup.length,
       });
     }
@@ -194,6 +217,8 @@ export const getCustomers = async (req, res, next) => {
         customerId: primary.customerId,
         customerName: primary.name,
         customerPhone: primary.phone,
+        state: primary.state || '',
+        stateCode: primary.stateCode || '',
         mergedCount: customersInGroup.length > 1 ? customersInGroup.length : 1,
       });
     }
@@ -326,6 +351,8 @@ export const getCustomers = async (req, res, next) => {
         customerName: d.customerName,
         customerPhone: d.customerPhone || '',
         customerId: d.customerId,
+        state: d.state || '',
+        stateCode: d.stateCode || '',
         totalPurchases: mergedStats.totalPurchases || 0,
         totalSpent: mergedStats.totalSpent || 0,
         totalPaid: mergedStats.totalPaid || 0,
@@ -1004,7 +1031,7 @@ export const updateCustomer = async (req, res, next) => {
   try {
     const { phoneOrId } = req.params;
     const id = phoneOrId;
-    const { name, phone } = req.body;
+    const { name, phone, state, stateCode } = req.body;
 
     const customer = await Customer.findOne({ _id: id, pharmacyId: req.pharmacyId, isDeleted: false });
     if (!customer) {
@@ -1046,6 +1073,16 @@ export const updateCustomer = async (req, res, next) => {
         label: 'Phone Number',
         previousValue: customer.phone,
         newValue: cleanPhone,
+      });
+    }
+    if (state !== undefined && state !== customer.state) {
+      updateData.state = state;
+      updateData.stateCode = stateCode || getStateCode(state) || '';
+      changes.push({
+        field: 'state',
+        label: 'State',
+        previousValue: customer.state || '',
+        newValue: state,
       });
     }
 

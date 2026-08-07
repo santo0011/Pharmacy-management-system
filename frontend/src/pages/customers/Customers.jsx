@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { customerService } from '../../services/customerService';
+import { pharmacyService } from '../../services/pharmacyService';
 import { formatCurrency, getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import PaymentDrawer from '../../components/common/PaymentDrawer';
 import Drawer from '../../components/common/Drawer';
+import { INDIAN_STATES, getStateCodeByName } from '../../utils/indianStates';
 
 export default function Customers() {
   const [activeTab, setActiveTab] = useState('all');
@@ -32,11 +34,26 @@ export default function Customers() {
   const [detailTab, setDetailTab] = useState('purchases');
   const [expandedRows, setExpandedRows] = useState({});
 
+  // --- Add Customer States ---
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newState, setNewState] = useState('');
+  const [newStateSearch, setNewStateSearch] = useState('');
+  const [newStateDropdownOpen, setNewStateDropdownOpen] = useState(false);
+  const [newSaving, setNewSaving] = useState(false);
+  const newStateSearchRef = useRef(null);
+
   // --- Edit Customer States ---
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editStateSearch, setEditStateSearch] = useState('');
+  const [editStateDropdownOpen, setEditStateDropdownOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const stateSearchRef = useRef(null);
 
   // --- Edit History States ---
   const [historyCustomer, setHistoryCustomer] = useState(null);
@@ -187,10 +204,90 @@ export default function Customers() {
   };
 
   // --- Edit Customer ---
+  const handleAddCustomer = async () => {
+    setAddCustomerOpen(true);
+    setNewName('');
+    setNewPhone('');
+    setNewAddress('');
+    setNewState('');
+    setNewStateSearch('');
+    setNewStateDropdownOpen(false);
+    setNewSaving(false);
+
+    // Pre-fill the Default Business State from the pharmacy profile (Settings → GST Configuration)
+    try {
+      const { data } = await pharmacyService.getMyPharmacyProfile();
+      if (data?.data?.state) {
+        const defaultState = data.data.state;
+        setNewState(defaultState);
+        setNewStateSearch(defaultState);
+      }
+    } catch (error) {
+      // Silently fail — keep the State field empty if the profile cannot be loaded
+    }
+  };
+
+  const closeAddCustomerDrawer = () => {
+    setAddCustomerOpen(false);
+  };
+
+  const handleSaveNewCustomer = async () => {
+    if (!newName.trim()) {
+      showError('Customer name is required');
+      return;
+    }
+    if (!newPhone.trim()) {
+      showError('Phone number is required');
+      return;
+    }
+    if (!newState) {
+      showError('Please select a state');
+      return;
+    }
+    setNewSaving(true);
+    try {
+      await customerService.createCustomer({
+        name: newName.trim(),
+        phone: newPhone.trim(),
+        address: newAddress.trim(),
+        state: newState,
+        stateCode: getStateCodeByName(newState),
+      });
+      showSuccess('Customer added successfully');
+      setAddCustomerOpen(false);
+      fetchCustomers();
+      fetchCustomerStats();
+    } catch (error) {
+      showError(error.response?.data?.message || 'Failed to add customer');
+    } finally {
+      setNewSaving(false);
+    }
+  };
+
+  // Close add state dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (newStateSearchRef.current && !newStateSearchRef.current.contains(event.target)) {
+        setNewStateDropdownOpen(false);
+      }
+    };
+    if (newStateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [newStateDropdownOpen]);
+
+  const filteredNewStates = INDIAN_STATES.filter(s =>
+    s.name.toLowerCase().includes(newStateSearch.toLowerCase())
+  );
+
   const handleEditCustomer = (customer) => {
     setEditingCustomer(customer);
     setEditName(customer.customerName || '');
     setEditPhone(customer.customerPhone || '');
+    const stateName = customer.state || '';
+    setEditState(stateName);
+    setEditStateSearch(stateName);
   };
 
   const closeEditDrawer = () => {
@@ -204,7 +301,7 @@ export default function Customers() {
     }
     setEditSaving(true);
     try {
-      await customerService.updateCustomer(editingCustomer._id, { name: editName.trim(), phone: editPhone.trim() });
+      await customerService.updateCustomer(editingCustomer._id, { name: editName.trim(), phone: editPhone.trim(), state: editState, stateCode: getStateCodeByName(editState) });
       showSuccess('Customer updated successfully');
       setEditingCustomer(null);
       fetchCustomers();
@@ -214,6 +311,23 @@ export default function Customers() {
       setEditSaving(false);
     }
   };
+
+  // Close state dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (stateSearchRef.current && !stateSearchRef.current.contains(event.target)) {
+        setEditStateDropdownOpen(false);
+      }
+    };
+    if (editStateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [editStateDropdownOpen]);
+
+  const filteredStates = INDIAN_STATES.filter(s =>
+    s.name.toLowerCase().includes(editStateSearch.toLowerCase())
+  );
 
   const totalPages = Math.ceil(total / limit);
   const dueTotalPages = Math.ceil(dueTotal / limit);
@@ -657,10 +771,27 @@ export default function Customers() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header page-header-inline-mobile">
         <div>
           <h2><i className="fa-solid fa-users"></i> Customers</h2>
           <p>Manage your pharmacy customers</p>
+        </div>
+        <div className="btn-group-grid">
+          <button
+            className="btn btn-primary add-customer-btn"
+            onClick={handleAddCustomer}
+            title="Add Customer"
+            style={{
+              borderRadius: '10px',
+              padding: '10px 20px',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(14, 165, 233, 0.25)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <i className="fa-solid fa-user-plus"></i>
+            <span>Add Customer</span>
+          </button>
         </div>
       </div>
 
@@ -912,6 +1043,100 @@ export default function Customers() {
         )}
       </Drawer>
 
+      {/* Add Customer Drawer */}
+      <Drawer
+        isOpen={addCustomerOpen}
+        onClose={closeAddCustomerDrawer}
+        title={<span><i className="fa-solid fa-user-plus"></i> Add Customer</span>}
+        className="edit-customer-drawer"
+        footer={
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <button className="btn btn-secondary" onClick={closeAddCustomerDrawer}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSaveNewCustomer} disabled={newSaving}>
+              {newSaving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Add Customer
+            </button>
+          </div>
+        }
+      >
+        <div className="form-group">
+          <label>Customer Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <input type="text" className="form-select" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ width: '100%' }} placeholder="Enter customer name" />
+        </div>
+        <div className="form-group" style={{ marginTop: '12px' }}>
+          <label>Phone Number <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <input type="text" className="form-select" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} style={{ width: '100%' }} placeholder="Enter mobile number" />
+        </div>
+        <div className="form-group" style={{ marginTop: '12px' }}>
+          <label>Address</label>
+          <input type="text" className="form-select" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} style={{ width: '100%' }} placeholder="Enter customer address" />
+        </div>
+        <div className="form-group" style={{ marginTop: '12px' }}>
+          <label>State <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <div style={{ position: 'relative' }} ref={newStateSearchRef}>
+            <input
+              type="text"
+              className="form-select"
+              value={newStateSearch}
+              onChange={(e) => {
+                setNewStateSearch(e.target.value);
+                setNewState('');
+                setNewStateDropdownOpen(true);
+              }}
+              onFocus={() => setNewStateDropdownOpen(true)}
+              style={{ width: '100%' }}
+              placeholder="Search state..."
+            />
+            {newStateDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: '#fff',
+                border: '1px solid var(--gray-200)',
+                borderRadius: '8px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                zIndex: 100,
+                maxHeight: '220px',
+                overflowY: 'auto',
+                marginTop: '4px',
+              }}>
+                {filteredNewStates.length > 0 ? (
+                  filteredNewStates.map(state => (
+                    <div
+                      key={state.code}
+                      onClick={() => {
+                        setNewState(state.name);
+                        setNewStateSearch(state.name);
+                        setNewStateDropdownOpen(false);
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid var(--gray-100)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: newState === state.name ? 'var(--primary-light)' : '#fff',
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = newState === state.name ? 'var(--primary-light)' : '#fff'}
+                    >
+                      <span style={{ fontWeight: 500, fontSize: '13px' }}>{state.name}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Code: {state.code}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '12px 14px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+                    No states found
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </Drawer>
+
       {/* Edit Customer Drawer */}
       <Drawer
         isOpen={!!editingCustomer}
@@ -928,12 +1153,77 @@ export default function Customers() {
         }
       >
         <div className="form-group">
-          <label>Customer Name</label>
-          <input type="text" className="form-select" value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: '100%' }} />
+          <label>Customer Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <input type="text" className="form-select" value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: '100%' }} placeholder="Enter customer name" />
         </div>
         <div className="form-group" style={{ marginTop: '12px' }}>
-          <label>Mobile Number</label>
+          <label>Phone Number <span style={{ color: 'var(--danger)' }}>*</span></label>
           <input type="text" className="form-select" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} style={{ width: '100%' }} placeholder="Enter mobile number" />
+        </div>
+        <div className="form-group" style={{ marginTop: '12px' }}>
+          <label>State <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <div style={{ position: 'relative' }} ref={stateSearchRef}>
+            <input
+              type="text"
+              className="form-select"
+              value={editStateSearch}
+              onChange={(e) => {
+                setEditStateSearch(e.target.value);
+                setEditState('');
+                setEditStateDropdownOpen(true);
+              }}
+              onFocus={() => setEditStateDropdownOpen(true)}
+              style={{ width: '100%' }}
+              placeholder="Search state..."
+            />
+            {editStateDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: '#fff',
+                border: '1px solid var(--gray-200)',
+                borderRadius: '8px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                zIndex: 100,
+                maxHeight: '220px',
+                overflowY: 'auto',
+                marginTop: '4px',
+              }}>
+                {filteredStates.length > 0 ? (
+                  filteredStates.map(state => (
+                    <div
+                      key={state.code}
+                      onClick={() => {
+                        setEditState(state.name);
+                        setEditStateSearch(state.name);
+                        setEditStateDropdownOpen(false);
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid var(--gray-100)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: editState === state.name ? 'var(--primary-light)' : '#fff',
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = editState === state.name ? 'var(--primary-light)' : '#fff'}
+                    >
+                      <span style={{ fontWeight: 500, fontSize: '13px' }}>{state.name}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Code: {state.code}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '12px 14px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+                    No states found
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </Drawer>
 

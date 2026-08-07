@@ -96,6 +96,25 @@ const pharmacySchema = mongoose.Schema(
       default: '',
       trim: true,
     },
+    gstin: {
+      type: String,
+      default: '',
+      trim: true,
+      uppercase: true,
+    },
+    stateCode: {
+      type: String,
+      default: '',
+      trim: true,
+      minlength: 2,
+      maxlength: 2,
+    },
+    defaultGstRate: {
+      type: Number,
+      default: 18,
+      min: 0,
+      max: 40,
+    },
     registrationNumber: {
       type: String,
       default: '',

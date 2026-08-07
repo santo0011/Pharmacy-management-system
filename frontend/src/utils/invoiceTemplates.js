@@ -9,6 +9,13 @@ import { getCurrentSymbol } from './currency';
 // Template 1: Classic - Clean blue-themed professional layout
 const templateClassic = (sale, pharmacy, currencySymbol) => {
   const sym = currencySymbol || getCurrentSymbol() || '₹';
+  const gstin = pharmacy.gstin || pharmacy.gstNumber || '';
+  const stateCode = pharmacy.stateCode || '';
+  const isIntra = sale.isIntraState !== false;
+  const cgstAmt = Number(sale.cgstAmount || 0).toFixed(2);
+  const sgstAmt = Number(sale.sgstAmount || 0).toFixed(2);
+  const igstAmt = Number(sale.igstAmount || 0).toFixed(2);
+  const taxableAmt = Number(sale.taxableAmount || 0).toFixed(2);
   return `
 <style>
   @page { size: ${pharmacy.printFormat === 'a4' ? 'A4' : pharmacy.printFormat === '58mm' ? '58mm 297mm' : '80mm 297mm'}; margin: ${pharmacy.printFormat === 'a4' ? '15mm' : '5mm 3mm'}; }
@@ -27,6 +34,9 @@ const templateClassic = (sale, pharmacy, currencySymbol) => {
   .badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: ${pharmacy.printFormat === 'a4' ? '11px' : '8px'}; }
   .badge-success { background: #dcfce7; color: #16a34a; }
   .customer-info { margin-bottom: 15px; font-size: ${pharmacy.printFormat === 'a4' ? 'inherit' : '9px'}; }
+  .gst-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+  .gst-intra { background: #dcfce7; color: #16a34a; }
+  .gst-inter { background: #e0f2fe; color: #0284c7; }
   @media print { .no-print { display: none; } }
 </style>
 <div class="invoice-box">
@@ -34,26 +44,33 @@ const templateClassic = (sale, pharmacy, currencySymbol) => {
     <div>
       <div class="title">${pharmacy.pharmacyName || 'PHARMACY'}</div>
       <div style="color:#64748b;margin-top:4px;">${pharmacy.phone ? `Phone: ${pharmacy.phone}` : 'Medical Store'}</div>
+      ${gstin ? `<div style="color:#64748b;font-size:11px;font-weight:600;">GSTIN: ${gstin}</div>` : ''}
+      ${stateCode ? `<div style="color:#94a3b8;font-size:11px;">State Code: ${stateCode}</div>` : ''}
       ${pharmacy.address ? `<div style="color:#94a3b8;font-size:11px;">${pharmacy.address}</div>` : ''}
     </div>
     <div class="details">
       <div style="font-weight:600;font-size:${pharmacy.printFormat === 'a4' ? '16px' : '12px'};">${sale.invoiceNumber}</div>
       <div>${new Date(sale.saleDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+      <div style="margin-top:4px;"><span class="gst-badge ${isIntra ? 'gst-intra' : 'gst-inter'}">${isIntra ? 'Intra-State (CGST+SGST)' : 'Inter-State (IGST)'}</span></div>
     </div>
   </div>
   <div class="customer-info">
     <div style="font-weight:600;">Customer: ${sale.customerName}</div>
     ${sale.customerPhone ? `<div>Phone: ${sale.customerPhone}</div>` : ''}
+    ${sale.customerGstin ? `<div>GSTIN: ${sale.customerGstin}</div>` : ''}
+    ${sale.customerStateCode ? `<div>State Code: ${sale.customerStateCode}</div>` : ''}
   </div>
   <table>
-    <thead><tr><th>#</th><th>Medicine</th><th>Qty</th><th>Price</th><th>GST</th><th>Total</th></tr></thead>
+    <thead><tr><th>#</th><th>Medicine</th><th>HSN</th><th>Qty</th><th>Price</th><th>Taxable</th><th>GST%</th><th>Total</th></tr></thead>
     <tbody>
       ${sale.items?.map((item, idx) => `
         <tr>
           <td>${idx + 1}</td>
           <td style="font-weight:500;">${item.medicineName}</td>
+          <td style="font-size:10px;">${item.hsnCode || '-'}</td>
           <td>${item.quantity}</td>
           <td>${sym} ${Number(item.sellingPrice).toFixed(2)}</td>
+          <td>${sym} ${Number(item.taxableAmount || item.subtotal || 0).toFixed(2)}</td>
           <td>${item.gst}%</td>
           <td style="font-weight:600;">${sym} ${Number(item.total).toFixed(2)}</td>
         </tr>
@@ -62,9 +79,18 @@ const templateClassic = (sale, pharmacy, currencySymbol) => {
   </table>
   <div class="summary">
     <div class="summary-row"><span>Subtotal:</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>GST:</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Discount:</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>${sym} ${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="font-weight:600;"><span>Taxable Amount:</span><span>${sym} ${taxableAmt}</span></div>
+    ${isIntra ? `
+    <div class="summary-row"><span>CGST:</span><span>${sym} ${cgstAmt}</span></div>
+    <div class="summary-row"><span>SGST:</span><span>${sym} ${sgstAmt}</span></div>
+    ` : `
+    <div class="summary-row"><span>IGST:</span><span>${sym} ${igstAmt}</span></div>
+    `}
+    <div class="summary-row"><span>Total GST:</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
+    ${sale.roundOffAmount && Number(sale.roundOffAmount) !== 0 ? `
+    <div class="summary-row" style="color:${Number(sale.roundOffAmount) > 0 ? '#16a34a' : '#ef4444'};"><span>Round Off:</span><span>${sym} ${Number(sale.roundOffAmount).toFixed(2)}</span></div>
+    ` : ''}
     ${sale.previousDueAmount > 0 ? `
     <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
     ` : ''}
@@ -158,7 +184,10 @@ const templateModern = (sale, pharmacy, currencySymbol) => {
       <div class="summary-row"><span>Subtotal:</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
       <div class="summary-row"><span>GST:</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
       <div class="summary-row"><span>Discount:</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-      <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>${sym} ${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+      <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>${sym} ${(Number(sale.grandTotal || 0) - Number(sale.roundOffAmount || 0)).toFixed(2)}</span></div>
+      ${sale.roundOffAmount && Number(sale.roundOffAmount) !== 0 ? `
+      <div class="summary-row" style="color:${Number(sale.roundOffAmount) > 0 ? '#16a34a' : '#ef4444'};"><span>Round Off:</span><span>${sym} ${Number(sale.roundOffAmount).toFixed(2)}</span></div>
+      ` : ''}
       ${sale.previousDueAmount > 0 ? `
       <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
       ` : ''}
@@ -237,7 +266,10 @@ const templateMinimal = (sale, pharmacy, currencySymbol) => {
     <div class="summary-row"><span>Subtotal</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>GST</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
     <div class="summary-row"><span>Discount</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total</span><span>${sym} ${Number(sale.grandTotal || 0).toFixed(2)}</span></div>
+    <div class="summary-row" style="font-weight:600;"><span>Current Bill Total</span><span>${sym} ${(Number(sale.grandTotal || 0) - Number(sale.roundOffAmount || 0)).toFixed(2)}</span></div>
+    ${sale.roundOffAmount && Number(sale.roundOffAmount) !== 0 ? `
+    <div class="summary-row" style="color:${Number(sale.roundOffAmount) > 0 ? '#16a34a' : '#ef4444'};"><span>Round Off</span><span>${sym} ${Number(sale.roundOffAmount).toFixed(2)}</span></div>
+    ` : ''}
     ${sale.previousDueAmount > 0 ? `
     <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
     ` : ''}
@@ -267,6 +299,8 @@ export function getInvoiceHTML(sale, pharmacy, templateName = 'classic', printFo
     pharmacyName: pharmacy?.pharmacyName || 'PHARMACY',
     phone: pharmacy?.phone || '',
     address: pharmacy?.address || '',
+    gstin: pharmacy?.gstin || pharmacy?.gstNumber || '',
+    stateCode: pharmacy?.stateCode || '',
     printFormat,
   };
 
