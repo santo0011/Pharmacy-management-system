@@ -134,7 +134,11 @@ export default function SaleDetail() {
           <InfoRow label="Date" value={new Date(sale.saleDate).toLocaleString()} />
           <InfoRow label="Status" value={<span className={`badge ${sale.status === 'completed' ? 'badge-success' : 'badge-info'}`}>{sale.status}</span>} />
           <InfoRow label="Payment" value={<span className={`badge ${sale.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{sale.paymentStatus}</span>} />
-          <InfoRow label="Payment Method" value={sale.paymentMethod} />
+          <InfoRow label="Payment Method" value={
+            <span className={`badge ${sale.paymentMethod === 'cash' ? 'badge-success' : sale.paymentMethod === 'card' ? 'badge-info' : sale.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>
+              {sale.paymentMethod ? sale.paymentMethod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Cash'}
+            </span>
+          } />
         </div>
       </div>
 
@@ -250,7 +254,7 @@ export default function SaleDetail() {
                         </td>
                         <td>
                           <span className={`badge ${payment.paymentMethod === 'cash' ? 'badge-success' : payment.paymentMethod === 'card' ? 'badge-info' : payment.paymentMethod === 'upi' ? 'badge-primary' : 'badge-warning'}`}>
-                            {payment.paymentMethod ? payment.paymentMethod.replace('_', ' ') : 'Cash'}
+                            {payment.paymentMethod ? payment.paymentMethod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Cash'}
                           </span>
                         </td>
                         <td>{payment.createdBy?.name || 'Unknown'}</td>

@@ -17,6 +17,7 @@
  *   duration (number) - Animation duration in ms (default: 1000)
  *   compact (boolean) - Use compact notation (K, M, B) (default: false)
  *   cardMode (boolean) - Force card mode / compact mode. If not set, auto-detects card context.
+ *   forceDecimals (boolean) - Always show the full decimal places (e.g., 1050.00) even when trailing zeros (default: false)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -107,6 +108,7 @@ export default function CurrencyDisplay({
   duration = 1000,
   compact = false,
   cardMode,
+  forceDecimals = false,
 }) {
   const sym = symbol || getCurrentSymbol();
   const [displayValue, setDisplayValue] = useState(0);
@@ -234,10 +236,14 @@ export default function CurrencyDisplay({
       withCommas = restGroups + ',' + lastThree;
     }
 
-    // Strip trailing .00 when decimals=2 but value is whole
+    // Strip trailing .00 when decimals=2 but value is whole (unless forceDecimals is true)
     if (decimals > 0 && decimalPart) {
-      const trimmedDec = decimalPart.replace(/0+$/, '');
-      displayText = trimmedDec ? `${withCommas}.${trimmedDec}` : withCommas;
+      if (forceDecimals) {
+        displayText = `${withCommas}.${decimalPart}`;
+      } else {
+        const trimmedDec = decimalPart.replace(/0+$/, '');
+        displayText = trimmedDec ? `${withCommas}.${trimmedDec}` : withCommas;
+      }
     } else {
       displayText = withCommas;
     }

@@ -13,6 +13,7 @@ import {
   getStateCode,
   getStateCodeFromGSTIN,
   isIntraState,
+  resolveGstRate,
 } from '../utils/gstHelper.js';
 
 const generateInvoiceNumber = async (pharmacyId) => {
@@ -191,7 +192,8 @@ export const createSale = async (req, res, next) => {
       }
 
       const unitPrice = Number(item.sellingPrice) || medicine.sellingPrice;
-      const gstPct = Number(item.gst) || medicine.gst || 0;
+      // Resolve applicable GST: product GST > 0 → use it; product GST = 0 → use pharmacy Default GST from Settings
+      const gstPct = resolveGstRate(medicine.gst, pharmacy?.defaultGstRate);
       const itemDiscount = Number(item.discount) || 0;
       const itemDiscountType = item.discountType || 'fixed';
       const isTaxInclusive = medicine.taxInclusive || false;
@@ -490,7 +492,8 @@ export const updateSale = async (req, res, next) => {
       }
 
       const unitPrice = Number(item.sellingPrice) || medicine.sellingPrice;
-      const gstPct = Number(item.gst) || medicine.gst || 0;
+      // Resolve applicable GST: product GST > 0 → use it; product GST = 0 → use pharmacy Default GST from Settings
+      const gstPct = resolveGstRate(medicine.gst, pharmacy?.defaultGstRate);
       const itemDiscount = Number(item.discount) || 0;
       const itemDiscountType = item.discountType || 'fixed';
       const isTaxInclusive = medicine.taxInclusive || false;

@@ -8,8 +8,10 @@ import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { customerService } from '../../services/customerService';
+import { pharmacyService } from '../../services/pharmacyService';
 import PortalDropdown from '../../components/common/PortalDropdown';
 import BarcodeScanner from '../../components/common/BarcodeScanner';
+import { calculateInvoiceGST, getStateCode, resolveGstRate } from '../../utils/gst';
 
 export default function SaleForm() {
   const dispatch = useDispatch();
@@ -22,18 +24,28 @@ export default function SaleForm() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerRef, setCustomerRef] = useState(null);
+  const [customerStateCode, setCustomerStateCode] = useState('');
+  const [pharmacyStateCode, setPharmacyStateCode] = useState('');
+  const [defaultGstRate, setDefaultGstRate] = useState(18);
   const [customerDueInfo, setCustomerDueInfo] = useState(null);
   const [includePreviousDue, setIncludePreviousDue] = useState(false);
   const [selectedDueInvoices, setSelectedDueInvoices] = useState([]);
   const [items, setItems] = useState([]);
-  const [discount, setDiscount] = useState(0);
+  const [discount, setDiscount] = useState('');
   const [discountType, setDiscountType] = useState('percentage');
-  const [paidAmount, setPaidAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paidAmount, setPaidAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('card');
+  const PAYMENT_METHODS = [
+    { value: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave', iconColor: '#22c55e' },
+    { value: 'card', label: 'Card', icon: 'fa-solid fa-credit-card', iconColor: '#6366f1' },
+    { value: 'upi', label: 'UPI', icon: 'fa-solid fa-mobile-screen-button', iconColor: '#0ea5e9' },
+    { value: 'mobile_banking', label: 'M. Banking', icon: 'fa-solid fa-mobile-screen', iconColor: '#8b5cf6' },
+    { value: 'other', label: 'Other', icon: 'fa-solid fa-receipt', iconColor: '#f59e0b' },
+  ];
   const [submitting, setSubmitting] = useState(false);
-  const [roundOffDiff, setRoundOffDiff] = useState(0); // Round-off adjustment (e.g., -0.86 or +2.14)
+  const [roundOffDiff, setRoundOffDiff] = useState(0); // Round-off adjustment (always negative or 0)
   const [roundOffOptions, setRoundOffOptions] = useState([]); // Generated round-off option cards
-  const [selectedRoundOffIndex, setSelectedRoundOffIndex] = useState(0); // 0 = Exact
+  const [selectedRoundOffIndex, setSelectedRoundOffIndex] = useState(-1); // -1 = no round-off selected
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -128,6 +140,8 @@ export default function SaleForm() {
     setSelectedDueInvoices([]);
     setCustomerVerified(true);
     setPhoneVerifiedMatch(null);
+    // Set the customer's state code for GST determination
+    setCustomerStateCode(customer.stateCode || getStateCode(customer.state) || '');
 
     // Fetch due information for this customer
     fetchCustomerDue(customer);
@@ -162,6 +176,22 @@ export default function SaleForm() {
     if (isEditing && id) {
       dispatch(fetchSale(id));
     }
+    // Load the pharmacy's Default Business State code for GST determination
+    const loadPharmacyState = async () => {
+      try {
+        const { data } = await pharmacyService.getMyPharmacyProfile();
+        if (data?.data) {
+          const stateName = data.data.state || '';
+          const stateCode = data.data.stateCode || getStateCode(stateName) || '';
+          setPharmacyStateCode(stateCode);
+          // Load the Default GST % from Settings (used when product GST is 0)
+          setDefaultGstRate(Number(data.data.defaultGstRate) || 18);
+        }
+      } catch (error) {
+        // Silently fail — GST will default to intra-state (CGST+SGST)
+      }
+    };
+    loadPharmacyState();
     return () => {
       dispatch(clearSelectedSale());
     };
@@ -268,15 +298,23 @@ export default function SaleForm() {
     return sub - disc + gstAmt;
   };
   const calcSubtotal = () => items.reduce((sum, i) => sum + calcItemSubtotal(i), 0);
-  const calcTax = () => items.reduce((sum, i) => {
-    const sub = calcItemSubtotal(i);
-    const disc = calcItemDiscount(i);
-    return sum + (sub - disc) * (Number(i.gst) / 100);
-  }, 0);
   const calcDiscount = () => discountType === 'percentage' ? calcSubtotal() * (Number(discount) / 100) : Number(discount);
 
+  // Centralized GST calculation using the shared utility (mirrors backend gstHelper.js)
+  // Resolve each item's applicable GST: product GST > 0 → use it; product GST = 0 → use pharmacy Default GST
+  const gstCalc = calculateInvoiceGST({
+    items: items.map(item => ({
+      ...item,
+      gst: resolveGstRate(item.gst, defaultGstRate),
+    })),
+    discount: Number(discount) || 0,
+    discountType,
+    pharmacyStateCode,
+    otherPartyStateCode: customerStateCode,
+  });
+
   // Current bill total (without previous due) - this is what gets sent to backend
-  const calcCurrentBillTotal = () => calcSubtotal() + calcTax() - calcDiscount();
+  const calcCurrentBillTotal = () => gstCalc.grandTotal;
 
   // Previous due amount (from individually selected invoices)
   const calcPreviousDue = () => {
@@ -287,57 +325,48 @@ export default function SaleForm() {
   };
 
   // Round-off option generation based on current bill total
+  // Round-off ALWAYS reduces the payable amount (negative diff only)
   const generateRoundOffOptions = (total) => {
     if (!total || isNaN(total) || total <= 0) return [];
     const exact = Number(total.toFixed(2));
     const options = [];
     const sym = getCurrentSymbol();
 
-    // 1. Exact
-    options.push({ value: exact, diff: 0, isExact: true, label: 'Exact' });
-
-    // 2. Round down to nearest whole rupee
+    // Round down to nearest whole rupee FIRST (smallest reduction)
     const floorVal = Math.floor(exact);
-    if (floorVal !== exact) {
-      options.push({ value: floorVal, diff: Number((floorVal - exact).toFixed(2)), isExact: false, label: 'Round Down' });
+    if (floorVal !== exact && floorVal > 0) {
+      options.push({
+        value: floorVal,
+        diff: Number((floorVal - exact).toFixed(2)),
+        isExact: false,
+        label: 'Round Down',
+      });
     }
 
-    // 3. Round up to nearest whole rupee
-    const ceilVal = Math.ceil(exact);
-    if (ceilVal !== exact && !options.some(o => o.value === ceilVal)) {
-      options.push({ value: ceilVal, diff: Number((ceilVal - exact).toFixed(2)), isExact: false, label: `Nearest ${sym}1` });
-    }
-
-    // 4. Determine the step unit based on bill size
-    // Small bills (< 100): step by 5
-    // Medium bills (< 1000): step by 5
-    // Large bills (>= 1000): step by 50
+    // Determine the step unit based on bill size
     const step = exact >= 1000 ? 50 : 5;
 
-    // 5. Generate a progression of round-up amounts
-    // Start from the next multiple of `step` above (or at) the exact total,
-    // then increment by `step` for each additional card.
-    let baseVal = Math.ceil(exact / step) * step;
+    // Generate a progression of round-down amounts (always below exact total)
+    // Start from the next multiple of `step` below the exact total,
+    // then decrement by `step` for each additional card.
+    let baseVal = Math.floor((exact - 0.01) / step) * step;
     let guard = 0;
-    while (options.length < 6 && guard < 10) {
+    while (options.length < 5 && guard < 20) {
       guard++;
-      // If the base value is already below exact (e.g., floor rounded), adjust it up
-      if (baseVal <= exact && options.length > 1) {
-        baseVal = Math.ceil((exact + 0.01) / step) * step;
-      }
-      if (!options.some(o => o.value === baseVal)) {
+      // Only values below exact, no duplicates
+      if (baseVal > 0 && baseVal < exact && !options.some(o => o.value === baseVal)) {
         options.push({
           value: baseVal,
           diff: Number((baseVal - exact).toFixed(2)),
           isExact: false,
-          label: baseVal === Math.ceil(exact) ? `Nearest ${sym}1` : (step >= 50 ? `Nearest ${sym}${step}` : `Round ${sym}${step}`),
+          label: step >= 50 ? `Round ${sym}${step}` : `Round ${sym}${step}`,
         });
       }
-      baseVal += step;
+      baseVal -= step;
     }
 
-    // Cap at 6 options for compact display
-    return options.slice(0, 6);
+    // Return only negative-diff options (max 5 per example)
+    return options.slice(0, 5);
   };
 
   // Regenerate round-off options whenever the current bill total changes
@@ -345,10 +374,10 @@ export default function SaleForm() {
     const total = calcCurrentBillTotal();
     const opts = generateRoundOffOptions(total);
     setRoundOffOptions(opts);
-    // Reset to Exact (index 0) whenever the bill total changes
-    setSelectedRoundOffIndex(0);
+    // Reset to no round-off selected whenever the bill total changes
+    setSelectedRoundOffIndex(-1);
     setRoundOffDiff(0);
-  }, [calcSubtotal(), calcTax(), calcDiscount()]);
+  }, [gstCalc.grandTotal]);
 
   // Calculate the rounded bill total (current bill + round-off adjustment, before previous due)
   const calcRoundedBillTotal = () => {
@@ -379,10 +408,10 @@ export default function SaleForm() {
         discountType: i.discountType || 'fixed',
         currentStock: 9999,
       })) || []);
-      setDiscount(selectedSale.discount || 0);
+      setDiscount(selectedSale.discount || '');
       setDiscountType(selectedSale.discountType || 'percentage');
-      setPaidAmount(selectedSale.paidAmount || 0);
-      setPaymentMethod(selectedSale.paymentMethod || 'cash');
+      setPaidAmount(selectedSale.paidAmount || '');
+      setPaymentMethod('card');
       // Preserve the existing round-off amount when editing
       const existingRoundOff = Number(selectedSale.roundOffAmount) || 0;
       setRoundOffDiff(existingRoundOff);
@@ -522,7 +551,7 @@ export default function SaleForm() {
         // Round-off adjustment (0 for exact, positive/negative otherwise)
         roundOffAmount: Number(roundOffDiff) || 0,
         // Customer GST details for inter-state/intra-state determination
-        customerStateCode: customerRef?.stateCode || '',
+        customerStateCode: customerStateCode || '',
         customerState: customerRef?.state || '',
         customerGstin: customerRef?.gstin || '',
         customerType: customerRef?.customerType || 'retail',
@@ -923,27 +952,51 @@ export default function SaleForm() {
 
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
-              <div className="summary-row">
-                <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={calcSubtotal()} /></span>
-              </div>
-              <div className="summary-row">
-                <span className="summary-label">Tax (GST):</span><span className="summary-value"><CurrencyDisplay value={calcTax()} /></span>
-              </div>
-              <div className="summary-row" style={{ alignItems: 'center' }}>
-                <span className="summary-label">Discount:</span>
-                <div className="inline-discount">
-                  <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
-                  <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
-                    <option value="fixed">{getCurrentSymbol()}</option>
-                    <option value="percentage">%</option>
-                  </select>
+              <div className="invoice-amount-compact">
+                <div className="summary-row">
+                  <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={calcSubtotal()} cardMode={false} forceDecimals /></span>
                 </div>
-              </div>
+                <div className="summary-row">
+                  <span className="summary-label">Discount:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div className="inline-discount">
+                      <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
+                      <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
+                        <option value="fixed">{getCurrentSymbol()}</option>
+                        <option value="percentage">%</option>
+                      </select>
+                    </div>
+                    <span className="summary-value" style={{ color: '#dc2626', fontWeight: 600, fontSize: '12px' }}>
+                      -<CurrencyDisplay value={Number(calcDiscount()) + Math.abs(Number(roundOffDiff) || 0)} cardMode={false} forceDecimals />
+                    </span>
+                  </div>
+                </div>
+                <div className="summary-row">
+                  <span className="summary-label">Taxable Amount:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.taxableAmount} cardMode={false} forceDecimals /></span>
+                </div>
+                {gstCalc.isIntraState ? (
+                  <>
+                    <div className="summary-row">
+                      <span className="summary-label">CGST ({gstCalc.totalGst > 0 ? (gstCalc.cgst > 0 ? (gstCalc.totalGst / (gstCalc.taxableAmount || 1) * 100 / 2).toFixed(1) : '0') : '0'}%):</span>
+                      <span className="summary-value"><CurrencyDisplay value={gstCalc.cgst} cardMode={false} forceDecimals /></span>
+                    </div>
+                    <div className="summary-row">
+                      <span className="summary-label">SGST ({gstCalc.totalGst > 0 ? (gstCalc.sgst > 0 ? (gstCalc.totalGst / (gstCalc.taxableAmount || 1) * 100 / 2).toFixed(1) : '0') : '0'}%):</span>
+                      <span className="summary-value"><CurrencyDisplay value={gstCalc.sgst} cardMode={false} forceDecimals /></span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="summary-row">
+                    <span className="summary-label">IGST ({gstCalc.totalGst > 0 ? (gstCalc.igst > 0 ? (gstCalc.totalGst / (gstCalc.taxableAmount || 1) * 100).toFixed(1) : '0') : '0'}%):</span>
+                    <span className="summary-value"><CurrencyDisplay value={gstCalc.igst} cardMode={false} forceDecimals /></span>
+                  </div>
+                )}
 
-              {/* Current Bill Total */}
-              <div className="summary-row" style={{ fontWeight: 500 }}>
-                <span className="summary-label">Current Bill:</span>
-                <span className="summary-value"><CurrencyDisplay value={currentBillTotal} /></span>
+                {/* Current Bill Total - RED (before round off) */}
+                <div className="summary-row" style={{ fontWeight: 700, color: '#dc2626' }}>
+                  <span className="summary-label">Current Bill:</span>
+                  <span className="summary-value" style={{ color: '#dc2626' }}><CurrencyDisplay value={currentBillTotal} cardMode={false} forceDecimals /></span>
+                </div>
               </div>
 
               {/* Round Off Options - Selectable Cards */}
@@ -952,15 +1005,23 @@ export default function SaleForm() {
                   <div className="round-off-header">
                     <span><i className="fa-solid fa-circle-dollar"></i> Round Off</span>
                     {roundOffDiff !== 0 && (
-                      <span className={`round-off-badge ${roundOffDiff > 0 ? 'up' : 'down'}`}>
-                        {roundOffDiff > 0 ? '+' : ''}{roundOffDiff.toFixed(2)}
+                      <span className="round-off-badge down">
+                        {roundOffDiff.toFixed(2)}
                       </span>
                     )}
                   </div>
-                  <div className="round-off-cards">
+                  <div className="round-off-cards" style={{
+                    display: 'flex',
+                    flexWrap: 'nowrap',
+                    gap: '4px',
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
+                  }}>
+                    <style>{`.round-off-cards::-webkit-scrollbar { display: none; }`}</style>
                     {roundOffOptions.map((opt, idx) => {
                       const isSelected = selectedRoundOffIndex === idx;
-                      const diffText = opt.isExact ? 'Exact' : `${opt.diff > 0 ? '+' : ''}${opt.diff.toFixed(2)}`;
                       return (
                         <button
                           key={idx}
@@ -970,10 +1031,26 @@ export default function SaleForm() {
                             setSelectedRoundOffIndex(idx);
                             setRoundOffDiff(opt.diff);
                           }}
+                          style={{
+                            flex: '0 0 auto',
+                            minWidth: '60px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '1px',
+                            padding: '5px 4px',
+                            border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--gray-200)'}`,
+                            borderRadius: '6px',
+                            background: isSelected ? '#eff6ff' : '#fff',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
                         >
-                          <span className="round-off-value"><CurrencyDisplay value={opt.value} /></span>
-                          <span className={`round-off-diff ${opt.diff > 0 ? 'up' : opt.diff < 0 ? 'down' : 'exact'}`}>
-                            {opt.isExact ? 'Exact' : `${opt.diff > 0 ? '+' : ''}${opt.diff.toFixed(2)}`}
+                          <span className="round-off-value" style={{ fontSize: '12px' }}>
+                            {getCurrentSymbol()} {Number.isInteger(opt.value) ? opt.value : opt.value.toFixed(2)}
+                          </span>
+                          <span className="round-off-diff down" style={{ fontSize: '9px' }}>
+                            {opt.diff.toFixed(2)}
                           </span>
                         </button>
                       );
@@ -993,7 +1070,7 @@ export default function SaleForm() {
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="grand-total-row" style={{ marginBottom: '10px' }}>
-                <span>Final Grand Total:</span><span><CurrencyDisplay value={gt} /></span>
+                <span>Final Grand Total:</span><span><CurrencyDisplay value={gt} cardMode={false} forceDecimals /></span>
               </div>
 
               {/* Previous Due - separate note */}
@@ -1005,19 +1082,54 @@ export default function SaleForm() {
 
               <div className="form-group">
                 <label>Payment Method</label>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="form-select" style={{ width: '100%' }}>
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="upi">UPI</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="credit">Credit</option>
-                </select>
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'nowrap',
+                  gap: '6px',
+                  overflowX: 'auto',
+                  paddingBottom: '4px',
+                  WebkitOverflowScrolling: 'touch',
+                  scrollbarWidth: 'thin',
+                }}>
+                  {PAYMENT_METHODS.map(method => {
+                    const isSelected = paymentMethod === method.value;
+                    return (
+                      <button
+                        key={method.value}
+                        type="button"
+                        onClick={() => setPaymentMethod(method.value)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '3px',
+                          flex: '1 0 auto',
+                          minWidth: '0',
+                          padding: '8px 6px',
+                          border: `1.5px solid ${isSelected ? '#0ea5e9' : '#e2e8f0'}`,
+                          borderRadius: '8px',
+                          background: isSelected ? 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' : '#f8fafc',
+                          color: isSelected ? '#0369a1' : '#64748b',
+                          cursor: 'pointer',
+                          fontSize: '10px',
+                          fontWeight: isSelected ? 700 : 500,
+                          transition: 'all 0.2s ease',
+                          boxShadow: isSelected ? '0 2px 8px rgba(14, 165, 233, 0.25)' : 'none',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <i className={method.icon} style={{ fontSize: '15px', color: isSelected ? method.iconColor : method.iconColor }}></i>
+                        <span>{method.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="form-group">
                 <label>Paid Amount</label>
-                <input type="number" value={paidAmount} onChange={(e) => {
+                <input type="number" value={paidAmount} placeholder="Enter paid amount" onChange={(e) => {
                   const val = Number(e.target.value);
                   const finalTotal = calcGrandTotal();
                   if (val > finalTotal) {

@@ -68,7 +68,7 @@ const saleSchema = mongoose.Schema({
   dueAmount: { type: Number, default: 0 },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'card', 'upi', 'bank_transfer', 'credit', 'other'],
+    enum: ['cash', 'card', 'upi', 'bank_transfer', 'mobile_banking', 'cheque', 'other'],
     default: 'cash',
   },
   paymentStatus: {

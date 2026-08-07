@@ -202,6 +202,7 @@ export default function Sales() {
                         <th>Customer</th>
                         <th>Date</th>
                         <th>Items</th>
+                        <th>GST</th>
                         <th>Total</th>
                         <th>Payment</th>
                         <th>Status</th>
@@ -215,8 +216,18 @@ export default function Sales() {
                           <td>{s.customerName}</td>
                           <td style={{ fontSize: '13px' }}>{new Date(s.saleDate).toLocaleDateString()}</td>
                           <td>{s.items?.length || 0}</td>
+                          <td>
+                            <span className={`badge ${s.isIntraState !== false ? 'badge-info' : 'badge-warning'}`} style={{ fontSize: '11px' }}>
+                              {s.isIntraState !== false ? 'CGST+SGST' : 'IGST'}
+                            </span>
+                          </td>
                           <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
-                          <td><span className={`badge ${s.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{s.paymentStatus}</span></td>
+                          <td>
+                            <span className={`badge ${s.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{s.paymentStatus}</span>
+                            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>
+                              {s.paymentMethod ? s.paymentMethod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Cash'}
+                            </div>
+                          </td>
                           <td>
                             <span className={`badge ${s.status === 'completed' ? 'badge-success' : s.status === 'returned' ? 'badge-info' : 'badge-danger'}`}>
                               {s.status}

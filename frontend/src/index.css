@@ -786,6 +786,31 @@ a {
   flex-wrap: wrap;
 }
 
+/* Invoice Amount Compact - reduced font & spacing for Invoice Summary */
+.invoice-amount-compact {
+  margin: 0;
+}
+
+.invoice-amount-compact .summary-row {
+  padding: 3px 0;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.invoice-amount-compact .summary-label {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.invoice-amount-compact .summary-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.invoice-amount-compact .grand-total-row {
+  font-size: 13px;
+}
+
 /* Add Customer Button - Professional & Responsive */
 .add-customer-btn {
   display: inline-flex;
