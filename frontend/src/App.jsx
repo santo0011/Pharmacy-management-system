@@ -27,6 +27,7 @@ import Invoice from './pages/sales/Invoice';
 import Customers from './pages/customers/Customers';
 import CustomerLedger from './pages/customers/CustomerLedger';
 import Reports from './pages/reports/Reports';
+import GstReport from './pages/reports/GstReport';
 import Subscriptions from './pages/subscriptions/Subscriptions';
 import SubscriptionExpired from './pages/subscriptions/SubscriptionExpired';
 import Payments from './pages/payments/Payments';
@@ -109,6 +110,7 @@ export default function App() {
         <Route path="customers" element={<Customers />} />
         <Route path="customers/:customerId/ledger" element={<CustomerLedger />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="reports/gst" element={<GstReport />} />
         <Route path="medicines" element={<Medicines />} />
         <Route path="medicines/new" element={<MedicineForm />} />
         <Route path="medicines/bulk-import" element={<BulkImport />} />

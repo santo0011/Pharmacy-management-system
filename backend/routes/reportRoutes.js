@@ -10,6 +10,7 @@ import {
   getHsnSummary,
   getGstRateSummary,
   getGstLiability,
+  getGstTransactions,
 } from '../controllers/gstReportController.js';
 import { protect } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
@@ -26,5 +27,6 @@ router.get('/gst/summary', protect, pharmacyScope, getGstSummary);
 router.get('/gst/hsn', protect, pharmacyScope, getHsnSummary);
 router.get('/gst/rates', protect, pharmacyScope, getGstRateSummary);
 router.get('/gst/liability', protect, pharmacyScope, getGstLiability);
+router.get('/gst/transactions', protect, pharmacyScope, getGstTransactions);
 
 export default router;

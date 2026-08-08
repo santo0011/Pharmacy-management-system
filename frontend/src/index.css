@@ -786,6 +786,51 @@ a {
   flex-wrap: wrap;
 }
 
+/* ===== GST Report Page ===== */
+.gst-report-page {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.gst-report-page .gst-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.gst-filter-card {
+  border: 1px solid var(--gray-200);
+  background: #f8fafc;
+}
+
+.gst-report-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--gray-50);
+  z-index: 5;
+  white-space: nowrap;
+}
+
+.gst-report-table tbody td {
+  white-space: nowrap;
+}
+
+.gst-report-table tfoot td {
+  background: var(--gray-50);
+  font-weight: 700;
+  border-top: 2px solid var(--gray-200);
+}
+
+.gst-summary-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gst-summary-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
 /* Invoice Amount Compact - reduced font & spacing for Invoice Summary */
 .invoice-amount-compact {
   margin: 0;

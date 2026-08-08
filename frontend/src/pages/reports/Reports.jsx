@@ -530,6 +530,11 @@ export default function Reports() {
           <h2><i className="fa-solid fa-chart-bar"></i> Reports</h2>
           <p>View and analyze your business performance</p>
         </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-primary" onClick={() => window.location.href = '/reports/gst'} style={{ fontSize: '13px' }}>
+            <i className="fa-solid fa-file-invoice"></i> GST Report
+          </button>
+        </div>
       </div>
 
       <div className="card">

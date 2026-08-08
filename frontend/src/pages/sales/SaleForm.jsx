@@ -855,7 +855,7 @@ export default function SaleForm() {
                         <th>Medicine</th>
                         <th style={{ width: '60px' }}>Qty</th>
                         <th style={{ width: '90px' }}>Price</th>
-                        <th style={{ width: '60px' }}>Disc</th>
+                        {/* <th style={{ width: '60px' }}>Disc</th> */}
                         <th style={{ width: '90px' }}>Total</th>
                         <th style={{ width: '30px' }}></th>
                         <th style={{ width: '40px' }}></th>
@@ -887,9 +887,9 @@ export default function SaleForm() {
                               className="price-input-sm"
                               onWheel={(e) => e.target.blur()} />
                           </td>
-                          <td className="gst-label">
+                          {/* <td className="gst-label">
                             {item.gst > 0 && <div>GST: {item.gst}%</div>}
-                          </td>
+                          </td> */}
                           <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={calcItemTotal(item)} /></td>
                           <td>
                             <button className="btn btn-sm btn-outline-info" 
