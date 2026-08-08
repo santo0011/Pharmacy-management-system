@@ -19,28 +19,6 @@ export default function MainLayout() {
   const location = useLocation();
   const { subscriptionStatus } = useSelector((state) => state.dashboard);
 
-  // Smart auto-open: determine which section should be open based on current route
-  const getInitialSection = (pathname) => {
-    if (pathname === '/') return null; // Dashboard — all collapsed
-    const inventoryPaths = ['/medicines', '/categories', '/brands', '/suppliers'];
-    const salesPaths = ['/purchases', '/sales', '/customers'];
-    const managementPaths = ['/subscriptions', '/reports', '/staff', '/settings'];
-    if (inventoryPaths.some(p => pathname.startsWith(p))) return 'inventory';
-    if (salesPaths.some(p => pathname.startsWith(p))) return 'sales';
-    if (managementPaths.some(p => pathname.startsWith(p))) return 'management';
-    return null;
-  };
-
-  const [openSection, setOpenSection] = useState(() => getInitialSection(location.pathname));
-
-  // Update open section when route changes
-  useEffect(() => {
-    const section = getInitialSection(location.pathname);
-    if (section !== undefined) {
-      setOpenSection(section);
-    }
-  }, [location.pathname]);
-
   // Track when subscription status has been loaded at least once
   useEffect(() => {
     if (subscriptionStatus !== null) {
@@ -97,10 +75,6 @@ export default function MainLayout() {
     return () => clearInterval(interval);
   }, []);
 
-  const toggleSection = (section) => {
-    setOpenSection(prev => prev === section ? null : section);
-  };
-
   const getPageTitle = () => {
     const path = location.pathname;
     const titles = {
@@ -109,12 +83,20 @@ export default function MainLayout() {
       '/brands': 'Brands',
       '/suppliers': 'Suppliers',
       '/medicines': 'Medicines',
+      '/medicines/new': 'New Medicine',
+      '/purchases': 'Purchases',
+      '/purchases/new': 'New Purchase',
       '/purchases': 'Purchases',
       '/sales': 'Sales',
+      '/sales/new': 'New Sale',
       '/customers': 'Customers',
       '/reports': 'Reports',
+      '/reports/gst': 'GST Report',
       '/staff': 'Staff',
       '/settings': 'Settings',
+      '/profile': 'Profile',
+      '/subscriptions': 'Subscription',
+      '/notifications': 'Notifications',
     };
     return titles[path] || path.charAt(1).toUpperCase() + path.slice(2);
   };
@@ -128,8 +110,7 @@ export default function MainLayout() {
     || subscriptionStatus?.status === 'no_subscription';
     
   const isExpiringSoon = subscriptionStatus?.status === 'expiring_soon';
-  const isSubRoute = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
-  
+
   // Only Dashboard and Subscription pages are allowed when expired
   const isAllowedRoute = location.pathname === '/' || location.pathname === '/subscriptions' || location.pathname === '/subscription-expired';
   
@@ -172,8 +153,13 @@ export default function MainLayout() {
     );
   }
 
-  // Filter nav items based on user role
-  const getFilteredNavItems = () => {
+  // ============================================================
+  // Flat sidebar navigation (no dropdowns / collapsible sections)
+  // ============================================================
+
+  // Build nav sections filtered by role. Each item can include a query string
+  // (e.g. '/sales?status=returned') to target a specific view on the page.
+  const getNavSections = () => {
     const inventoryItems = [
       { path: '/medicines', label: 'Medicines', icon: 'fa-solid fa-pills' },
       { path: '/categories', label: 'Categories', icon: 'fa-solid fa-tags' },
@@ -182,47 +168,119 @@ export default function MainLayout() {
     ];
 
     const salesItems = [
-      { path: '/purchases', label: 'Purchases', icon: 'fa-solid fa-cart-plus' },
+      { path: '/sales/new', label: 'New Sale', icon: 'fa-solid fa-square-plus' },
       { path: '/sales', label: 'Sales', icon: 'fa-solid fa-cash-register' },
+      { path: '/sales?status=returned', label: 'Returns', icon: 'fa-solid fa-rotate-left' },
+    ];
+
+    const purchaseItems = [
+      { path: '/purchases/new', label: 'New Purchase', icon: 'fa-solid fa-square-plus' },
+      { path: '/purchases', label: 'Purchases', icon: 'fa-solid fa-cart-plus' },
+      { path: '/purchases?status=returned', label: 'Purchase Returns', icon: 'fa-solid fa-rotate-left' },
+    ];
+
+    const customerItems = [
       { path: '/customers', label: 'Customers', icon: 'fa-solid fa-users' },
     ];
 
-    const managementItems = [
-      { path: '/subscriptions', label: 'Subscription', icon: 'fa-solid fa-credit-card' },
-      { path: '/reports', label: 'Reports', icon: 'fa-solid fa-chart-bar' },
-      { path: '/staff', label: 'Staff', icon: 'fa-solid fa-user-md' },
+    const reportItems = [
+      { path: '/reports', label: 'Report', icon: 'fa-solid fa-chart-bar' },
+      { path: '/reports/gst', label: 'GST Report', icon: 'fa-solid fa-percent' },
+    ];
+
+    const settingsItems = [
       { path: '/settings', label: 'Settings', icon: 'fa-solid fa-gear' },
     ];
 
+    const dashboardSection = {
+      key: 'dashboard',
+      label: null,
+      items: [{ path: '/', label: 'Dashboard', icon: 'fa-solid fa-chart-pie' }],
+    };
+
     if (user?.role === 'admin') {
-      return { inventory: inventoryItems, sales: salesItems, management: managementItems };
+      return [
+        dashboardSection,
+        { key: 'inventory', label: 'Inventory', items: inventoryItems },
+        { key: 'sales', label: 'Sales', items: salesItems },
+        { key: 'purchases', label: 'Purchases', items: purchaseItems },
+        { key: 'customers', label: 'Customers', items: customerItems },
+        { key: 'reports', label: 'Reports', items: reportItems },
+        { key: 'settings', label: 'Settings', items: settingsItems },
+      ];
     }
     if (user?.role === 'pharmacist') {
-      return {
-        inventory: inventoryItems,
-        sales: salesItems.filter((item) => ['/sales', '/customers'].includes(item.path)),
-        management: [],
-      };
+      return [
+        dashboardSection,
+        { key: 'inventory', label: 'Inventory', items: inventoryItems },
+        { key: 'sales', label: 'Sales', items: salesItems },
+        { key: 'customers', label: 'Customers', items: customerItems },
+      ];
     }
     if (user?.role === 'cashier') {
-      return {
-        inventory: [],
-        sales: salesItems.filter((item) => ['/sales', '/customers'].includes(item.path)),
-        management: [],
-      };
+      return [
+        dashboardSection,
+        { key: 'sales', label: 'Sales', items: salesItems },
+        { key: 'customers', label: 'Customers', items: customerItems },
+      ];
     }
-    return { inventory: [], sales: [], management: [] };
+    return [dashboardSection];
   };
 
-  const filteredItems = getFilteredNavItems();
-
-  // When expired, show only allowed sidebar items
-  const getExpiredNavItems = () => {
-    return [
-      { path: '/', label: 'Dashboard', icon: 'fa-solid fa-chart-pie' },
-      { path: '/subscriptions', label: 'Subscription', icon: 'fa-solid fa-credit-card' },
-    ];
+  // Determine which item in a section is currently active.
+  // - Query-string items (e.g. '/sales?status=returned') only match when the
+  //   pathname AND query params match — they take priority over plain paths.
+  // - Plain paths match themselves or their sub-routes; longer (more specific)
+  //   paths take priority so e.g. '/sales/new' highlights "New Sale", not "Sales".
+  const getActiveItemPath = (items) => {
+    let best = null;
+    let bestScore = -1;
+    for (const item of items) {
+      const path = item.path;
+      if (path.includes('?')) {
+        const [pathname, query] = path.split('?');
+        if (location.pathname !== pathname) continue;
+        const params = new URLSearchParams(query);
+        const currentParams = new URLSearchParams(location.search);
+        if (![...params].every(([k, v]) => currentParams.get(k) === v)) continue;
+        const score = 1000;
+        if (score > bestScore) { best = path; bestScore = score; }
+      } else {
+        if (path === '/') {
+          if (location.pathname === '/') {
+            const score = 1;
+            if (score > bestScore) { best = path; bestScore = score; }
+          }
+        } else if (location.pathname === path || location.pathname.startsWith(path + '/')) {
+          const score = 100 + path.length;
+          if (score > bestScore) { best = path; bestScore = score; }
+        }
+      }
+    }
+    return best;
   };
+
+  const renderSection = (section) => {
+    const activeItemPath = getActiveItemPath(section.items);
+    return (
+      <div className="sidebar-section" key={section.key}>
+        {section.label && <div className="sidebar-section-label">{section.label}</div>}
+        {section.items.map((item) => (
+          <NavLink
+            key={`${item.path}-${item.label}`}
+            to={item.path}
+            className={`sidebar-link ${activeItemPath === item.path ? 'sidebar-link-active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <i className={item.icon}></i>
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+      </div>
+    );
+  };
+
+  const navSections = getNavSections();
 
   // Show subscription expiry/expired banner
   const renderSubscriptionBanner = () => {
@@ -263,37 +321,10 @@ export default function MainLayout() {
     return null;
   };
 
-  const renderNavGroup = (key, label, items, icon) => {
-    if (items.length === 0) return null;
-    const isOpen = openSection === key;
-    return (
-      <div className="sidebar-group">
-        <div
-          className={`sidebar-group-header ${isOpen ? 'sidebar-group-header-open' : ''}`}
-          onClick={() => toggleSection(key)}
-        >
-          <div className="sidebar-group-header-left">
-            <i className={icon}></i>
-            <span>{label}</span>
-          </div>
-          <i className={`fa-solid fa-chevron-${isOpen ? 'down' : 'right'} sidebar-group-chevron`}></i>
-        </div>
-        <div className={`sidebar-group-items ${isOpen ? 'sidebar-group-items-open' : ''}`}>
-          {items.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end
-              className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <i className={item.icon}></i>
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </div>
-      </div>
-    );
+  const handleLogout = async (e) => {
+    e.preventDefault();
+    const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout');
+    if (confirmed) logout();
   };
 
   // If expired and not on allowed routes, block content
@@ -302,8 +333,10 @@ export default function MainLayout() {
       <div className="app-layout">
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <i className="fa-solid fa-prescription-bottle-medical"></i>
-          <div>
+          <div className="sidebar-header-logo">
+            <i className="fa-solid fa-prescription-bottle-medical"></i>
+          </div>
+          <div className="sidebar-header-text">
             <h3>Pharmacy</h3>
             <span>Management System</span>
           </div>
@@ -320,7 +353,7 @@ export default function MainLayout() {
               <i className="fa-solid fa-credit-card"></i><span>Subscription</span>
             </NavLink>
             <div className="nav-label" style={{ marginTop: 'auto' }}>Account</div>
-            <a className="sidebar-logout" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }} style={{ cursor: 'pointer' }}>
+            <a className="sidebar-logout" onClick={handleLogout} style={{ cursor: 'pointer' }}>
               <i className="fa-solid fa-right-from-bracket"></i><span>Logout</span>
             </a>
           </nav>
@@ -365,36 +398,13 @@ export default function MainLayout() {
           </button>
         </div>
         <nav className="sidebar-nav">
-          {/* Dashboard Link */}
-          <NavLink to="/" end className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')} onClick={() => setSidebarOpen(false)}>
-            <i className="fa-solid fa-chart-pie"></i>
-            <span>Dashboard</span>
-          </NavLink>
+          {navSections.map((section) => renderSection(section))}
 
           <div className="sidebar-divider"></div>
 
-          {/* Inventory Group */}
-          {renderNavGroup('inventory', 'Inventory', filteredItems.inventory, 'fa-solid fa-warehouse')}
-
-          {/* Sales Group */}
-          {renderNavGroup('sales', 'Sales & Customers', filteredItems.sales, 'fa-solid fa-cash-register')}
-
-          {/* Management Group */}
-          {renderNavGroup('management', 'Management', filteredItems.management, 'fa-solid fa-building')}
-
-          <div className="sidebar-divider"></div>
-
-          {/* Account & Logout */}
-          <div className="sidebar-account-section">
-            <div className="sidebar-account-header">
-              <i className="fa-solid fa-user"></i>
-              <span>Account</span>
-            </div>
-            <NavLink to="/profile" className={({ isActive }) => (isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link')} onClick={() => setSidebarOpen(false)}>
-              <i className="fa-solid fa-id-card"></i>
-              <span>Pharmacy Profile</span>
-            </NavLink>
-            <a className="sidebar-logout-link" onClick={async (e) => { e.preventDefault(); const confirmed = await confirmAction('Logout', 'Are you sure you want to logout?', 'Logout'); if (confirmed) logout(); }}>
+          {/* Logout pinned to bottom */}
+          <div className="sidebar-footer">
+            <a className="sidebar-logout-link" onClick={handleLogout}>
               <i className="fa-solid fa-right-from-bracket"></i>
               <span>Logout</span>
             </a>

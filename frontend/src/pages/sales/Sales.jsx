@@ -2,17 +2,22 @@ import { useState, useEffect, useCallback } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchSales, fetchSaleStats } from '../../redux/slices/saleSlice';
 
 export default function Sales() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { items, total, loading, stats } = useSelector((state) => state.sales);
 
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [filters, setFilters] = useState({ status: '', startDate: '', endDate: '' });
+  const [filters, setFilters] = useState({
+    status: searchParams.get('status') || '',
+    startDate: '',
+    endDate: '',
+  });
   const [expandedRows, setExpandedRows] = useState({});
 
   const toggleRow = (rowIdx) => {
@@ -36,6 +41,14 @@ export default function Sales() {
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setCurrentPage(1); }, [search, filters]);
   useEffect(() => { dispatch(fetchSaleStats()); }, [dispatch]);
+
+  // Sync status filter from URL query param (e.g. sidebar "Returns" link)
+  useEffect(() => {
+    const status = searchParams.get('status') || '';
+    setFilters(prev => (prev.status === status ? prev : { ...prev, status }));
+    setSearch('');
+    setCurrentPage(1);
+  }, [searchParams]);
 
   const totalPages = Math.ceil(total / 10);
 

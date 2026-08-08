@@ -2,18 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchPurchases, deletePurchase, fetchPurchaseStats } from '../../redux/slices/purchaseSlice';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 export default function Purchases() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { items, total, loading, stats } = useSelector((state) => state.purchases);
 
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [filters, setFilters] = useState({ status: '', paymentStatus: '', startDate: '', endDate: '' });
+  const [filters, setFilters] = useState({ status: searchParams.get('status') || '', paymentStatus: '', startDate: '', endDate: '' });
   const [expandedRows, setExpandedRows] = useState({});
 
   const toggleRow = (rowIdx) => {
@@ -32,6 +33,14 @@ export default function Purchases() {
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setCurrentPage(1); }, [search, filters]);
   useEffect(() => { dispatch(fetchPurchaseStats()); }, [dispatch]);
+
+  // Sync status filter from URL query param (e.g. sidebar "Purchase Returns" link)
+  useEffect(() => {
+    const status = searchParams.get('status') || '';
+    setFilters(prev => (prev.status === status ? prev : { ...prev, status }));
+    setSearch('');
+    setCurrentPage(1);
+  }, [searchParams]);
 
   const handleDelete = async (id) => {
     const confirmed = await confirmDelete('this purchase');

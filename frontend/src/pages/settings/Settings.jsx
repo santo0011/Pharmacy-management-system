@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { showSuccess, showError } from '../../utils/sweetAlert';
 import { settingService } from '../../services/settingService';
 import { invoiceSettingService } from '../../services/invoiceSettingService';
@@ -81,28 +82,49 @@ const DATE_FORMAT_OPTIONS = [
   { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2024-12-31)' },
 ];
 
+// ============================================================
+// Module-level cache — persists across component mounts so the
+// Settings page does NOT re-fetch data or show a full-page
+// loader when navigating away and back (e.g. to Profile or
+// Subscription). This is the ROOT-CAUSE fix for the Settings
+// page reloading/flickering issue.
+// ============================================================
+let settingsCache = {
+  loaded: false,
+  formData: {},
+  metaData: {},
+  invoiceSettings: { invoiceTemplate: 'classic', printFormat: 'a4' },
+  gstSettings: { state: '', stateCode: '', defaultGstRate: 18 },
+  gstStateSearch: '',
+};
+
 export default function Settings() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
+  const [searchParams] = useSearchParams();
 
-  const [formData, setFormData] = useState({});
-  const [metaData, setMetaData] = useState({});
-  const [invoiceSettings, setInvoiceSettings] = useState({
-    invoiceTemplate: 'classic',
-    printFormat: 'a4',
-  });
+  // Initialize state from cache so data survives component remounts
+  const [formData, setFormData] = useState(settingsCache.formData);
+  const [metaData, setMetaData] = useState(settingsCache.metaData);
+  const [invoiceSettings, setInvoiceSettings] = useState(settingsCache.invoiceSettings);
+  const [gstSettings, setGstSettings] = useState(settingsCache.gstSettings);
+  const [gstStateSearch, setGstStateSearch] = useState(settingsCache.gstStateSearch);
   const [saving, setSaving] = useState(false);
   const [invoiceSaving, setInvoiceSaving] = useState(false);
   const [gstSaving, setGstSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('general');
-  const [gstSettings, setGstSettings] = useState({ state: '', stateCode: '', defaultGstRate: 18 });
-  const [gstStateSearch, setGstStateSearch] = useState('');
+  const [loading, setLoading] = useState(!settingsCache.loaded);
+  const [activeTab, setActiveTab] = useState(searchParams.get('section') || 'general');
   const [gstStateDropdownOpen, setGstStateDropdownOpen] = useState(false);
   const gstStateSearchRef = useRef(null);
   const GST_RATE_OPTIONS = [0, 5, 12, 18, 28];
 
+  // Fetch data ONLY on first mount (when cache is empty).
+  // Subsequent mounts reuse the cached data — no re-fetch, no loader.
   useEffect(() => {
+    if (settingsCache.loaded) return;
+
+    let cancelled = false;
+
     const fetchData = async () => {
       try {
         // Try to initialize defaults first (only Super Admin can do this)
@@ -115,16 +137,21 @@ export default function Settings() {
         }
 
         const { data } = await settingService.getSettings();
-        if (data.data) {
+        if (data.data && !cancelled) {
           const values = data.data.values || {};
           const metadata = data.data.metadata || {};
+          settingsCache.formData = values;
+          settingsCache.metaData = metadata;
           setFormData(values);
           setMetaData(metadata);
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          settingsCache.loaded = true;
+          setLoading(false);
+        }
       }
     };
 
@@ -132,11 +159,13 @@ export default function Settings() {
       if (isSuperAdmin) return;
       try {
         const { data } = await invoiceSettingService.getMySettings();
-        if (data.data) {
-          setInvoiceSettings({
+        if (data.data && !cancelled) {
+          const inv = {
             invoiceTemplate: data.data.invoiceTemplate || 'classic',
             printFormat: data.data.printFormat || 'a4',
-          });
+          };
+          settingsCache.invoiceSettings = inv;
+          setInvoiceSettings(inv);
         }
       } catch (error) {
         // Use defaults
@@ -147,13 +176,16 @@ export default function Settings() {
       if (isSuperAdmin) return;
       try {
         const { data } = await pharmacyService.getMyPharmacyProfile();
-        if (data.data) {
+        if (data.data && !cancelled) {
           const state = data.data.state || '';
-          setGstSettings({
+          const gst = {
             state,
             stateCode: data.data.stateCode || getStateCodeByName(state),
             defaultGstRate: data.data.defaultGstRate || 18,
-          });
+          };
+          settingsCache.gstSettings = gst;
+          settingsCache.gstStateSearch = state;
+          setGstSettings(gst);
           setGstStateSearch(state);
         }
       } catch (error) {
@@ -164,10 +196,18 @@ export default function Settings() {
     fetchData();
     fetchInvoiceSettings();
     fetchGstSettings();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isSuperAdmin]);
 
   const handleChange = (key, value) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [key]: value };
+      settingsCache.formData = next;
+      return next;
+    });
   };
 
   const handleSave = async (e) => {
@@ -178,9 +218,13 @@ export default function Settings() {
       if (data.data) {
         const newValues = data.data.values || {};
         const newMetadata = data.data.metadata || {};
-        setFormData(prev => ({ ...prev, ...newValues }));
+        const nextForm = { ...formData, ...newValues };
+        const nextMeta = { ...metaData, ...newMetadata };
+        settingsCache.formData = nextForm;
+        settingsCache.metaData = nextMeta;
+        setFormData(nextForm);
         if (Object.keys(newMetadata).length > 0) {
-          setMetaData(prev => ({ ...prev, ...newMetadata }));
+          setMetaData(nextMeta);
         }
       }
       showSuccess('Settings saved successfully');
@@ -197,10 +241,12 @@ export default function Settings() {
     try {
       const { data } = await invoiceSettingService.updateMySettings(invoiceSettings);
       if (data.data) {
-        setInvoiceSettings({
+        const inv = {
           invoiceTemplate: data.data.invoiceTemplate || 'classic',
           printFormat: data.data.printFormat || 'a4',
-        });
+        };
+        settingsCache.invoiceSettings = inv;
+        setInvoiceSettings(inv);
       }
       showSuccess('Invoice settings saved successfully');
     } catch (error) {
@@ -220,11 +266,15 @@ export default function Settings() {
         defaultGstRate: gstSettings.defaultGstRate,
       });
       if (data.data) {
-        setGstSettings({
+        const gst = {
           state: data.data.state || gstSettings.state,
           stateCode: data.data.stateCode || gstSettings.stateCode,
           defaultGstRate: data.data.defaultGstRate || gstSettings.defaultGstRate,
-        });
+        };
+        settingsCache.gstSettings = gst;
+        settingsCache.gstStateSearch = gst.state;
+        setGstSettings(gst);
+        setGstStateSearch(gst.state);
       }
       showSuccess('GST settings saved successfully');
     } catch (error) {
@@ -247,6 +297,14 @@ export default function Settings() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [gstStateDropdownOpen]);
 
+  // Sync active tab from URL query param (e.g. sidebar "GST Settings" / "Invoice Settings" links)
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (section && section !== activeTab) {
+      setActiveTab(section);
+    }
+  }, [searchParams]);
+
   const filteredGstStates = INDIAN_STATES.filter(s =>
     s.name.toLowerCase().includes(gstStateSearch.toLowerCase())
   );
@@ -257,6 +315,8 @@ export default function Settings() {
     return { meta, value };
   };
 
+  // Only show the full-page loader on the very first load.
+  // After data is cached, navigating back to Settings is instant.
   if (loading) {
     return (
       <div className="loading-spinner">
@@ -396,8 +456,32 @@ export default function Settings() {
         <div className="page-header">
           <div>
             <h2><i className="fa-solid fa-sliders" style={{ marginRight: '10px', color: 'var(--primary)' }}></i>Settings</h2>
-            <p>Manage your pharmacy invoice preferences</p>
+            <p>Manage your pharmacy preferences</p>
           </div>
+        </div>
+
+        {/* Settings Navigation */}
+        <div className="settings-nav-grid">
+          <Link to="/settings" className={`settings-nav-card ${!searchParams.get('section') ? 'settings-nav-card-active' : ''}`}>
+            <i className="fa-solid fa-store"></i>
+            <span>Shop Settings</span>
+          </Link>
+          <Link to="/settings?section=gst" className={`settings-nav-card ${searchParams.get('section') === 'gst' ? 'settings-nav-card-active' : ''}`}>
+            <i className="fa-solid fa-percent"></i>
+            <span>GST Settings</span>
+          </Link>
+          <Link to="/settings?section=invoice" className={`settings-nav-card ${searchParams.get('section') === 'invoice' ? 'settings-nav-card-active' : ''}`}>
+            <i className="fa-solid fa-file-invoice"></i>
+            <span>Invoice Settings</span>
+          </Link>
+          <Link to="/profile" className="settings-nav-card">
+            <i className="fa-solid fa-user"></i>
+            <span>Profile</span>
+          </Link>
+          <Link to="/subscriptions" className="settings-nav-card">
+            <i className="fa-solid fa-credit-card"></i>
+            <span>Subscription</span>
+          </Link>
         </div>
 
         {/* GST Configuration */}

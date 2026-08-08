@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { getCurrentSymbol } from '../../utils/currency';
@@ -6,7 +7,8 @@ import { reportService } from '../../services/reportService';
 import { showError } from '../../utils/sweetAlert';
 
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState('sales');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'sales');
   const [loading, setLoading] = useState(false);
   const [salesData, setSalesData] = useState(null);
   const [purchaseData, setPurchaseData] = useState(null);
@@ -18,6 +20,14 @@ export default function Reports() {
     endDate: '',
   });
   const [expandedRows, setExpandedRows] = useState({});
+
+  // Sync active tab from URL query param (e.g. sidebar "Purchase Report" / "Stock Report" links)
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   const toggleRow = (tableKey, rowIdx) => {
     const key = `${tableKey}-${rowIdx}`;
@@ -529,11 +539,6 @@ export default function Reports() {
         <div>
           <h2><i className="fa-solid fa-chart-bar"></i> Reports</h2>
           <p>View and analyze your business performance</p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-primary" onClick={() => window.location.href = '/reports/gst'} style={{ fontSize: '13px' }}>
-            <i className="fa-solid fa-file-invoice"></i> GST Report
-          </button>
         </div>
       </div>
 
