@@ -3764,6 +3764,84 @@ input[type="number"]:focus {
   color: var(--primary);
 }
 
+/* GST Rate Controls - Dropdown + Custom Input */
+.gst-rate-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gst-rate-select-wrap {
+  flex: 1;
+  min-width: 160px;
+  max-width: 220px;
+}
+
+.gst-rate-select-wrap select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 2px solid var(--gray-200);
+  background: #fff;
+  color: var(--gray-700);
+  font-weight: 500;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.gst-rate-select-wrap select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.gst-rate-or {
+  color: var(--gray-400);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gst-rate-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 140px;
+  max-width: 180px;
+}
+
+.gst-rate-input-wrap input {
+  width: 100%;
+  padding: 10px 32px 10px 12px;
+  border-radius: 8px;
+  border: 2px solid var(--gray-200);
+  background: #fff;
+  color: var(--gray-700);
+  font-weight: 500;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.gst-rate-input-wrap input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.gst-percent-suffix {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  font-weight: 600;
+  font-size: 14px;
+  pointer-events: none;
+}
+
 /* State Dropdown */
 .settings-state-dropdown {
   position: absolute;

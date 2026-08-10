@@ -26,7 +26,7 @@ export default function SaleForm() {
   const [customerRef, setCustomerRef] = useState(null);
   const [customerStateCode, setCustomerStateCode] = useState('');
   const [pharmacyStateCode, setPharmacyStateCode] = useState('');
-  const [defaultGstRate, setDefaultGstRate] = useState(18);
+  const [defaultGstRate, setDefaultGstRate] = useState(0);
   const [customerDueInfo, setCustomerDueInfo] = useState(null);
   const [includePreviousDue, setIncludePreviousDue] = useState(false);
   const [selectedDueInvoices, setSelectedDueInvoices] = useState([]);
@@ -185,7 +185,7 @@ export default function SaleForm() {
           const stateCode = data.data.stateCode || getStateCode(stateName) || '';
           setPharmacyStateCode(stateCode);
           // Load the Default GST % from Settings (used when product GST is 0)
-          setDefaultGstRate(Number(data.data.defaultGstRate) || 18);
+          setDefaultGstRate(Number(data.data.defaultGstRate) || 0);
         }
       } catch (error) {
         // Silently fail — GST will default to intra-state (CGST+SGST)
@@ -294,7 +294,7 @@ export default function SaleForm() {
   const calcItemTotal = (item) => {
     const sub = calcItemSubtotal(item);
     const disc = calcItemDiscount(item);
-    const gstAmt = (sub - disc) * (Number(item.gst) / 100);
+    const gstAmt = (sub - disc) * (resolveGstRate(item.gst, defaultGstRate) / 100);
     return sub - disc + gstAmt;
   };
   const calcSubtotal = () => items.reduce((sum, i) => sum + calcItemSubtotal(i), 0);
@@ -888,7 +888,7 @@ export default function SaleForm() {
                               onWheel={(e) => e.target.blur()} />
                           </td>
                           <td className="gst-label">
-                            {item.gst > 0 ? <div>{item.gst}%</div> : <div>18%</div>}
+                            <div>{resolveGstRate(item.gst, defaultGstRate)}%</div>
                           </td>
                           {/* <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={calcItemTotal(item)} /></td> */}
                           <td>

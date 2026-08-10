@@ -159,6 +159,11 @@ function ShopSettings() {
    ============================================================ */
 function GstSettings() {
   const [gstSettings, setGstSettings] = useState(gstCache.data || { state: '', stateCode: '', defaultGstRate: 18 });
+  const [gstRateInput, setGstRateInput] = useState(
+    gstCache.data && !GST_RATE_OPTIONS.includes(gstCache.data.defaultGstRate)
+      ? String(gstCache.data.defaultGstRate)
+      : ''
+  );
   const [gstStateSearch, setGstStateSearch] = useState(gstCache.data?.state || '');
   const [gstStateDropdownOpen, setGstStateDropdownOpen] = useState(false);
   const gstStateSearchRef = useRef(null);
@@ -173,15 +178,21 @@ function GstSettings() {
         const { data } = await pharmacyService.getMyPharmacyProfile();
         if (data.data && !cancelled) {
           const state = data.data.state || '';
+          const rate = data.data.defaultGstRate !== undefined && data.data.defaultGstRate !== null
+            ? data.data.defaultGstRate
+            : 18;
           const gst = {
             state,
             stateCode: data.data.stateCode || getStateCodeByName(state),
-            defaultGstRate: data.data.defaultGstRate || 18,
+            defaultGstRate: rate,
           };
           gstCache.data = gst;
           gstCache.loaded = true;
           setGstSettings(gst);
           setGstStateSearch(state);
+          if (!GST_RATE_OPTIONS.includes(rate)) {
+            setGstRateInput(String(rate));
+          }
         }
       } catch (err) {
         // Use defaults
@@ -212,19 +223,31 @@ function GstSettings() {
     e.preventDefault();
     setSaving(true);
     try {
+      // Use the custom input value if it's filled, otherwise use the selected rate
+      const rateToSave = gstRateInput !== '' && gstRateInput !== null && gstRateInput !== undefined
+        ? Number(gstRateInput)
+        : gstSettings.defaultGstRate;
       const { data } = await pharmacyService.updateMyPharmacyProfile({
         state: gstSettings.state,
         stateCode: gstSettings.stateCode || getStateCodeByName(gstSettings.state),
-        defaultGstRate: gstSettings.defaultGstRate,
+        defaultGstRate: rateToSave,
       });
+      const savedRate = data.data?.defaultGstRate !== undefined && data.data?.defaultGstRate !== null
+        ? data.data.defaultGstRate
+        : rateToSave;
       const gst = {
         state: data.data?.state || gstSettings.state,
         stateCode: data.data?.stateCode || gstSettings.stateCode,
-        defaultGstRate: data.data?.defaultGstRate || gstSettings.defaultGstRate,
+        defaultGstRate: savedRate,
       };
       gstCache.data = gst;
       setGstSettings(gst);
       setGstStateSearch(gst.state);
+      if (!GST_RATE_OPTIONS.includes(savedRate)) {
+        setGstRateInput(String(savedRate));
+      } else {
+        setGstRateInput('');
+      }
       showSuccess('GST settings saved successfully');
     } catch (err) {
       showError(err.response?.data?.message || 'Failed to save GST settings');
@@ -306,18 +329,44 @@ function GstSettings() {
 
         <div className="form-group">
           <label>Default GST %</label>
-          <div className="gst-rate-options">
-            {GST_RATE_OPTIONS.map(rate => (
-              <button
-                key={rate}
-                type="button"
-                className={`gst-rate-btn ${gstSettings.defaultGstRate === rate ? 'active' : ''}`}
-                onClick={() => setGstSettings(prev => ({ ...prev, defaultGstRate: rate }))}
+          <div className="gst-rate-controls">
+            <div className="gst-rate-select-wrap">
+              <select
+                className="form-select"
+                value={GST_RATE_OPTIONS.includes(gstSettings.defaultGstRate) ? gstSettings.defaultGstRate : ''}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  setGstSettings(prev => ({ ...prev, defaultGstRate: val }));
+                  setGstRateInput('');
+                }}
               >
-                {rate}%
-              </button>
-            ))}
+                <option value="">Select rate...</option>
+                {GST_RATE_OPTIONS.map(rate => (
+                  <option key={rate} value={rate}>{rate}%</option>
+                ))}
+              </select>
+            </div>
+            <span className="gst-rate-or">or</span>
+            <div className="gst-rate-input-wrap">
+              <input
+                type="number"
+                min="0"
+                max="40"
+                step="0.01"
+                placeholder="Custom %"
+                value={gstRateInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setGstRateInput(val);
+                  if (val !== '') {
+                    setGstSettings(prev => ({ ...prev, defaultGstRate: Number(val) }));
+                  }
+                }}
+              />
+              <span className="gst-percent-suffix">%</span>
+            </div>
           </div>
+          <p className="settings-field-hint">Choose a common rate from the dropdown or enter a custom GST percentage.</p>
         </div>
 
         <div className="settings-save-bar">

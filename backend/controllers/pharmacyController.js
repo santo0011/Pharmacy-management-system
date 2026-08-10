@@ -338,7 +338,7 @@ export const updateMyPharmacyProfile = async (req, res, next) => {
       'pharmacyName', 'logo', 'ownerName', 'contactPerson', 'phone', 'email',
       'address', 'city', 'state', 'country', 'postalCode',
       'currency', 'currencySymbol', 'timezone', 'dateFormat', 'language', 'financialYearStart',
-      'licenseNumber', 'gstNumber', 'gstin', 'stateCode', 'registrationNumber', 'licenseExpiryDate', 'registrationCertificate',
+      'licenseNumber', 'gstNumber', 'gstin', 'stateCode', 'defaultGstRate', 'registrationNumber', 'licenseExpiryDate', 'registrationCertificate',
       'storeOpenTime', 'storeCloseTime', 'weeklyOffDay', 'emergencyContact',
       'invoiceHeaderName', 'invoiceFooterText', 'invoiceLogo', 'invoiceAddress', 'invoiceContactInfo',
     ];
