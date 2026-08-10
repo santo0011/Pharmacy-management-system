@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { showSuccess, showError } from '../../utils/sweetAlert';
 import { settingService } from '../../services/settingService';
@@ -7,173 +7,165 @@ import { INVOICE_TEMPLATES, PRINT_FORMATS } from '../../utils/invoiceTemplates';
 import { useAuth } from '../../hooks/useAuth';
 import { INDIAN_STATES, getStateCodeByName } from '../../utils/indianStates';
 import { pharmacyService } from '../../services/pharmacyService';
+import { dashboardService } from '../../services/dashboardService';
 
-/**
- * Settings groups configuration for Super Admin.
- * Only functional, meaningful settings are included:
- * - General: Platform name, support email
- * - Localization: Timezone, date format, currency
- * - Invoice: Prefix, GST toggle, GST rate
- */
-const SETTINGS_GROUPS = [
-  {
-    id: 'general',
-    label: 'General',
-    icon: 'fa-cog',
-    description: 'Platform branding and support contact information.',
-    settings: ['platformName', 'supportEmail'],
-  },
-  {
-    id: 'localization',
-    label: 'Localization',
-    icon: 'fa-globe',
-    description: 'Timezone, date format, and currency settings for the platform.',
-    settings: ['currency', 'timezone', 'dateFormat'],
-  },
-  {
-    id: 'invoice',
-    label: 'Invoice',
-    icon: 'fa-file-invoice',
-    description: 'Invoice prefix, GST calculation, and default tax rates.',
-    settings: ['invoicePrefix', 'enableGst', 'gstRate'],
-  },
+/* ============================================================
+   Module-level caches — each Settings section loads its data
+   ONCE and reuses it on subsequent mounts. This prevents the
+   full-page reload / data re-fetch issue entirely.
+   ============================================================ */
+const shopCache = { loaded: false, data: null };
+const gstCache = { loaded: false, data: null };
+const invoiceCache = { loaded: false, data: null };
+const subCache = { loaded: false, data: null };
+
+const GST_RATE_OPTIONS = [0, 5, 12, 18, 28];
+
+/* ============================================================
+   NAV ITEMS
+   ============================================================ */
+const NAV_ITEMS = [
+  { id: 'shop', label: 'Shop Settings', icon: 'fa-solid fa-store' },
+  { id: 'gst', label: 'GST Settings', icon: 'fa-solid fa-percent' },
+  { id: 'invoice', label: 'Invoice Settings', icon: 'fa-solid fa-file-invoice' },
 ];
 
-const CURRENCY_OPTIONS = [
-  { value: 'INR', label: 'INR (₹) - Indian Rupee', symbol: '₹' },
-  { value: 'USD', label: 'USD ($) - US Dollar', symbol: '$' },
-  { value: 'EUR', label: 'EUR (€) - Euro', symbol: '€' },
-  { value: 'GBP', label: 'GBP (£) - British Pound', symbol: '£' },
-  { value: 'AED', label: 'AED (د.إ) - UAE Dirham', symbol: 'د.إ' },
-  { value: 'SAR', label: 'SAR (﷼) - Saudi Riyal', symbol: '﷼' },
-  { value: 'PKR', label: 'PKR (₨) - Pakistani Rupee', symbol: '₨' },
-  { value: 'BDT', label: 'BDT (৳) - Bangladeshi Taka', symbol: '৳' },
-  { value: 'LKR', label: 'LKR (₨) - Sri Lankan Rupee', symbol: '₨' },
-  { value: 'NPR', label: 'NPR (₨) - Nepalese Rupee', symbol: '₨' },
-  { value: 'PHP', label: 'PHP (₱) - Philippine Peso', symbol: '₱' },
-  { value: 'MYR', label: 'MYR (RM) - Malaysian Ringgit', symbol: 'RM' },
-  { value: 'SGD', label: 'SGD (S$) - Singapore Dollar', symbol: 'S$' },
-  { value: 'AUD', label: 'AUD (A$) - Australian Dollar', symbol: 'A$' },
-  { value: 'CAD', label: 'CAD (C$) - Canadian Dollar', symbol: 'C$' },
-];
-
-const TIMEZONE_OPTIONS = [
-  { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST, UTC+5:30)' },
-  { value: 'Asia/Dubai', label: 'Asia/Dubai (GST, UTC+4:00)' },
-  { value: 'Asia/Riyadh', label: 'Asia/Riyadh (AST, UTC+3:00)' },
-  { value: 'Asia/Karachi', label: 'Asia/Karachi (PKT, UTC+5:00)' },
-  { value: 'Asia/Dhaka', label: 'Asia/Dhaka (BST, UTC+6:00)' },
-  { value: 'Asia/Colombo', label: 'Asia/Colombo (IST, UTC+5:30)' },
-  { value: 'Asia/Kathmandu', label: 'Asia/Kathmandu (NPT, UTC+5:45)' },
-  { value: 'Asia/Manila', label: 'Asia/Manila (PST, UTC+8:00)' },
-  { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (MYT, UTC+8:00)' },
-  { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT, UTC+8:00)' },
-  { value: 'Australia/Sydney', label: 'Australia/Sydney (AEST, UTC+10:00)' },
-  { value: 'America/New_York', label: 'America/New_York (EST, UTC-5:00)' },
-  { value: 'America/Toronto', label: 'America/Toronto (EST, UTC-5:00)' },
-  { value: 'Europe/London', label: 'Europe/London (GMT, UTC+0:00)' },
-  { value: 'Europe/Berlin', label: 'Europe/Berlin (CET, UTC+1:00)' },
-  { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
-];
-
-const DATE_FORMAT_OPTIONS = [
-  { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (31/12/2024)' },
-  { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (12/31/2024)' },
-  { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2024-12-31)' },
-];
-
-// ============================================================
-// Module-level cache — persists across component mounts so the
-// Settings page does NOT re-fetch data or show a full-page
-// loader when navigating away and back (e.g. to Profile or
-// Subscription). This is the ROOT-CAUSE fix for the Settings
-// page reloading/flickering issue.
-// ============================================================
-let settingsCache = {
-  loaded: false,
-  formData: {},
-  metaData: {},
-  invoiceSettings: { invoiceTemplate: 'classic', printFormat: 'a4' },
-  gstSettings: { state: '', stateCode: '', defaultGstRate: 18 },
-  gstStateSearch: '',
-};
-
-export default function Settings() {
-  const { user } = useAuth();
-  const isSuperAdmin = user?.role === 'super_admin';
-  const [searchParams] = useSearchParams();
-
-  // Initialize state from cache so data survives component remounts
-  const [formData, setFormData] = useState(settingsCache.formData);
-  const [metaData, setMetaData] = useState(settingsCache.metaData);
-  const [invoiceSettings, setInvoiceSettings] = useState(settingsCache.invoiceSettings);
-  const [gstSettings, setGstSettings] = useState(settingsCache.gstSettings);
-  const [gstStateSearch, setGstStateSearch] = useState(settingsCache.gstStateSearch);
+/* ============================================================
+   SHOP SETTINGS SECTION
+   ============================================================ */
+function ShopSettings() {
+  const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [invoiceSaving, setInvoiceSaving] = useState(false);
-  const [gstSaving, setGstSaving] = useState(false);
-  const [loading, setLoading] = useState(!settingsCache.loaded);
-  const [activeTab, setActiveTab] = useState(searchParams.get('section') || 'general');
+  const [loading, setLoading] = useState(!shopCache.loaded);
+
+  useEffect(() => {
+    if (shopCache.loaded && shopCache.data) {
+      setForm(shopCache.data);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { data } = await pharmacyService.getMyPharmacyProfile();
+        if (data.data && !cancelled) {
+          const p = data.data;
+          const shop = {
+            pharmacyName: p.pharmacyName || '',
+            phone: p.phone || '',
+            email: p.email || '',
+            address: p.address || '',
+            state: p.state || '',
+            gstin: p.gstin || p.gstNumber || '',
+          };
+          shopCache.data = shop;
+          shopCache.loaded = true;
+          setForm(shop);
+        }
+      } catch (err) {
+        // Ignore — empty form will be shown
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await pharmacyService.updateMyPharmacyProfile({
+        pharmacyName: form.pharmacyName,
+        phone: form.phone,
+        email: form.email,
+        address: form.address,
+        state: form.state,
+        gstin: form.gstin,
+        stateCode: getStateCodeByName(form.state) || '',
+      });
+      shopCache.data = { ...form };
+      showSuccess('Shop settings saved successfully');
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to save shop settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading shop settings...</div>;
+  }
+
+  return (
+    <div className="settings-section-content">
+      <div className="settings-section-header">
+        <h4><i className="fa-solid fa-store" style={{ color: 'var(--primary)' }}></i> Shop Settings</h4>
+        <p>Manage your pharmacy business information</p>
+      </div>
+      <form onSubmit={handleSave}>
+        <div className="settings-form-grid">
+          <div className="form-group">
+            <label>Shop Name</label>
+            <input type="text" name="pharmacyName" value={form?.pharmacyName || ''} onChange={handleChange} required />
+          </div>
+          <div className="form-group">
+            <label>Phone</label>
+            <input type="text" name="phone" value={form?.phone || ''} onChange={handleChange} required />
+          </div>
+          <div className="form-group">
+            <label>Email</label>
+            <input type="email" name="email" value={form?.email || ''} onChange={handleChange} required />
+          </div>
+          <div className="form-group">
+            <label>GSTIN</label>
+            <input type="text" name="gstin" value={form?.gstin || ''} onChange={handleChange} placeholder="e.g. 27ABCDE1234F1Z5" />
+          </div>
+          <div className="form-group settings-form-full">
+            <label>Address</label>
+            <textarea name="address" value={form?.address || ''} onChange={handleChange} rows="2" />
+          </div>
+          <div className="form-group">
+            <label>State</label>
+            <select name="state" value={form?.state || ''} onChange={handleChange}>
+              <option value="">Select state...</option>
+              {INDIAN_STATES.map(s => (
+                <option key={s.code} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="settings-save-bar">
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
+            {saving ? ' Saving...' : ' Save Settings'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ============================================================
+   GST SETTINGS SECTION
+   ============================================================ */
+function GstSettings() {
+  const [gstSettings, setGstSettings] = useState(gstCache.data || { state: '', stateCode: '', defaultGstRate: 18 });
+  const [gstStateSearch, setGstStateSearch] = useState(gstCache.data?.state || '');
   const [gstStateDropdownOpen, setGstStateDropdownOpen] = useState(false);
   const gstStateSearchRef = useRef(null);
-  const GST_RATE_OPTIONS = [0, 5, 12, 18, 28];
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(!gstCache.loaded);
 
-  // Fetch data ONLY on first mount (when cache is empty).
-  // Subsequent mounts reuse the cached data — no re-fetch, no loader.
   useEffect(() => {
-    if (settingsCache.loaded) return;
-
+    if (gstCache.loaded && gstCache.data) return;
     let cancelled = false;
-
-    const fetchData = async () => {
-      try {
-        // Try to initialize defaults first (only Super Admin can do this)
-        if (isSuperAdmin) {
-          try {
-            await settingService.initDefaults();
-          } catch (e) {
-            // Settings already initialized, ignore
-          }
-        }
-
-        const { data } = await settingService.getSettings();
-        if (data.data && !cancelled) {
-          const values = data.data.values || {};
-          const metadata = data.data.metadata || {};
-          settingsCache.formData = values;
-          settingsCache.metaData = metadata;
-          setFormData(values);
-          setMetaData(metadata);
-        }
-      } catch (error) {
-        console.error('Failed to load settings:', error);
-      } finally {
-        if (!cancelled) {
-          settingsCache.loaded = true;
-          setLoading(false);
-        }
-      }
-    };
-
-    const fetchInvoiceSettings = async () => {
-      if (isSuperAdmin) return;
-      try {
-        const { data } = await invoiceSettingService.getMySettings();
-        if (data.data && !cancelled) {
-          const inv = {
-            invoiceTemplate: data.data.invoiceTemplate || 'classic',
-            printFormat: data.data.printFormat || 'a4',
-          };
-          settingsCache.invoiceSettings = inv;
-          setInvoiceSettings(inv);
-        }
-      } catch (error) {
-        // Use defaults
-      }
-    };
-
-    const fetchGstSettings = async () => {
-      if (isSuperAdmin) return;
+    const load = async () => {
       try {
         const { data } = await pharmacyService.getMyPharmacyProfile();
         if (data.data && !cancelled) {
@@ -183,31 +175,515 @@ export default function Settings() {
             stateCode: data.data.stateCode || getStateCodeByName(state),
             defaultGstRate: data.data.defaultGstRate || 18,
           };
-          settingsCache.gstSettings = gst;
-          settingsCache.gstStateSearch = state;
+          gstCache.data = gst;
+          gstCache.loaded = true;
           setGstSettings(gst);
           setGstStateSearch(state);
         }
-      } catch (error) {
+      } catch (err) {
         // Use defaults
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
-    fetchData();
-    fetchInvoiceSettings();
-    fetchGstSettings();
-
-    return () => {
-      cancelled = true;
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (gstStateSearchRef.current && !gstStateSearchRef.current.contains(event.target)) {
+        setGstStateDropdownOpen(false);
+      }
     };
+    if (gstStateDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [gstStateDropdownOpen]);
+
+  const filteredGstStates = INDIAN_STATES.filter(s =>
+    s.name.toLowerCase().includes(gstStateSearch.toLowerCase())
+  );
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await pharmacyService.updateMyPharmacyProfile({
+        state: gstSettings.state,
+        stateCode: gstSettings.stateCode || getStateCodeByName(gstSettings.state),
+        defaultGstRate: gstSettings.defaultGstRate,
+      });
+      const gst = {
+        state: data.data?.state || gstSettings.state,
+        stateCode: data.data?.stateCode || gstSettings.stateCode,
+        defaultGstRate: data.data?.defaultGstRate || gstSettings.defaultGstRate,
+      };
+      gstCache.data = gst;
+      setGstSettings(gst);
+      setGstStateSearch(gst.state);
+      showSuccess('GST settings saved successfully');
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to save GST settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading GST settings...</div>;
+  }
+
+  return (
+    <div className="settings-section-content">
+      <div className="settings-section-header">
+        <h4><i className="fa-solid fa-percent" style={{ color: 'var(--primary)' }}></i> GST Settings</h4>
+        <p>Configure default GST rate and business state</p>
+      </div>
+
+      {/* GST Explanation Cards */}
+      <div className="gst-explainer-grid">
+        <div className="gst-explainer-card gst-intra-card">
+          <i className="fa-solid fa-location-dot"></i>
+          <div>
+            <strong>Same State → CGST + SGST</strong>
+            <p>When customer is in the same state, GST is split into Central GST (CGST) and State GST (SGST).</p>
+          </div>
+        </div>
+        <div className="gst-explainer-card gst-inter-card">
+          <i className="fa-solid fa-truck-fast"></i>
+          <div>
+            <strong>Different State → IGST</strong>
+            <p>When customer is in a different state, Integrated GST (IGST) is applied.</p>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSave}>
+        <div className="form-group">
+          <label>Default Business State <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <div style={{ position: 'relative' }} ref={gstStateSearchRef}>
+            <input
+              type="text"
+              className="form-select"
+              value={gstStateSearch}
+              onChange={(e) => {
+                setGstStateSearch(e.target.value);
+                setGstSettings(prev => ({ ...prev, state: '', stateCode: '' }));
+                setGstStateDropdownOpen(true);
+              }}
+              onFocus={() => setGstStateDropdownOpen(true)}
+              style={{ width: '100%' }}
+              placeholder="Search Indian state..."
+            />
+            {gstStateDropdownOpen && (
+              <div className="settings-state-dropdown">
+                {filteredGstStates.length > 0 ? (
+                  filteredGstStates.map(state => (
+                    <div
+                      key={state.code}
+                      className={`settings-state-option ${gstSettings.state === state.name ? 'active' : ''}`}
+                      onClick={() => {
+                        setGstSettings(prev => ({ ...prev, state: state.name, stateCode: state.code }));
+                        setGstStateSearch(state.name);
+                        setGstStateDropdownOpen(false);
+                      }}
+                    >
+                      <span>{state.name}</span>
+                      <span className="settings-state-code">Code: {state.code}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="settings-state-empty">No states found</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Default GST %</label>
+          <div className="gst-rate-options">
+            {GST_RATE_OPTIONS.map(rate => (
+              <button
+                key={rate}
+                type="button"
+                className={`gst-rate-btn ${gstSettings.defaultGstRate === rate ? 'active' : ''}`}
+                onClick={() => setGstSettings(prev => ({ ...prev, defaultGstRate: rate }))}
+              >
+                {rate}%
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-save-bar">
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
+            {saving ? ' Saving...' : ' Save'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ============================================================
+   INVOICE SETTINGS SECTION
+   ============================================================ */
+function InvoiceSettings() {
+  const [invoiceSettings, setInvoiceSettings] = useState(
+    invoiceCache.data || { invoiceTemplate: 'classic', printFormat: 'a4' }
+  );
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(!invoiceCache.loaded);
+
+  useEffect(() => {
+    if (invoiceCache.loaded && invoiceCache.data) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { data } = await invoiceSettingService.getMySettings();
+        if (data.data && !cancelled) {
+          const inv = {
+            invoiceTemplate: data.data.invoiceTemplate || 'classic',
+            printFormat: data.data.printFormat || 'a4',
+          };
+          invoiceCache.data = inv;
+          invoiceCache.loaded = true;
+          setInvoiceSettings(inv);
+        }
+      } catch (err) {
+        // Use defaults
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await invoiceSettingService.updateMySettings(invoiceSettings);
+      const inv = {
+        invoiceTemplate: data.data?.invoiceTemplate || invoiceSettings.invoiceTemplate,
+        printFormat: data.data?.printFormat || invoiceSettings.printFormat,
+      };
+      invoiceCache.data = inv;
+      setInvoiceSettings(inv);
+      showSuccess('Invoice settings saved successfully');
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to save invoice settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading invoice settings...</div>;
+  }
+
+  return (
+    <div className="settings-section-content">
+      <div className="settings-section-header">
+        <h4><i className="fa-solid fa-file-invoice" style={{ color: 'var(--primary)' }}></i> Invoice Settings</h4>
+        <p>Configure invoice template and paper size</p>
+      </div>
+
+      <form onSubmit={handleSave}>
+        <div className="form-group">
+          <label>Invoice Template / Theme</label>
+          <p className="settings-field-hint">Select the visual style used when printing invoices from the Sales page.</p>
+          <div className="invoice-template-grid">
+            {INVOICE_TEMPLATES.map((tpl) => (
+              <div
+                key={tpl.id}
+                className={`invoice-template-card ${invoiceSettings.invoiceTemplate === tpl.id ? 'active' : ''}`}
+                onClick={() => setInvoiceSettings({ ...invoiceSettings, invoiceTemplate: tpl.id })}
+              >
+                <div className="invoice-template-preview">{tpl.preview}</div>
+                <div className="invoice-template-name">{tpl.name}</div>
+                <div className="invoice-template-desc">{tpl.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Print Format / Paper Size</label>
+          <p className="settings-field-hint">Choose the paper format for printing invoices. Supports A4 printers and 58mm/80mm thermal printers.</p>
+          <div className="invoice-format-grid">
+            {PRINT_FORMATS.map((fmt) => (
+              <div
+                key={fmt.id}
+                className={`invoice-format-card ${invoiceSettings.printFormat === fmt.id ? 'active' : ''}`}
+                onClick={() => setInvoiceSettings({ ...invoiceSettings, printFormat: fmt.id })}
+              >
+                <div className="invoice-format-preview">{fmt.preview}</div>
+                <div className="invoice-format-name">{fmt.name}</div>
+                <div className="invoice-format-desc">{fmt.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-info-box">
+          <i className="fa-solid fa-info-circle"></i>
+          <span>
+            The selected template and format will be applied automatically when printing invoices
+            from the <strong>Sales</strong> page. Click <strong>Invoice</strong> on any sale to see the result.
+          </span>
+        </div>
+
+        <div className="settings-save-bar">
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
+            {saving ? ' Saving...' : ' Save'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ============================================================
+   PROFILE SECTION — link out to the Profile page
+   (Profile functionality already exists and is full featured)
+   ============================================================ */
+function ProfileSection() {
+  return (
+    <div className="settings-section-content">
+      <div className="settings-section-header">
+        <h4><i className="fa-solid fa-user" style={{ color: 'var(--primary)' }}></i> Profile</h4>
+        <p>Manage your pharmacy and account profile</p>
+      </div>
+      <div className="settings-link-card">
+        <div className="settings-link-icon"><i className="fa-solid fa-user-gear"></i></div>
+        <div className="settings-link-info">
+          <h5>Full Profile Management</h5>
+          <p>Edit pharmacy information, contact details, business hours, and account settings.</p>
+        </div>
+        <Link to="/profile" className="btn btn-primary">
+          <i className="fa-solid fa-arrow-right"></i> Open Profile
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SUBSCRIPTION SECTION
+   ============================================================ */
+function SubscriptionSection() {
+  const { user } = useAuth();
+  const [sub, setSub] = useState(subCache.data);
+  const [loading, setLoading] = useState(!subCache.loaded);
+  const isSuperAdmin = user?.role === 'super_admin';
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      setLoading(false);
+      return;
+    }
+    if (subCache.loaded && subCache.data) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { data } = await dashboardService.getSubscriptionStatus();
+        if (data.data && !cancelled) {
+          subCache.data = data.data;
+          subCache.loaded = true;
+          setSub(data.data);
+        }
+      } catch (err) {
+        // Use defaults
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [isSuperAdmin]);
 
+  if (loading) {
+    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading subscription...</div>;
+  }
+
+  const hasActiveSub = sub && sub.status === 'active' && sub.hasSubscription;
+
+  return (
+    <div className="settings-section-content">
+      <div className="settings-section-header">
+        <h4><i className="fa-solid fa-credit-card" style={{ color: 'var(--primary)' }}></i> Subscription</h4>
+        <p>View your current subscription status</p>
+      </div>
+
+      {hasActiveSub ? (
+        <div className="subscription-status-card">
+          <div className="subscription-status-badge active">
+            <i className="fa-solid fa-check-circle"></i> Active
+          </div>
+          <div className="subscription-info-grid">
+            <div className="subscription-info-item">
+              <span className="subscription-info-label">Subscription</span>
+              <span className="subscription-info-value">{sub.plan || 'Free Plan'}</span>
+            </div>
+            <div className="subscription-info-item">
+              <span className="subscription-info-label">Plan</span>
+              <span className="subscription-info-value">{sub.plan || 'Free Plan'}</span>
+            </div>
+            <div className="subscription-info-item">
+              <span className="subscription-info-label">Status</span>
+              <span className="subscription-info-value" style={{ color: '#16a34a' }}>{sub.status}</span>
+            </div>
+            <div className="subscription-info-item">
+              <span className="subscription-info-label">Days Remaining</span>
+              <span className="subscription-info-value">{sub.daysRemaining} day(s)</span>
+            </div>
+            <div className="subscription-info-item">
+              <span className="subscription-info-label">Start Date</span>
+              <span className="subscription-info-value">
+                {sub.startDate ? new Date(sub.startDate).toLocaleDateString() : '-'}
+              </span>
+            </div>
+            <div className="subscription-info-item">
+              <span className="subscription-info-label">Expiry Date</span>
+              <span className="subscription-info-value">
+                {sub.endDate ? new Date(sub.endDate).toLocaleDateString() : '-'}
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="subscription-empty-card">
+          <i className="fa-solid fa-circle-info"></i>
+          <h5>No active subscription</h5>
+          <p>Please contact the Super Admin to activate a subscription.</p>
+        </div>
+      )}
+
+      {!isSuperAdmin && (
+        <div className="settings-save-bar">
+          <Link to="/subscriptions" className="btn btn-primary">
+            <i className="fa-solid fa-credit-card"></i> Manage Subscription
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   MAIN SETTINGS PAGE
+   ============================================================ */
+export default function Settings() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSection = searchParams.get('section') || 'shop';
+
+  const setSection = useCallback((section) => {
+    if (section === 'shop') {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ section }, { replace: true });
+    }
+  }, [setSearchParams]);
+
+  // Super Admin sees full platform settings (existing tabbed UI)
+  if (isSuperAdmin) {
+    return <SuperAdminSettings />;
+  }
+
+  return (
+    <div className="settings-page">
+      <div className="page-header">
+        <div>
+          <h2><i className="fa-solid fa-sliders" style={{ marginRight: '10px', color: 'var(--primary)' }}></i>Settings</h2>
+          <p>Manage your pharmacy settings</p>
+        </div>
+      </div>
+
+      <div className="settings-layout">
+        {/* Left Navigation — only in-page settings sections.
+            Profile and Subscription link directly to their own pages. */}
+        <aside className="settings-nav">
+          <div className="settings-nav-label">Settings</div>
+          <button
+            className={`settings-nav-item ${activeSection === 'shop' ? 'active' : ''}`}
+            onClick={() => setSection('shop')}
+          >
+            <i className="fa-solid fa-store"></i>
+            <span>Shop Settings</span>
+          </button>
+          <button
+            className={`settings-nav-item ${activeSection === 'gst' ? 'active' : ''}`}
+            onClick={() => setSection('gst')}
+          >
+            <i className="fa-solid fa-percent"></i>
+            <span>GST Settings</span>
+          </button>
+          <button
+            className={`settings-nav-item ${activeSection === 'invoice' ? 'active' : ''}`}
+            onClick={() => setSection('invoice')}
+          >
+            <i className="fa-solid fa-file-invoice"></i>
+            <span>Invoice Settings</span>
+          </button>
+        </aside>
+
+        {/* Right Content — only the selected section renders */}
+        <div className="settings-content">
+          <div className="card">
+            <div className="card-body">
+              {activeSection === 'shop' && <ShopSettings />}
+              {activeSection === 'gst' && <GstSettings />}
+              {activeSection === 'invoice' && <InvoiceSettings />}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+/* ============================================================
+   SUPER ADMIN SETTINGS — full platform settings (tabbed)
+   Reuses the existing PlatformSetting API.
+   ============================================================ */
+function SuperAdminSettings() {
+  const [activeTab, setActiveTab] = useState('general');
+  const [formData, setFormData] = useState({});
+  const [metaData, setMetaData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        await settingService.initDefaults().catch(() => {});
+        const { data } = await settingService.getSettings();
+        if (data.data && !cancelled) {
+          setFormData(data.data.values || {});
+          setMetaData(data.data.metadata || {});
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleChange = (key, value) => {
-    setFormData(prev => {
-      const next = { ...prev, [key]: value };
-      settingsCache.formData = next;
-      return next;
-    });
+    setFormData(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSave = async (e) => {
@@ -216,118 +692,26 @@ export default function Settings() {
     try {
       const { data } = await settingService.updateSettings(formData);
       if (data.data) {
-        const newValues = data.data.values || {};
-        const newMetadata = data.data.metadata || {};
-        const nextForm = { ...formData, ...newValues };
-        const nextMeta = { ...metaData, ...newMetadata };
-        settingsCache.formData = nextForm;
-        settingsCache.metaData = nextMeta;
-        setFormData(nextForm);
-        if (Object.keys(newMetadata).length > 0) {
-          setMetaData(nextMeta);
+        setFormData(prev => ({ ...prev, ...(data.data.values || {}) }));
+        if (Object.keys(data.data.metadata || {}).length) {
+          setMetaData(prev => ({ ...prev, ...data.data.metadata }));
         }
       }
       showSuccess('Settings saved successfully');
-    } catch (error) {
-      showError(error.response?.data?.message || 'Failed to save settings');
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSaveInvoiceSettings = async (e) => {
-    e.preventDefault();
-    setInvoiceSaving(true);
-    try {
-      const { data } = await invoiceSettingService.updateMySettings(invoiceSettings);
-      if (data.data) {
-        const inv = {
-          invoiceTemplate: data.data.invoiceTemplate || 'classic',
-          printFormat: data.data.printFormat || 'a4',
-        };
-        settingsCache.invoiceSettings = inv;
-        setInvoiceSettings(inv);
-      }
-      showSuccess('Invoice settings saved successfully');
-    } catch (error) {
-      showError(error.response?.data?.message || 'Failed to save invoice settings');
-    } finally {
-      setInvoiceSaving(false);
-    }
-  };
-
-  const handleSaveGstSettings = async (e) => {
-    e.preventDefault();
-    setGstSaving(true);
-    try {
-      const { data } = await pharmacyService.updateMyPharmacyProfile({
-        state: gstSettings.state,
-        stateCode: gstSettings.stateCode || getStateCodeByName(gstSettings.state),
-        defaultGstRate: gstSettings.defaultGstRate,
-      });
-      if (data.data) {
-        const gst = {
-          state: data.data.state || gstSettings.state,
-          stateCode: data.data.stateCode || gstSettings.stateCode,
-          defaultGstRate: data.data.defaultGstRate || gstSettings.defaultGstRate,
-        };
-        settingsCache.gstSettings = gst;
-        settingsCache.gstStateSearch = gst.state;
-        setGstSettings(gst);
-        setGstStateSearch(gst.state);
-      }
-      showSuccess('GST settings saved successfully');
-    } catch (error) {
-      showError(error.response?.data?.message || 'Failed to save GST settings');
-    } finally {
-      setGstSaving(false);
-    }
-  };
-
-  // Close GST state dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (gstStateSearchRef.current && !gstStateSearchRef.current.contains(event.target)) {
-        setGstStateDropdownOpen(false);
-      }
-    };
-    if (gstStateDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [gstStateDropdownOpen]);
-
-  // Sync active tab from URL query param (e.g. sidebar "GST Settings" / "Invoice Settings" links)
-  useEffect(() => {
-    const section = searchParams.get('section');
-    if (section && section !== activeTab) {
-      setActiveTab(section);
-    }
-  }, [searchParams]);
-
-  const filteredGstStates = INDIAN_STATES.filter(s =>
-    s.name.toLowerCase().includes(gstStateSearch.toLowerCase())
-  );
-
-  const getField = (key) => {
-    const meta = metaData[key] || {};
-    const value = formData[key];
-    return { meta, value };
-  };
-
-  // Only show the full-page loader on the very first load.
-  // After data is cached, navigating back to Settings is instant.
   if (loading) {
-    return (
-      <div className="loading-spinner">
-        <i className="fa-solid fa-spinner fa-spin"></i>
-      </div>
-    );
+    return <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>;
   }
 
-  const renderSettingField = (key) => {
-    const { meta, value } = getField(key);
-
+  const renderField = (key) => {
+    const meta = metaData[key] || {};
+    const value = formData[key];
     const commonProps = {
       id: `setting-${key}`,
       className: 'form-control',
@@ -337,364 +721,63 @@ export default function Settings() {
         handleChange(key, val);
       },
     };
-
-    const renderInput = () => {
-      switch (key) {
-        case 'currency':
-          return (
-            <select {...commonProps}>
-              {CURRENCY_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          );
-        case 'timezone':
-          return (
-            <select {...commonProps}>
-              {TIMEZONE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          );
-        case 'dateFormat':
-          return (
-            <select {...commonProps}>
-              {DATE_FORMAT_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          );
-        case 'enableGst':
-          return (
-            <label className="toggle-switch" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={!!value}
-                onChange={(e) => handleChange(key, e.target.checked)}
-                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '14px', color: 'var(--gray-600)' }}>
-                {value ? 'Enabled' : 'Disabled'}
-              </span>
-            </label>
-          );
-        case 'gstRate':
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="number"
-                {...commonProps}
-                min="0"
-                max="100"
-                step="0.1"
-                style={{ width: '120px' }}
-              />
-              <span style={{ fontSize: '14px', color: 'var(--gray-500)' }}>%</span>
-            </div>
-          );
-        default:
-          return <input type={key === 'supportEmail' ? 'email' : 'text'} {...commonProps} />;
-      }
-    };
-
-    return (
-      <div className="form-group" key={key} style={{ marginBottom: '20px' }}>
-        <label htmlFor={`setting-${key}`} style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
-          {meta.label || key}
+    let input;
+    if (key === 'currency') {
+      input = (
+        <select {...commonProps}>
+          {['INR', 'USD', 'EUR', 'GBP', 'AED', 'SAR', 'PKR', 'BDT', 'LKR', 'NPR', 'PHP', 'MYR', 'SGD', 'AUD', 'CAD'].map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      );
+    } else if (key === 'timezone') {
+      input = (
+        <select {...commonProps}>
+          {['Asia/Kolkata', 'Asia/Dubai', 'Asia/Riyadh', 'Asia/Karachi', 'Asia/Dhaka', 'Asia/Colombo', 'UTC', 'America/New_York', 'Europe/London'].map(t => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+      );
+    } else if (key === 'dateFormat') {
+      input = (
+        <select {...commonProps}>
+          {['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'].map(d => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+      );
+    } else if (key === 'enableGst') {
+      input = (
+        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+          <input type="checkbox" checked={!!value} onChange={(e) => handleChange(key, e.target.checked)} />
+          <span>{value ? 'Enabled' : 'Disabled'}</span>
         </label>
-        {meta.description && (
-          <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '8px', lineHeight: 1.5 }}>
-            {meta.description}
-          </p>
-        )}
-        {renderInput()}
+      );
+    } else if (key === 'gstRate') {
+      input = (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input type="number" {...commonProps} min="0" max="100" step="0.1" style={{ width: '120px' }} />
+          <span>%</span>
+        </div>
+      );
+    } else {
+      input = <input type={key === 'supportEmail' ? 'email' : 'text'} {...commonProps} />;
+    }
+    return (
+      <div className="form-group" key={key}>
+        <label htmlFor={`setting-${key}`}>{meta.label || key}</label>
+        {meta.description && <p className="settings-field-hint">{meta.description}</p>}
+        {input}
       </div>
     );
   };
 
-  // Currency info banner displayed in localization tab
-  const renderCurrencyInfo = () => {
-    const { value: currency } = getField('currency');
-    const currencyMeta = CURRENCY_OPTIONS.find(c => c.value === currency);
+  const groups = [
+    { id: 'general', label: 'General', icon: 'fa-cog', keys: ['platformName', 'supportEmail'] },
+    { id: 'localization', label: 'Localization', icon: 'fa-globe', keys: ['currency', 'timezone', 'dateFormat'] },
+    { id: 'invoice', label: 'Invoice', icon: 'fa-file-invoice', keys: ['invoicePrefix', 'enableGst', 'gstRate'] },
+  ];
 
-    return (
-      <div style={{
-        padding: '16px',
-        borderRadius: '10px',
-        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-        border: '1px solid #bae6fd',
-        marginBottom: '24px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-          <div style={{
-            width: '40px', height: '40px', borderRadius: '10px',
-            background: '#3b82f6', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', flexShrink: 0,
-          }}>
-            <i className="fa-solid fa-coins" style={{ color: '#fff', fontSize: '18px' }}></i>
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e40af', marginBottom: '4px' }}>
-              Base Currency: INR (₹)
-            </div>
-            <div style={{ fontSize: '13px', color: '#3b82f6', lineHeight: 1.5 }}>
-              All financial calculations — total revenue, profit, dashboard cards, reports, and analytics — are stored and calculated in <strong>Indian Rupees (INR)</strong> regardless of the display currency selected below.
-              {currency !== 'INR' && currencyMeta && (
-                <span> The <strong>{currencyMeta.label.split(' - ')[0]}</strong> is used for <strong>display purposes only</strong> when showing prices on the user-facing interface.</span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ===== ADMIN VIEW: Simple invoice print settings only =====
-  if (!isSuperAdmin) {
-    return (
-      <div>
-        <div className="page-header">
-          <div>
-            <h2><i className="fa-solid fa-sliders" style={{ marginRight: '10px', color: 'var(--primary)' }}></i>Settings</h2>
-            <p>Manage your pharmacy preferences</p>
-          </div>
-        </div>
-
-        {/* Settings Navigation */}
-        <div className="settings-nav-grid">
-          <Link to="/settings" className={`settings-nav-card ${!searchParams.get('section') ? 'settings-nav-card-active' : ''}`}>
-            <i className="fa-solid fa-store"></i>
-            <span>Shop Settings</span>
-          </Link>
-          <Link to="/settings?section=gst" className={`settings-nav-card ${searchParams.get('section') === 'gst' ? 'settings-nav-card-active' : ''}`}>
-            <i className="fa-solid fa-percent"></i>
-            <span>GST Settings</span>
-          </Link>
-          <Link to="/settings?section=invoice" className={`settings-nav-card ${searchParams.get('section') === 'invoice' ? 'settings-nav-card-active' : ''}`}>
-            <i className="fa-solid fa-file-invoice"></i>
-            <span>Invoice Settings</span>
-          </Link>
-          <Link to="/profile" className="settings-nav-card">
-            <i className="fa-solid fa-user"></i>
-            <span>Profile</span>
-          </Link>
-          <Link to="/subscriptions" className="settings-nav-card">
-            <i className="fa-solid fa-credit-card"></i>
-            <span>Subscription</span>
-          </Link>
-        </div>
-
-        {/* GST Configuration */}
-        <div className="card" style={{ maxWidth: '900px', marginBottom: '20px' }}>
-          <div className="card-header">
-            <h5><i className="fa-solid fa-percent" style={{ marginRight: '8px', color: 'var(--primary)' }}></i>GST Configuration</h5>
-            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Configure default business state and GST rate</span>
-          </div>
-          <div className="card-body">
-            <form onSubmit={handleSaveGstSettings}>
-              <div className="form-group">
-                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
-                  Default Business State <span style={{ color: 'var(--danger)' }}>*</span>
-                </label>
-                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
-                  Used to determine CGST+SGST (same state) vs IGST (different state) on sales.
-                </p>
-                <div style={{ position: 'relative' }} ref={gstStateSearchRef}>
-                  <input
-                    type="text"
-                    className="form-select"
-                    value={gstStateSearch}
-                    onChange={(e) => {
-                      setGstStateSearch(e.target.value);
-                      setGstSettings(prev => ({ ...prev, state: '', stateCode: '' }));
-                      setGstStateDropdownOpen(true);
-                    }}
-                    onFocus={() => setGstStateDropdownOpen(true)}
-                    style={{ width: '100%' }}
-                    placeholder="Search Indian state..."
-                  />
-                  {gstStateDropdownOpen && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      background: '#fff',
-                      border: '1px solid var(--gray-200)',
-                      borderRadius: '8px',
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                      zIndex: 100,
-                      maxHeight: '220px',
-                      overflowY: 'auto',
-                      marginTop: '4px',
-                    }}>
-                      {filteredGstStates.length > 0 ? (
-                        filteredGstStates.map(state => (
-                          <div
-                            key={state.code}
-                            onClick={() => {
-                              setGstSettings(prev => ({ ...prev, state: state.name, stateCode: state.code }));
-                              setGstStateSearch(state.name);
-                              setGstStateDropdownOpen(false);
-                            }}
-                            style={{
-                              padding: '10px 14px',
-                              cursor: 'pointer',
-                              borderBottom: '1px solid var(--gray-100)',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              background: gstSettings.state === state.name ? 'var(--primary-light)' : '#fff',
-                            }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = gstSettings.state === state.name ? 'var(--primary-light)' : '#fff'}
-                          >
-                            <span style={{ fontWeight: 500, fontSize: '13px' }}>{state.name}</span>
-                            <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Code: {state.code}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ padding: '12px 14px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
-                          No states found
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginTop: '20px' }}>
-                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
-                  Default GST %
-                </label>
-                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
-                  Default GST rate applied to new products when no specific rate is set.
-                </p>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {GST_RATE_OPTIONS.map(rate => (
-                    <button
-                      key={rate}
-                      type="button"
-                      onClick={() => setGstSettings(prev => ({ ...prev, defaultGstRate: rate }))}
-                      style={{
-                        padding: '10px 20px',
-                        borderRadius: '8px',
-                        border: `2px solid ${gstSettings.defaultGstRate === rate ? 'var(--primary)' : 'var(--gray-200)'}`,
-                        background: gstSettings.defaultGstRate === rate ? 'var(--primary-light, #f0f5ff)' : '#fff',
-                        color: gstSettings.defaultGstRate === rate ? 'var(--primary)' : 'var(--gray-700)',
-                        fontWeight: 600,
-                        fontSize: '14px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      {rate}%
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button type="submit" className="btn btn-primary" style={{ marginTop: '20px' }} disabled={gstSaving}>
-                {gstSaving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
-                {' '}{gstSaving ? 'Saving...' : 'Save GST Settings'}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Invoice Print Settings */}
-        <div className="card" style={{ maxWidth: '900px' }}>
-          <div className="card-header">
-            <h5><i className="fa-solid fa-print" style={{ marginRight: '8px', color: 'var(--primary)' }}></i>Invoice Print Settings</h5>
-            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Configure your invoice template and paper size</span>
-          </div>
-          <div className="card-body">
-            <form onSubmit={handleSaveInvoiceSettings}>
-              <div className="form-group">
-                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
-                  Invoice Template / Theme
-                </label>
-                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
-                  Select the visual style used when printing invoices from the Sales page.
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                  {INVOICE_TEMPLATES.map((tpl) => (
-                    <div
-                      key={tpl.id}
-                      onClick={() => setInvoiceSettings({ ...invoiceSettings, invoiceTemplate: tpl.id })}
-                      style={{
-                        border: `2px solid ${invoiceSettings.invoiceTemplate === tpl.id ? 'var(--primary)' : 'var(--gray-200)'}`,
-                        borderRadius: '10px',
-                        padding: '16px',
-                        cursor: 'pointer',
-                        background: invoiceSettings.invoiceTemplate === tpl.id ? 'var(--primary-light, #f0f5ff)' : '#fff',
-                        transition: 'all 0.2s',
-                        textAlign: 'center',
-                      }}
-                    >
-                      <div style={{ fontSize: '36px', marginBottom: '8px' }}>{tpl.preview}</div>
-                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>{tpl.name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{tpl.description}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginTop: '24px' }}>
-                <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
-                  Print Format / Paper Size
-                </label>
-                <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px' }}>
-                  Choose the paper format for printing invoices. Supports A4 printers and 58mm/80mm thermal printers.
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
-                  {PRINT_FORMATS.map((fmt) => (
-                    <div
-                      key={fmt.id}
-                      onClick={() => setInvoiceSettings({ ...invoiceSettings, printFormat: fmt.id })}
-                      style={{
-                        border: `2px solid ${invoiceSettings.printFormat === fmt.id ? 'var(--primary)' : 'var(--gray-200)'}`,
-                        borderRadius: '10px',
-                        padding: '14px',
-                        cursor: 'pointer',
-                        background: invoiceSettings.printFormat === fmt.id ? 'var(--primary-light, #f0f5ff)' : '#fff',
-                        transition: 'all 0.2s',
-                        textAlign: 'center',
-                      }}
-                    >
-                      <div style={{ fontSize: '28px', marginBottom: '6px' }}>{fmt.preview}</div>
-                      <div style={{ fontWeight: 600, marginBottom: '2px' }}>{fmt.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>{fmt.description}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{
-                marginTop: '20px', padding: '14px', background: '#f8fafc',
-                borderRadius: '8px', border: '1px solid var(--gray-200)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--gray-600)', fontSize: '13px' }}>
-                  <i className="fa-solid fa-info-circle" style={{ color: 'var(--primary)' }}></i>
-                  <span>
-                    The selected template and format will be applied automatically when printing invoices
-                    from the <strong>Sales</strong> page. Click <strong>Invoice</strong> on any sale to see the result.
-                  </span>
-                </div>
-              </div>
-
-              <button type="submit" className="btn btn-primary" style={{ marginTop: '20px' }} disabled={invoiceSaving}>
-                {invoiceSaving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
-                {' '}{invoiceSaving ? 'Saving...' : 'Save Invoice Settings'}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ===== SUPER ADMIN VIEW: Full settings management =====
   return (
     <div>
       <div className="page-header">
@@ -704,66 +787,37 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{
-        display: 'flex', gap: '0', marginBottom: '24px',
-        borderBottom: '2px solid var(--gray-200)', overflowX: 'auto',
-      }}>
-        {SETTINGS_GROUPS.map((group) => (
+      <div style={{ display: 'flex', gap: '0', marginBottom: '24px', borderBottom: '2px solid var(--gray-200)', overflowX: 'auto' }}>
+        {groups.map(g => (
           <button
-            key={group.id}
-            className={`tab-btn ${activeTab === group.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(group.id)}
+            key={g.id}
+            onClick={() => setActiveTab(g.id)}
             style={{
               padding: '12px 20px', border: 'none', background: 'none', cursor: 'pointer',
-              fontWeight: activeTab === group.id ? '600' : '400',
-              color: activeTab === group.id ? 'var(--primary)' : 'var(--gray-500)',
-              borderBottom: activeTab === group.id ? '2px solid var(--primary)' : '2px solid transparent',
+              fontWeight: activeTab === g.id ? '600' : '400',
+              color: activeTab === g.id ? 'var(--primary)' : 'var(--gray-500)',
+              borderBottom: activeTab === g.id ? '2px solid var(--primary)' : '2px solid transparent',
               marginBottom: '-2px', fontSize: '14px', whiteSpace: 'nowrap',
               display: 'flex', alignItems: 'center', gap: '6px',
-              transition: 'all 0.2s',
             }}
-            title={group.description}
           >
-            <i className={`fa-solid ${group.icon}`}></i>
-            {group.label}
+            <i className={`fa-solid ${g.icon}`}></i>
+            {g.label}
           </button>
         ))}
       </div>
 
-      {/* Settings Content */}
       <div className="card" style={{ maxWidth: '900px' }}>
         <div className="card-header">
-          <h5>
-            <i className={`fa-solid ${SETTINGS_GROUPS.find(g => g.id === activeTab)?.icon || 'fa-cog'}`}
-              style={{ marginRight: '8px', color: 'var(--primary)' }}>
-            </i>
-            {SETTINGS_GROUPS.find(g => g.id === activeTab)?.label || 'Settings'}
-          </h5>
-          <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-            {SETTINGS_GROUPS.find(g => g.id === activeTab)?.description || ''}
-          </span>
+          <h5><i className={`fa-solid ${groups.find(g => g.id === activeTab)?.icon}`} style={{ marginRight: '8px', color: 'var(--primary)' }}></i>{groups.find(g => g.id === activeTab)?.label}</h5>
         </div>
         <div className="card-body">
-          {/* Currency info banner only in localization tab */}
-          {activeTab === 'localization' && renderCurrencyInfo()}
-
           <form onSubmit={handleSave}>
-            {SETTINGS_GROUPS.find(g => g.id === activeTab)?.settings.map(key => renderSettingField(key))}
-
-            <div style={{
-              marginTop: '24px', padding: '16px 20px',
-              background: '#f8fafc', borderRadius: '10px',
-              border: '1px solid var(--gray-200)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-            }}>
-              <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-                <i className="fa-solid fa-info-circle" style={{ marginRight: '6px', color: 'var(--primary)' }}></i>
-                Changes are saved immediately for all platform users.
-              </div>
+            {groups.find(g => g.id === activeTab)?.keys.map(k => renderField(k))}
+            <div className="settings-save-bar">
               <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-save"></i>}
-                {' '}{saving ? 'Saving...' : 'Save Changes'}
+                {saving ? ' Saving...' : ' Save Changes'}
               </button>
             </div>
           </form>

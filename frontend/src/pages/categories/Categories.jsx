@@ -9,6 +9,7 @@ import {
 } from '../../redux/slices/categorySlice';
 import Drawer from '../../components/common/Drawer';
 import BulkImportSimple from '../../components/common/BulkImportSimple';
+import TableSkeleton from '../../components/common/TableSkeleton';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 const initialFormState = {
@@ -262,7 +263,7 @@ export default function Categories() {
         <div className="card-body" style={{ padding: items?.length > 0 ? '0' : '20px' }}>
 
           {loading ? (
-            <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+            <TableSkeleton />
           ) : items?.length > 0 ? (
             <>
               {/* Desktop table */}

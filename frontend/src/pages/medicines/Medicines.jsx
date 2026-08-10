@@ -10,6 +10,7 @@ import { fetchCategories } from '../../redux/slices/categorySlice';
 import { fetchBrands } from '../../redux/slices/brandSlice';
 import { fetchSuppliers } from '../../redux/slices/supplierSlice';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import MedicinesSkeleton from '../../components/common/MedicinesSkeleton';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -327,7 +328,7 @@ export default function Medicines() {
         </div>
         <div className="card-body">
           {loading ? (
-            <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+            <MedicinesSkeleton />
           ) : items?.length > 0 ? (
             <>
               {/* Desktop table */}

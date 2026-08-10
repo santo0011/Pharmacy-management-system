@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import DashboardSkeleton from '../../components/common/DashboardSkeleton';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -45,13 +46,16 @@ export default function EnhancedDashboard() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isSuperAdmin, user } = useAuth();
-  const { superAdmin: saData, pharmacy: phData } = useSelector((state) => state.dashboard);
+  const { superAdmin: saData, pharmacy: phData, loading: dashboardLoading } = useSelector((state) => state.dashboard);
   const saleStats = useSelector((state) => state.sales?.stats);
+  const saleLoading = useSelector((state) => state.sales?.loading);
   const purchaseStats = useSelector((state) => state.purchases?.stats);
-  const { items: medicines } = useSelector((state) => state.medicines);
+  const purchaseLoading = useSelector((state) => state.purchases?.loading);
+  const { items: medicines, loading: medicinesLoading } = useSelector((state) => state.medicines);
   const [expiringSoon, setExpiringSoon] = useState([]);
   const [expandedInvoice, setExpandedInvoice] = useState(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -79,6 +83,21 @@ export default function EnhancedDashboard() {
       setExpiringSoon(expiring);
     }
   }, [medicines]);
+
+  // ===== YOUTUBE-STYLE SKELETON LOADER =====
+  // Show skeleton while data is being fetched for the first time.
+  // Once the dashboard data has loaded at least once, render the real content.
+  const hasData = isSuperAdmin ? !!saData : !!phData;
+  const isFirstLoad = !hasLoadedOnce && !hasData;
+
+  if (isFirstLoad) {
+    return <DashboardSkeleton />;
+  }
+
+  // Mark as loaded once data arrives so we never show skeleton again
+  if (!hasLoadedOnce && hasData) {
+    setHasLoadedOnce(true);
+  }
 
   // ===== SUPER ADMIN DASHBOARD =====
   if (isSuperAdmin) {
