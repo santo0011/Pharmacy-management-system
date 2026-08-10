@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { showSuccess, showError } from '../../utils/sweetAlert';
 import { settingService } from '../../services/settingService';
 import { invoiceSettingService } from '../../services/invoiceSettingService';
@@ -8,6 +9,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { INDIAN_STATES, getStateCodeByName } from '../../utils/indianStates';
 import { pharmacyService } from '../../services/pharmacyService';
 import { dashboardService } from '../../services/dashboardService';
+import { subscriptionHistoryService } from '../../services/subscriptionHistoryService';
+import SettingsSkeleton from '../../components/common/SettingsSkeleton';
 
 /* ============================================================
    Module-level caches — each Settings section loads its data
@@ -99,7 +102,7 @@ function ShopSettings() {
   };
 
   if (loading) {
-    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading shop settings...</div>;
+    return <SettingsSkeleton section="shop" />;
   }
 
   return (
@@ -231,7 +234,7 @@ function GstSettings() {
   };
 
   if (loading) {
-    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading GST settings...</div>;
+    return <SettingsSkeleton section="gst" />;
   }
 
   return (
@@ -383,7 +386,7 @@ function InvoiceSettings() {
   };
 
   if (loading) {
-    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading invoice settings...</div>;
+    return <SettingsSkeleton section="invoice" />;
   }
 
   return (
@@ -450,25 +453,64 @@ function InvoiceSettings() {
 }
 
 /* ============================================================
-   PROFILE SECTION — link out to the Profile page
-   (Profile functionality already exists and is full featured)
+   PROFILE SECTION — shows profile content directly in the
+   Settings content area (same behavior as Shop/GST/Invoice)
    ============================================================ */
 function ProfileSection() {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { data } = await pharmacyService.getMyPharmacyProfile();
+        if (data.data && !cancelled) {
+          setProfile(data.data);
+        }
+      } catch (err) {
+        // Use defaults
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return <SettingsSkeleton section="profile" />;
+  }
+
+  const infoItems = [
+    { label: 'Pharmacy Name', value: profile?.pharmacyName || '-' },
+    { label: 'Owner Name', value: profile?.ownerName || '-' },
+    { label: 'Phone', value: profile?.phone || '-' },
+    { label: 'Email', value: profile?.email || '-' },
+    { label: 'Address', value: profile?.address || '-' },
+    { label: 'City', value: profile?.city || '-' },
+    { label: 'State', value: profile?.state || '-' },
+    { label: 'GSTIN', value: profile?.gstin || profile?.gstNumber || '-' },
+    { label: 'License Number', value: profile?.licenseNumber || '-' },
+    { label: 'User Name', value: user?.name || '-' },
+    { label: 'User Role', value: user?.role?.replace('_', ' ') || '-' },
+    { label: 'User Phone', value: user?.phone || '-' },
+  ];
+
   return (
     <div className="settings-section-content">
       <div className="settings-section-header">
         <h4><i className="fa-solid fa-user" style={{ color: 'var(--primary)' }}></i> Profile</h4>
-        <p>Manage your pharmacy and account profile</p>
+        <p>Your pharmacy and account profile information</p>
       </div>
-      <div className="settings-link-card">
-        <div className="settings-link-icon"><i className="fa-solid fa-user-gear"></i></div>
-        <div className="settings-link-info">
-          <h5>Full Profile Management</h5>
-          <p>Edit pharmacy information, contact details, business hours, and account settings.</p>
-        </div>
-        <Link to="/profile" className="btn btn-primary">
-          <i className="fa-solid fa-arrow-right"></i> Open Profile
-        </Link>
+      <div className="subscription-info-grid">
+        {infoItems.map((item) => (
+          <div className="subscription-info-item" key={item.label}>
+            <span className="subscription-info-label">{item.label}</span>
+            <span className="subscription-info-value">{item.value}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -480,12 +522,15 @@ function ProfileSection() {
 function SubscriptionSection() {
   const { user } = useAuth();
   const [sub, setSub] = useState(subCache.data);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [loading, setLoading] = useState(!subCache.loaded);
   const isSuperAdmin = user?.role === 'super_admin';
 
   useEffect(() => {
     if (isSuperAdmin) {
       setLoading(false);
+      setHistoryLoading(false);
       return;
     }
     if (subCache.loaded && subCache.data) return;
@@ -508,11 +553,47 @@ function SubscriptionSection() {
     return () => { cancelled = true; };
   }, [isSuperAdmin]);
 
+  // Fetch subscription history
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    let cancelled = false;
+    const loadHistory = async () => {
+      try {
+        const { data } = await subscriptionHistoryService.getMyHistory({ limit: 50 });
+        if (data.data && !cancelled) {
+          setHistory(data.data);
+        }
+      } catch (err) {
+        // Use defaults
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    };
+    loadHistory();
+    return () => { cancelled = true; };
+  }, [isSuperAdmin]);
+
   if (loading) {
-    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading subscription...</div>;
+    return <SettingsSkeleton section="subscription" />;
   }
 
   const hasActiveSub = sub && sub.status === 'active' && sub.hasSubscription;
+
+  const statusBadgeClass = (status) => {
+    const map = {
+      active: 'badge-success',
+      upcoming: 'badge-info',
+      expired: 'badge-danger',
+      cancelled: 'badge-warning',
+    };
+    return map[status] || 'badge-info';
+  };
+
+  const formatDuration = (item) => {
+    const unit = item.durationUnit || 'months';
+    const label = unit === 'days' ? 'day' : unit === 'years' ? 'year' : 'month';
+    return `${item.duration} ${label}${item.duration > 1 ? 's' : ''}`;
+  };
 
   return (
     <div className="settings-section-content">
@@ -565,13 +646,61 @@ function SubscriptionSection() {
         </div>
       )}
 
-      {!isSuperAdmin && (
-        <div className="settings-save-bar">
-          <Link to="/subscriptions" className="btn btn-primary">
-            <i className="fa-solid fa-credit-card"></i> Manage Subscription
-          </Link>
+      {/* Subscription History */}
+      <div style={{ marginTop: '24px' }}>
+        <div className="settings-section-header" style={{ marginBottom: '16px' }}>
+          <h4><i className="fa-solid fa-clock-rotate-left" style={{ color: 'var(--primary)' }}></i> Subscription History</h4>
+          <p>Your previous subscription records</p>
         </div>
-      )}
+
+        {historyLoading ? (
+          <SettingsSkeleton section="subscription" historyOnly />
+        ) : history.length > 0 ? (
+          <div className="table-container">
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>Plan Name</th>
+                  <th>Start Date</th>
+                  <th>End Date</th>
+                  <th>Duration</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Payment Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((item) => (
+                  <tr key={item._id}>
+                    <td style={{ fontWeight: 500 }}>{item.planName}</td>
+                    <td>{new Date(item.startDate).toLocaleDateString()}</td>
+                    <td>{new Date(item.endDate).toLocaleDateString()}</td>
+                    <td>{formatDuration(item)}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      <CurrencyDisplay value={item.amount || 0} />
+                    </td>
+                    <td>
+                      <span className={`badge ${statusBadgeClass(item.status)}`} style={{ textTransform: 'capitalize' }}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td>
+                      {item.renewalDate ? new Date(item.renewalDate).toLocaleDateString() : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="subscription-empty-card" style={{ padding: '30px 20px' }}>
+            <i className="fa-solid fa-clock-rotate-left"></i>
+            <h5>No subscription history</h5>
+            <p>Your subscription records will appear here.</p>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
@@ -633,6 +762,20 @@ export default function Settings() {
             <i className="fa-solid fa-file-invoice"></i>
             <span>Invoice Settings</span>
           </button>
+          <button
+            className={`settings-nav-item ${activeSection === 'profile' ? 'active' : ''}`}
+            onClick={() => setSection('profile')}
+          >
+            <i className="fa-solid fa-user"></i>
+            <span>Profile</span>
+          </button>
+          <button
+            className={`settings-nav-item ${activeSection === 'subscription' ? 'active' : ''}`}
+            onClick={() => setSection('subscription')}
+          >
+            <i className="fa-solid fa-credit-card"></i>
+            <span>Subscription</span>
+          </button>
         </aside>
 
         {/* Right Content — only the selected section renders */}
@@ -642,6 +785,8 @@ export default function Settings() {
               {activeSection === 'shop' && <ShopSettings />}
               {activeSection === 'gst' && <GstSettings />}
               {activeSection === 'invoice' && <InvoiceSettings />}
+              {activeSection === 'profile' && <ProfileSection />}
+              {activeSection === 'subscription' && <SubscriptionSection />}
             </div>
           </div>
         </div>
@@ -706,7 +851,7 @@ function SuperAdminSettings() {
   };
 
   if (loading) {
-    return <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>;
+    return <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading settings...</div>;
   }
 
   const renderField = (key) => {

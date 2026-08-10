@@ -529,7 +529,7 @@ export default function SaleForm() {
 
       // Validate paidForNewInvoice doesn't exceed the new invoice grand total
       if (paidForNewInvoice > currentBillGrandTotal) {
-        showError(`Total paid (${getCurrentSymbol()} ${paid.toFixed(2)}) minus previous due allocation (${getCurrentSymbol()} ${previousDuePayments.reduce((s,p)=>s+p.amount,0).toFixed(2)}) = ${getCurrentSymbol()} ${paidForNewInvoice.toFixed(2)} exceeds the current bill total (${getCurrentSymbol()} ${currentBillGrandTotal.toFixed(2)})`);
+        showError(`Total paid (${getCurrentSymbol()} ${paid.toFixed(2)}) minus previous due allocation (${getCurrentSymbol()} ${previousDuePayments.reduce((s, p) => s + p.amount, 0).toFixed(2)}) = ${getCurrentSymbol()} ${paidForNewInvoice.toFixed(2)} exceeds the current bill total (${getCurrentSymbol()} ${currentBillGrandTotal.toFixed(2)})`);
         setSubmitting(false);
         return;
       }
@@ -730,7 +730,7 @@ export default function SaleForm() {
                       background: '#fff7ed',
                       borderRadius: '4px',
                     }}>
-                      <i className="fa-solid fa-exclamation-triangle"></i> Phone {phoneVerifiedMatch.phone} belongs to <strong>{phoneVerifiedMatch.name}</strong> — 
+                      <i className="fa-solid fa-exclamation-triangle"></i> Phone {phoneVerifiedMatch.phone} belongs to <strong>{phoneVerifiedMatch.name}</strong> —
                       <button
                         className="btn btn-sm btn-link"
                         style={{ fontSize: '11px', padding: '0 4px', margin: 0, color: 'var(--primary)', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none' }}
@@ -855,8 +855,8 @@ export default function SaleForm() {
                         <th>Medicine</th>
                         <th style={{ width: '60px' }}>Qty</th>
                         <th style={{ width: '90px' }}>Price</th>
-                        {/* <th style={{ width: '60px' }}>Disc</th> */}
-                        <th style={{ width: '90px' }}>Total</th>
+                        <th style={{ width: '60px' }}>GST</th>
+                        {/* <th style={{ width: '90px' }}>Total</th> */}
                         <th style={{ width: '30px' }}></th>
                         <th style={{ width: '40px' }}></th>
                       </tr>
@@ -887,12 +887,12 @@ export default function SaleForm() {
                               className="price-input-sm"
                               onWheel={(e) => e.target.blur()} />
                           </td>
-                          {/* <td className="gst-label">
-                            {item.gst > 0 && <div>GST: {item.gst}%</div>}
-                          </td> */}
-                          <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={calcItemTotal(item)} /></td>
+                          <td className="gst-label">
+                            {item.gst > 0 ? <div>{item.gst}%</div> : <div>18%</div>}
+                          </td>
+                          {/* <td style={{ fontWeight: 600, fontSize: '13px' }}><CurrencyDisplay value={calcItemTotal(item)} /></td> */}
                           <td>
-                            <button className="btn btn-sm btn-outline-info" 
+                            <button className="btn btn-sm btn-outline-info"
                               onClick={async () => {
                                 setLoadingSubstitutes(true);
                                 try {

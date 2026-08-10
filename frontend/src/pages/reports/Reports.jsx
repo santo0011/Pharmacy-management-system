@@ -5,6 +5,7 @@ import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { getCurrentSymbol } from '../../utils/currency';
 import { reportService } from '../../services/reportService';
 import { showError } from '../../utils/sweetAlert';
+import ReportsSkeleton from '../../components/common/ReportsSkeleton';
 
 export default function Reports() {
   const [searchParams] = useSearchParams();
@@ -171,7 +172,7 @@ export default function Reports() {
   };
 
   const renderSalesReport = () => {
-    if (loading) return <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>;
+    if (loading) return <ReportsSkeleton type="reports" tab="sales" />;
     if (!salesData) return null;
     const { summary, trend, paymentBreakdown, topProducts } = salesData;
     return (
@@ -231,7 +232,7 @@ export default function Reports() {
   };
 
   const renderPurchaseReport = () => {
-    if (loading) return <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>;
+    if (loading) return <ReportsSkeleton type="reports" tab="purchases" />;
     if (!purchaseData) return null;
     const { summary, trend } = purchaseData;
     return (
@@ -295,7 +296,7 @@ export default function Reports() {
   };
 
   const renderProfitLoss = () => {
-    if (loading) return <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>;
+    if (loading) return <ReportsSkeleton type="reports" tab="profit-loss" />;
     if (!profitLossData) return null;
     const { profitLoss, totals } = profitLossData;
     return (
@@ -409,7 +410,7 @@ export default function Reports() {
   };
 
   const renderStockReport = () => {
-    if (loading) return <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>;
+    if (loading) return <ReportsSkeleton type="reports" tab="stock" />;
     if (!stockData) return null;
     const { summary, medicines } = stockData;
     return (

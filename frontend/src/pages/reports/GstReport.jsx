@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { reportService } from '../../services/reportService';
 import { showError } from '../../utils/sweetAlert';
+import ReportsSkeleton from '../../components/common/ReportsSkeleton';
 
 const DATE_PRESETS = [
   { value: 'today', label: 'Today' },
@@ -156,7 +157,7 @@ export default function GstReport() {
   const netGst = salesGst - purchaseGst;
 
   if (loading && !summary) {
-    return <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>;
+    return <ReportsSkeleton type="gst" />;
   }
 
   return (
@@ -308,7 +309,7 @@ export default function GstReport() {
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           {loading ? (
-            <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+            <ReportsSkeleton type="gst" />
           ) : activeTab === 'sales' ? (
             <div className="table-container">
               <table className="gst-report-table">

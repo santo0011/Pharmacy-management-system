@@ -9,7 +9,6 @@ import {
 } from '../../redux/slices/supplierSlice';
 import Drawer from '../../components/common/Drawer';
 import BulkImportSimple from '../../components/common/BulkImportSimple';
-import TableSkeleton from '../../components/common/TableSkeleton';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
 
 const initialFormState = {
@@ -247,7 +246,7 @@ export default function Suppliers() {
           </div>
 
           {loading ? (
-            <TableSkeleton />
+            <div className="settings-section-loading"><i className="fa-solid fa-spinner fa-spin"></i> Loading suppliers...</div>
           ) : items?.length > 0 ? (
             <>
               {/* Desktop table */}

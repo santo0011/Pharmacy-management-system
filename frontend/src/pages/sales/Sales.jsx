@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AnimatedCounter from '../../components/common/AnimatedCounter';
 import CurrencyDisplay from '../../components/common/CurrencyDisplay';
+import SalesSkeleton from '../../components/common/SalesSkeleton';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchSales, fetchSaleStats } from '../../redux/slices/saleSlice';
@@ -202,7 +203,7 @@ export default function Sales() {
         </div>
         <div className="card-body">
           {loading ? (
-            <div className="loading-spinner"><i className="fa-solid fa-spinner fa-spin"></i></div>
+            <SalesSkeleton />
           ) : items?.length > 0 ? (
             <>
               {/* Desktop table */}
