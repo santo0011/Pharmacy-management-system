@@ -1082,7 +1082,10 @@ export default function Customers() {
                 setNewState('');
                 setNewStateDropdownOpen(true);
               }}
-              onFocus={() => setNewStateDropdownOpen(true)}
+              onFocus={(e) => {
+                setNewStateDropdownOpen(true);
+                e.target.select();
+              }}
               style={{ width: '100%' }}
               placeholder="Search state..."
             />
@@ -1172,7 +1175,10 @@ export default function Customers() {
                 setEditState('');
                 setEditStateDropdownOpen(true);
               }}
-              onFocus={() => setEditStateDropdownOpen(true)}
+              onFocus={(e) => {
+                setEditStateDropdownOpen(true);
+                e.target.select();
+              }}
               style={{ width: '100%' }}
               placeholder="Search state..."
             />

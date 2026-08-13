@@ -298,7 +298,10 @@ function GstSettings() {
                 setGstSettings(prev => ({ ...prev, state: '', stateCode: '' }));
                 setGstStateDropdownOpen(true);
               }}
-              onFocus={() => setGstStateDropdownOpen(true)}
+              onFocus={(e) => {
+                setGstStateDropdownOpen(true);
+                e.target.select();
+              }}
               style={{ width: '100%' }}
               placeholder="Search Indian state..."
             />

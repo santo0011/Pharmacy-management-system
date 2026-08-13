@@ -253,6 +253,7 @@ export const getSupplierLedger = async (req, res, next) => {
         phone: supplier.phone,
         email: supplier.email,
         address: supplier.address,
+        state: supplier.state,
       },
       summary: {
         totalPurchases: totalPurchases,

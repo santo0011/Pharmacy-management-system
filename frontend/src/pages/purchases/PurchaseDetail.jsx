@@ -122,14 +122,64 @@ export default function PurchaseDetail() {
           <InfoRow label="Supplier" value={purchase.supplier?.supplierName || purchase.supplierName} />
           <InfoRow label="Company" value={purchase.supplier?.companyName} />
           <InfoRow label="Phone" value={purchase.supplier?.phone} />
+          <InfoRow label="Supplier State" value={purchase.supplier?.state || purchase.supplierStateCode || '-'} />
           <InfoRow label="GST Number" value={purchase.supplier?.gstNumber} />
           <InfoRow label="Purchase Date" value={new Date(purchase.purchaseDate).toLocaleDateString()} />
           <InfoRow label="Status" value={statusBadge(purchase.status)} />
           <InfoRow label="Payment" value={paymentStatusBadge[purchase.paymentStatus]} />
           <InfoRow label="Payment Method" value={purchase.paymentMethod} />
+          {purchase.invoiceAttachment && (
+            <InfoRow
+              label="Invoice Attachment"
+              value={
+                <a
+                  href={purchase.invoiceAttachment}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-sm btn-outline-info"
+                  style={{ padding: '4px 10px', fontSize: '12px' }}
+                >
+                  <i className="fa-solid fa-eye"></i> View Invoice
+                </a>
+              }
+            />
+          )}
           {purchase.notes && <InfoRow label="Notes" value={purchase.notes} />}
         </div>
       </div>
+
+      {/* Invoice Attachment Preview */}
+      {purchase.invoiceAttachment && (
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <div className="card-header">
+            <h5><i className="fa-solid fa-file-invoice"></i> Purchase Invoice Preview</h5>
+            <a
+              href={purchase.invoiceAttachment}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-sm btn-outline-info"
+              style={{ padding: '4px 10px', fontSize: '12px' }}
+            >
+              <i className="fa-solid fa-external-link"></i> Open Full
+            </a>
+          </div>
+          <div className="card-body" style={{ padding: 0, background: '#f1f5f9' }}>
+            {purchase.invoiceAttachment.endsWith('.pdf') ? (
+              <iframe
+                src={purchase.invoiceAttachment}
+                title="Purchase Invoice Preview"
+                style={{ width: '100%', height: '500px', border: 'none', background: '#fff' }}
+              />
+            ) : (
+              <img
+                src={purchase.invoiceAttachment}
+                alt="Purchase Invoice Preview"
+                style={{ width: '100%', maxHeight: '500px', objectFit: 'contain', background: '#fff' }}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Items */}
       <div className="card" style={{ marginBottom: '20px' }}>
@@ -166,8 +216,17 @@ export default function PurchaseDetail() {
         <div className="card-body">
           <div style={{ maxWidth: '400px' }}>
             <InfoRow label="Subtotal" value={<CurrencyDisplay value={purchase.subtotal} />} />
-            <InfoRow label="Tax (GST)" value={<CurrencyDisplay value={purchase.taxAmount} />} />
+            <InfoRow label="Taxable Amount" value={<CurrencyDisplay value={purchase.taxableAmount} />} />
             <InfoRow label="Discount" value={<CurrencyDisplay value={purchase.discountAmount} />} />
+            {purchase.isIntraState ? (
+              <>
+                <InfoRow label="CGST" value={<CurrencyDisplay value={purchase.cgstAmount} />} />
+                <InfoRow label="SGST" value={<CurrencyDisplay value={purchase.sgstAmount} />} />
+              </>
+            ) : (
+              <InfoRow label="IGST" value={<CurrencyDisplay value={purchase.igstAmount} />} />
+            )}
+            <InfoRow label="Total GST" value={<CurrencyDisplay value={purchase.taxAmount} />} />
             <InfoRow label="Shipping" value={<CurrencyDisplay value={purchase.shippingCost} />} />
             <InfoRow label="Other Cost" value={<CurrencyDisplay value={purchase.otherCost} />} />
             <div style={{ display: 'flex', padding: '12px 0', borderTop: '2px solid var(--gray-200)', fontWeight: 700, fontSize: '16px', color: 'var(--primary)' }}>

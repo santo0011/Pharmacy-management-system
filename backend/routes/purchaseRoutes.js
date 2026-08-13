@@ -19,6 +19,7 @@ import {
 } from '../controllers/purchaseReturnController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { pharmacyScope } from '../middleware/pharmacyAccess.js';
+import { uploadPurchaseInvoice, handleUploadError } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -31,11 +32,11 @@ router.get('/supplier/:supplierId/due-invoices', getSupplierDueInvoices);
 
 router.route('/')
   .get(getPurchases)
-  .post(authorize('admin', 'pharmacist'), createPurchase);
+  .post(authorize('admin', 'pharmacist'), uploadPurchaseInvoice.single('invoiceAttachment'), handleUploadError, createPurchase);
 
 router.route('/:id')
   .get(getPurchase)
-  .put(authorize('admin', 'pharmacist'), updatePurchase)
+  .put(authorize('admin', 'pharmacist'), uploadPurchaseInvoice.single('invoiceAttachment'), handleUploadError, updatePurchase)
   .delete(authorize('admin'), deletePurchase);
 
 router.get('/returns/all', authorize('admin', 'pharmacist'), getAllReturns);

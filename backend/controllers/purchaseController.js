@@ -10,6 +10,7 @@ import {
   getStateCode,
   getStateCodeFromGSTIN,
   isIntraState,
+  resolveGstRate,
 } from '../utils/gstHelper.js';
 
 const generateInvoiceNumber = async (pharmacyId) => {
@@ -202,15 +203,22 @@ export const createPurchase = async (req, res, next) => {
   session.startTransaction();
   try {
     const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, notes, selectedDueInvoices } = req.body;
+    const invoiceAttachment = req.file ? `/uploads/purchases/${req.file.filename}` : '';
 
     if (!items || items.length === 0) return ApiResponse.error(res, 'At least one item is required', 400);
 
     const invoiceNumber = await generateInvoiceNumber(req.pharmacyId);
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
+    // When using multipart/form-data, selectedDueInvoices arrives as a JSON string
+    let parsedSelectedDueInvoices = selectedDueInvoices;
+    if (typeof selectedDueInvoices === 'string' && selectedDueInvoices) {
+      try { parsedSelectedDueInvoices = JSON.parse(selectedDueInvoices); } catch { parsedSelectedDueInvoices = undefined; }
+    }
 
     // Get pharmacy state code for GST calculation
     const pharmacy = await Pharmacy.findById(req.pharmacyId).session(session);
     const pharmacyStateCode = pharmacy?.stateCode || getStateCode(pharmacy?.state) || '';
+    const defaultGstRate = Number(pharmacy?.defaultGstRate) || 0;
 
     // Get supplier state code
     let supplierStateCode = '';
@@ -274,7 +282,8 @@ export const createPurchase = async (req, res, next) => {
 
       const qty = Number(item.quantity);
       const price = Number(item.purchasePrice);
-      const gstPct = Number(item.gst) || 0;
+      // GST Priority: Product GST > 0 → use product GST; Product GST = 0 → use pharmacy Default GST
+      const gstPct = resolveGstRate(Number(item.gst) || 0, defaultGstRate);
       const isTaxInclusive = medicine.taxInclusive || false;
 
       // Use centralized GST helper
@@ -361,6 +370,7 @@ export const createPurchase = async (req, res, next) => {
       dueAmount: Math.max(0, due),
       paymentMethod: paymentMethod || 'cash',
       paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+      invoiceAttachment,
       isStockUpdated: true,
       pharmacyId: req.pharmacyId,
       createdBy: req.user._id,
@@ -377,7 +387,7 @@ export const createPurchase = async (req, res, next) => {
         paymentMethod: paymentMethod || 'cash',
         paymentDate: new Date(),
         notes: notes || 'Initial payment',
-        selectedDueInvoices,
+        selectedDueInvoices: parsedSelectedDueInvoices,
         pharmacyId: req.pharmacyId,
         userId: req.user._id,
         session,
@@ -426,11 +436,18 @@ export const updatePurchase = async (req, res, next) => {
     }
 
     const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, notes, selectedDueInvoices } = req.body;
+    const invoiceAttachment = req.file ? `/uploads/purchases/${req.file.filename}` : purchase.invoiceAttachment || '';
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
+    // When using multipart/form-data, selectedDueInvoices arrives as a JSON string
+    let parsedSelectedDueInvoices = selectedDueInvoices;
+    if (typeof selectedDueInvoices === 'string' && selectedDueInvoices) {
+      try { parsedSelectedDueInvoices = JSON.parse(selectedDueInvoices); } catch { parsedSelectedDueInvoices = undefined; }
+    }
 
     // Get pharmacy state code for GST calculation
     const pharmacy = await Pharmacy.findById(req.pharmacyId).session(session);
     const pharmacyStateCode = pharmacy?.stateCode || getStateCode(pharmacy?.state) || '';
+    const defaultGstRate = Number(pharmacy?.defaultGstRate) || 0;
     const supplierStateCode = purchase.supplierStateCode || '';
 
     const intraState = isIntraState(pharmacyStateCode, supplierStateCode);
@@ -465,7 +482,8 @@ export const updatePurchase = async (req, res, next) => {
 
       const qty = Number(item.quantity);
       const price = Number(item.purchasePrice);
-      const gstPct = Number(item.gst) || 0;
+      // GST Priority: Product GST > 0 → use product GST; Product GST = 0 → use pharmacy Default GST
+      const gstPct = resolveGstRate(Number(item.gst) || 0, defaultGstRate);
       const isTaxInclusive = medicine.taxInclusive || false;
 
       // Use centralized GST helper
@@ -552,6 +570,7 @@ export const updatePurchase = async (req, res, next) => {
       paymentMethod: paymentMethod || purchase.paymentMethod,
       paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
       notes: notes !== undefined ? notes : purchase.notes,
+      invoiceAttachment,
       isStockUpdated: true,
       updatedBy: req.user._id,
     });
@@ -567,7 +586,7 @@ export const updatePurchase = async (req, res, next) => {
         paymentMethod: paymentMethod || 'cash',
         paymentDate: new Date(),
         notes: notes || '',
-        selectedDueInvoices,
+        selectedDueInvoices: parsedSelectedDueInvoices,
         pharmacyId: req.pharmacyId,
         userId: req.user._id,
         session,

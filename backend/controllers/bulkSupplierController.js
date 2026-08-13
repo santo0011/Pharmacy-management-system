@@ -1,10 +1,11 @@
 import mongoose from 'mongoose';
 import Supplier from '../models/Supplier.js';
 import ApiResponse from '../utils/apiResponse.js';
+import { getStateCode } from '../utils/gstHelper.js';
 
 export const bulkImportSuppliers = async (req, res, next) => {
   try {
-    const { suppliers } = req.body;
+    const { suppliers, state } = req.body;
     const pharmacyId = req.pharmacyId;
 
     if (!suppliers || !Array.isArray(suppliers) || suppliers.length === 0) {
@@ -12,6 +13,9 @@ export const bulkImportSuppliers = async (req, res, next) => {
     }
     if (suppliers.length > 200) {
       return ApiResponse.error(res, 'Maximum 200 suppliers per import', 400);
+    }
+    if (!state || !state.trim()) {
+      return ApiResponse.error(res, 'State is required for bulk import', 400);
     }
 
     const results = { success: [], errors: [], successCount: 0, errorCount: 0 };
@@ -30,12 +34,15 @@ export const bulkImportSuppliers = async (req, res, next) => {
           results.errors.push({ row: rowNum, reason: `Supplier "${name}" already exists`, data: row });
           continue;
         }
+        const stateName = state.trim();
         await Supplier.create({
           supplierName: name,
           companyName: row.companyName || '',
           phone: row.phone || '',
           email: row.email || '',
           address: row.address || '',
+          state: stateName,
+          stateCode: getStateCode(stateName) || '',
           gstNumber: row.gstNumber || '',
           status: row.status !== undefined ? row.status : true,
           pharmacyId,

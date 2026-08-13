@@ -1,15 +1,18 @@
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import ApiResponse from '../utils/apiResponse.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const createUploader = (folderName) => {
+const createUploader = (folderName, allowedFileTypes = /jpeg|jpg|png|gif|webp|svg/) => {
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
       const uploadPath = path.join(__dirname, '..', 'uploads', folderName);
+      // Ensure the upload directory exists
+      fs.mkdirSync(uploadPath, { recursive: true });
       cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
@@ -20,16 +23,15 @@ const createUploader = (folderName) => {
   });
 
   const fileFilter = (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp|svg/;
-    const extname = allowedTypes.test(
+    const extname = allowedFileTypes.test(
       path.extname(file.originalname).toLowerCase()
     );
-    const mimetype = allowedTypes.test(file.mimetype);
+    const mimetype = allowedFileTypes.test(file.mimetype);
 
     if (extname && mimetype) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error('Only image files (JPG, JPEG, PNG, GIF, WEBP, SVG) or PDF files are allowed'));
     }
   };
 
@@ -45,6 +47,7 @@ export const uploadBrandLogo = createUploader('brands');
 export const uploadSupplierImage = createUploader('suppliers');
 export const uploadUserAvatar = createUploader('users');
 export const uploadMedicineImage = createUploader('medicines');
+export const uploadPurchaseInvoice = createUploader('purchases', /jpeg|jpg|png|pdf/);
 
 export const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {

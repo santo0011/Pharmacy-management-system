@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchSuppliers,
@@ -10,6 +10,7 @@ import {
 import Drawer from '../../components/common/Drawer';
 import BulkImportSimple from '../../components/common/BulkImportSimple';
 import { showSuccess, showError, confirmDelete } from '../../utils/sweetAlert';
+import { INDIAN_STATES, getStateCodeByName } from '../../utils/indianStates';
 
 const initialFormState = {
   supplierName: '',
@@ -17,6 +18,7 @@ const initialFormState = {
   phone: '',
   email: '',
   address: '',
+  state: '',
   gstNumber: '',
   status: true,
 };
@@ -34,6 +36,9 @@ export default function Suppliers() {
   const [formData, setFormData] = useState(initialFormState);
   const [submitting, setSubmitting] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
+  const [stateSearch, setStateSearch] = useState('');
+  const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
+  const stateSearchRef = useRef(null);
 
   const toggleRow = (rowIdx) => {
     setExpandedRows(prev => ({
@@ -65,27 +70,51 @@ export default function Suppliers() {
   const openCreateDrawer = () => {
     setEditing(null);
     setFormData(initialFormState);
+    setStateSearch('');
+    setStateDropdownOpen(false);
     setDrawerOpen(true);
   };
 
   const openEditDrawer = (supplier) => {
     setEditing(supplier);
+    const savedState = supplier.state || '';
     setFormData({
       supplierName: supplier.supplierName,
       companyName: supplier.companyName,
       phone: supplier.phone,
       email: supplier.email,
       address: supplier.address || '',
+      state: savedState,
       gstNumber: supplier.gstNumber || '',
       status: supplier.status,
     });
+    setStateSearch(savedState);
+    setStateDropdownOpen(false);
     setDrawerOpen(true);
   };
 
   const closeDrawer = () => {
     setDrawerOpen(false);
     setEditing(null);
+    setStateDropdownOpen(false);
   };
+
+  // Close state dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (stateSearchRef.current && !stateSearchRef.current.contains(event.target)) {
+        setStateDropdownOpen(false);
+      }
+    };
+    if (stateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [stateDropdownOpen]);
+
+  const filteredStates = INDIAN_STATES.filter(s =>
+    s.name.toLowerCase().includes(stateSearch.toLowerCase())
+  );
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -101,13 +130,21 @@ export default function Suppliers() {
       showError('Phone and email are required');
       return;
     }
+    if (!formData.state) {
+      showError('Please select a state');
+      return;
+    }
     setSubmitting(true);
     try {
+      const payload = {
+        ...formData,
+        stateCode: getStateCodeByName(formData.state),
+      };
       if (editing) {
-        await dispatch(updateSupplier({ id: editing._id, supplierData: formData })).unwrap();
+        await dispatch(updateSupplier({ id: editing._id, supplierData: payload })).unwrap();
         showSuccess('Supplier updated successfully');
       } else {
-        await dispatch(createSupplier(formData)).unwrap();
+        await dispatch(createSupplier(payload)).unwrap();
         showSuccess('Supplier created successfully');
       }
       closeDrawer();
@@ -180,6 +217,10 @@ export default function Suppliers() {
                 <span className="customer-detail-value">{supplier.email}<br />{supplier.phone}</span>
               </div>
               <div className="customer-detail-item">
+                <span className="customer-detail-label">State</span>
+                <span className="customer-detail-value">{supplier.state || '-'}</span>
+              </div>
+              <div className="customer-detail-item">
                 <span className="customer-detail-label">GST</span>
                 <span className="customer-detail-value">{supplier.gstNumber || '-'}</span>
               </div>
@@ -216,6 +257,8 @@ export default function Suppliers() {
             entityName="suppliers"
             endpoint="/suppliers/bulk-import"
             headerIncluded={false}
+            requiredState
+            width="900px"
             fields={[
               { key: 'supplierName', label: 'Supplier Name', required: true, sample: 'Santo Suppliers' },
               { key: 'companyName', label: 'Company Name', required: true, sample: 'Santo Pharma' },
@@ -258,6 +301,7 @@ export default function Suppliers() {
                         <th>Supplier</th>
                         <th>Company</th>
                         <th>Contact</th>
+                        <th>State</th>
                         <th>GST</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -274,6 +318,7 @@ export default function Suppliers() {
                               <div style={{ color: 'var(--gray-500)' }}>{supplier.phone}</div>
                             </div>
                           </td>
+                          <td>{supplier.state || '-'}</td>
                           <td>{supplier.gstNumber || '-'}</td>
                           <td>
                             <label className="status-toggle">
@@ -369,6 +414,74 @@ export default function Suppliers() {
           <div className="form-group">
             <label>Address</label>
             <textarea name="address" value={formData.address} onChange={handleChange} placeholder="Enter address" />
+          </div>
+          <div className="form-group">
+            <label>State <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <div style={{ position: 'relative' }} ref={stateSearchRef}>
+              <input
+                type="text"
+                className="form-select"
+                value={stateSearch}
+                onChange={(e) => {
+                  setStateSearch(e.target.value);
+                  setFormData({ ...formData, state: '' });
+                  setStateDropdownOpen(true);
+                }}
+                onFocus={(e) => {
+                  setStateDropdownOpen(true);
+                  e.target.select();
+                }}
+                style={{ width: '100%' }}
+                placeholder="Search state..."
+              />
+              {stateDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#fff',
+                  border: '1px solid var(--gray-200)',
+                  borderRadius: '8px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                  zIndex: 100,
+                  maxHeight: '220px',
+                  overflowY: 'auto',
+                  marginTop: '4px',
+                }}>
+                  {filteredStates.length > 0 ? (
+                    filteredStates.map(state => (
+                      <div
+                        key={state.code}
+                        onClick={() => {
+                          setFormData({ ...formData, state: state.name });
+                          setStateSearch(state.name);
+                          setStateDropdownOpen(false);
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--gray-100)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          background: formData.state === state.name ? 'var(--primary-light)' : '#fff',
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = formData.state === state.name ? 'var(--primary-light)' : '#fff'}
+                      >
+                        <span style={{ fontWeight: 500, fontSize: '13px' }}>{state.name}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Code: {state.code}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '12px 14px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+                      No states found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div className="form-row">
             <div className="form-group">

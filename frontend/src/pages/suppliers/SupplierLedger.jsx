@@ -75,6 +75,7 @@ export default function SupplierLedger() {
         <div style={{ fontSize: '13px', color: '#888' }}>
           {supplier.phone && <span><i className="fa-solid fa-phone"></i> {supplier.phone}</span>}
           {supplier.email && <span style={{ marginLeft: '12px' }}><i className="fa-solid fa-envelope"></i> {supplier.email}</span>}
+          {supplier.state && <span style={{ marginLeft: '12px' }}><i className="fa-solid fa-location-dot"></i> {supplier.state}</span>}
         </div>
       </div>
 

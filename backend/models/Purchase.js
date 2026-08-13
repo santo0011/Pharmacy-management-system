@@ -75,6 +75,11 @@ const purchaseSchema = mongoose.Schema({
     default: 'completed',
   },
   notes: { type: String, default: '' },
+  invoiceAttachment: {
+    type: String,
+    default: '',
+    description: 'Path to uploaded purchase invoice file (PDF/JPG/PNG)',
+  },
   isStockUpdated: { type: Boolean, default: false },
   pharmacyId: {
     type: mongoose.Schema.Types.ObjectId,

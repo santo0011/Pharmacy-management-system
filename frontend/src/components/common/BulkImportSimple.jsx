@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import Drawer from './Drawer';
+import { INDIAN_STATES } from '../../utils/indianStates';
 
 export default function BulkImportSimple({ 
   title = 'Bulk Import', 
@@ -11,6 +12,8 @@ export default function BulkImportSimple({
   fields = [{ key: 'name', label: 'Name', required: true }],
   onComplete,
   headerIncluded = true,
+  requiredState = false,
+  width = '700px',
 }) {
   const [showDrawer, setShowDrawer] = useState(false);
   const [pasteData, setPasteData] = useState('');
@@ -19,6 +22,29 @@ export default function BulkImportSimple({
   const [results, setResults] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [validation, setValidation] = useState({ total: 0, valid: 0, invalid: 0, invalidRows: [] });
+
+  // Required State selection state
+  const [selectedState, setSelectedState] = useState('');
+  const [stateSearch, setStateSearch] = useState('');
+  const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
+  const stateSearchRef = useRef(null);
+
+  // Close state dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (stateSearchRef.current && !stateSearchRef.current.contains(event.target)) {
+        setStateDropdownOpen(false);
+      }
+    };
+    if (stateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [stateDropdownOpen]);
+
+  const filteredStates = INDIAN_STATES.filter(s =>
+    s.name.toLowerCase().includes(stateSearch.toLowerCase())
+  );
 
   /**
    * Parse a single CSV line into an array of values.
@@ -69,6 +95,10 @@ export default function BulkImportSimple({
   };
 
   const handleParse = () => {
+    if (requiredState && !selectedState) {
+      toast.error('Please select a state before continuing');
+      return;
+    }
     if (!pasteData.trim()) {
       toast.error('Please paste some data first');
       return;
@@ -127,6 +157,10 @@ export default function BulkImportSimple({
    * Show the confirmation dialog before importing.
    */
   const handleConfirmImport = () => {
+    if (requiredState && !selectedState) {
+      toast.error('Please select a state before continuing');
+      return;
+    }
     if (parsedRows.length === 0) {
       toast.error('No data to import');
       return;
@@ -156,6 +190,10 @@ export default function BulkImportSimple({
   };
 
   const handleImport = async () => {
+    if (requiredState && !selectedState) {
+      toast.error('Please select a state before continuing');
+      return;
+    }
     if (parsedRows.length === 0) {
       toast.error('No data to import');
       return;
@@ -163,7 +201,9 @@ export default function BulkImportSimple({
     try {
       setImporting(true);
       setShowConfirm(false);
-      const res = await api.post(endpoint, { [entityName]: parsedRows });
+      const payload = { [entityName]: parsedRows };
+      if (requiredState) payload.state = selectedState;
+      const res = await api.post(endpoint, payload);
       const data = res.data?.data;
       setResults(data);
       if (data?.successCount > 0) {
@@ -185,6 +225,9 @@ export default function BulkImportSimple({
     setParsedRows([]);
     setResults(null);
     setShowConfirm(false);
+    setSelectedState('');
+    setStateSearch('');
+    setStateDropdownOpen(false);
     setShowDrawer(false);
   };
 
@@ -214,7 +257,7 @@ export default function BulkImportSimple({
         isOpen={showDrawer}
         onClose={() => !importing && reset()}
         title={<><i className={icon} style={{ marginRight: '10px', color: 'var(--primary)' }}></i>{title}</>}
-        width="700px"
+        width={width}
       >
         {!results ? (
           <>
@@ -228,6 +271,15 @@ export default function BulkImportSimple({
                     Please review the data before proceeding with the import.
                   </p>
                 </div>
+
+                {requiredState && selectedState && (
+                  <div style={{ textAlign: 'center', marginBottom: '16px', padding: '10px 16px', background: '#eff6ff', borderRadius: '8px', display: 'inline-block', width: '100%', boxSizing: 'border-box' }}>
+                    <span style={{ fontSize: '13px', color: '#1e40af' }}>
+                      <i className="fa-solid fa-location-dot" style={{ marginRight: '6px' }}></i>
+                      State: <strong>{selectedState}</strong>
+                    </span>
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
                   <div style={{ padding: '16px 24px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center', minWidth: '100px' }}>
@@ -284,6 +336,91 @@ export default function BulkImportSimple({
               </div>
             ) : (
               <>
+                {/* Required State Selection Step */}
+                {requiredState && (
+                  <div style={{ marginBottom: '20px', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px' }}>
+                      State <span style={{ color: 'var(--danger)' }}>*</span>
+                    </div>
+                    <p style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '10px' }}>
+                      Select the state that will be applied to every imported {entityName}.
+                    </p>
+                    <div style={{ position: 'relative' }} ref={stateSearchRef}>
+                      <input
+                        type="text"
+                        className="form-select"
+                        value={selectedState || stateSearch}
+                        onChange={(e) => {
+                          setStateSearch(e.target.value);
+                          setSelectedState('');
+                          setStateDropdownOpen(true);
+                        }}
+                        onFocus={(e) => {
+                          setStateDropdownOpen(true);
+                          e.target.select();
+                        }}
+                        style={{ width: '100%' }}
+                        placeholder="Search state..."
+                      />
+                      {stateDropdownOpen && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          background: '#fff',
+                          border: '1px solid var(--gray-200)',
+                          borderRadius: '8px',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                          zIndex: 100,
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          marginTop: '4px',
+                        }}>
+                          {filteredStates.length > 0 ? (
+                            filteredStates.map(state => (
+                              <div
+                                key={state.code}
+                                onClick={() => {
+                                  setSelectedState(state.name);
+                                  setStateSearch('');
+                                  setStateDropdownOpen(false);
+                                }}
+                                style={{
+                                  padding: '10px 14px',
+                                  cursor: 'pointer',
+                                  borderBottom: '1px solid var(--gray-100)',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  background: selectedState === state.name ? 'var(--primary-light)' : '#fff',
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = selectedState === state.name ? 'var(--primary-light)' : '#fff'}
+                              >
+                                <span style={{ fontWeight: 500, fontSize: '13px' }}>{state.name}</span>
+                                <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Code: {state.code}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div style={{ padding: '12px 14px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+                              No states found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {!selectedState && (
+                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="fa-solid fa-circle-exclamation"></i>
+                        Please select a state to continue with the import.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(!requiredState || selectedState) && (
+                  <>
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>Paste your data below</div>
                   {!headerIncluded && (
@@ -342,12 +479,22 @@ export default function BulkImportSimple({
                         </tbody>
                       </table>
                     </div>
+                    {requiredState && selectedState && (
+                      <div style={{ marginTop: '10px', padding: '8px 12px', background: '#eff6ff', borderRadius: '6px', display: 'inline-block' }}>
+                        <span style={{ fontSize: '12px', color: '#1e40af' }}>
+                          <i className="fa-solid fa-location-dot" style={{ marginRight: '4px' }}></i>
+                          All {parsedRows.length} rows will be imported with State: <strong>{selectedState}</strong>
+                        </span>
+                      </div>
+                    )}
                     <div style={{ marginTop: '16px' }}>
                       <button className="btn btn-success" onClick={handleConfirmImport} disabled={importing}>
                         <i className="fa-solid fa-arrow-right"></i> Continue to Import
                       </button>
                     </div>
                   </div>
+                )}
+                  </>
                 )}
               </>
             )}
