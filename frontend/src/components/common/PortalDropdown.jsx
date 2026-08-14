@@ -13,9 +13,11 @@ export default function PortalDropdown({ triggerRef, show, onClose, children, st
   const updateCoords = useCallback(() => {
     if (triggerRef?.current) {
       const rect = triggerRef.current.getBoundingClientRect();
+      // position:fixed is viewport-relative, so use raw rect values
+      // (no scroll offset — adding it would create a gap when the page is scrolled)
       setCoords({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.bottom,
+        left: rect.left,
         width: rect.width,
       });
     }

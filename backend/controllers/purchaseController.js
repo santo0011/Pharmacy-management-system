@@ -202,7 +202,7 @@ export const createPurchase = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, notes, selectedDueInvoices } = req.body;
+    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, roundOffAmount, paidAmount, paymentMethod, notes, selectedDueInvoices } = req.body;
     const invoiceAttachment = req.file ? `/uploads/purchases/${req.file.filename}` : '';
 
     if (!items || items.length === 0) return ApiResponse.error(res, 'At least one item is required', 400);
@@ -327,9 +327,11 @@ export const createPurchase = async (req, res, next) => {
     }
 
     const discountAmount = discountType === 'percentage' ? taxableTotal * (Number(discount) / 100) : Number(discount) || 0;
+    const roundOff = Math.max(0, Number(roundOffAmount) || 0);
+    const totalDiscount = Number((discountAmount + roundOff).toFixed(2));
 
     // Recalculate GST after overall discount
-    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
+    const finalTaxable = Math.max(0, taxableTotal - totalDiscount);
     const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
     const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
 
@@ -355,6 +357,7 @@ export const createPurchase = async (req, res, next) => {
       discount: Number(discount) || 0,
       discountType: discountType || 'fixed',
       discountAmount,
+      roundOffAmount: roundOff,
       taxableAmount: finalTaxable,
       taxAmount: finalGst,
       cgstAmount: finalCgst,
@@ -435,7 +438,7 @@ export const updatePurchase = async (req, res, next) => {
       await revertStockForPurchase(purchase.items, req.pharmacyId, session);
     }
 
-    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, paidAmount, paymentMethod, notes, selectedDueInvoices } = req.body;
+    const { purchaseDate, supplier, supplierName, items, discount, discountType, shippingCost, otherCost, roundOffAmount, paidAmount, paymentMethod, notes, selectedDueInvoices } = req.body;
     const invoiceAttachment = req.file ? `/uploads/purchases/${req.file.filename}` : purchase.invoiceAttachment || '';
     const parsedItems = JSON.parse(typeof items === 'string' ? items : JSON.stringify(items));
     // When using multipart/form-data, selectedDueInvoices arrives as a JSON string
@@ -527,9 +530,11 @@ export const updatePurchase = async (req, res, next) => {
     }
 
     const discountAmount = discountType === 'percentage' ? taxableTotal * (Number(discount) / 100) : Number(discount) || 0;
+    const roundOff = Math.max(0, Number(roundOffAmount) || 0);
+    const totalDiscount = Number((discountAmount + roundOff).toFixed(2));
 
     // Recalculate GST after overall discount
-    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
+    const finalTaxable = Math.max(0, taxableTotal - totalDiscount);
     const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
     const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
 
@@ -556,6 +561,7 @@ export const updatePurchase = async (req, res, next) => {
       discount: Number(discount) || 0,
       discountType: discountType || 'fixed',
       discountAmount,
+      roundOffAmount: roundOff,
       taxableAmount: finalTaxable,
       taxAmount: finalGst,
       cgstAmount: finalCgst,

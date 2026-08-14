@@ -204,19 +204,25 @@ export const calculateInvoiceGST = ({
   discountType = 'fixed',
   pharmacyStateCode,
   otherPartyStateCode,
+  // Which item price field to use (default: 'sellingPrice' for sales;
+  // purchases pass 'purchasePrice')
+  priceField = 'sellingPrice',
+  // Round-off amount — treated as an additional discount for the final calculation
+  roundOff = 0,
 }) => {
   // Calculate item-level GST breakdowns
-  const calcs = items.map(item =>
-    calculateItemGST({
+  const calcs = items.map(item => {
+    const price = item[priceField] !== undefined ? item[priceField] : 0;
+    return calculateItemGST({
       quantity: item.quantity,
-      price: item.sellingPrice !== undefined ? item.sellingPrice : 0,
+      price,
       gstPct: item.gst || 0,
       discount: item.discount || 0,
       discountType: item.discountType || 'fixed',
       pharmacyStateCode,
       otherPartyStateCode,
-    })
-  );
+    });
+  });
 
   // Sum up item-level totals
   const subtotal = calcs.reduce((s, c) => s + c.rawSubtotal, 0);
@@ -232,8 +238,12 @@ export const calculateInvoiceGST = ({
     ? taxableBase * (Number(discount) / 100)
     : Math.min(Number(discount) || 0, taxableBase);
 
+  // Round-off is added to the discount for the final calculation
+  const roundOffAmt = Math.max(0, Number(roundOff) || 0);
+  const totalDiscountAmt = Number((overallDiscountAmt + roundOffAmt).toFixed(2));
+
   // Taxable amount after all discounts
-  const totalTaxableAmount = Math.max(0, taxableBase - itemDiscounts - (overallDiscountAmt > 0 ? overallDiscountAmt : 0));
+  const totalTaxableAmount = Math.max(0, taxableBase - itemDiscounts - (totalDiscountAmt > 0 ? totalDiscountAmt : 0));
 
   // Recalculate GST if there's an overall discount that wasn't already applied
   let finalCgst = cgst;
@@ -241,7 +251,7 @@ export const calculateInvoiceGST = ({
   let finalIgst = igst;
   let finalGst = totalGst;
 
-  if (overallDiscountAmt > 0) {
+  if (totalDiscountAmt > 0) {
     // Recalculate GST proportionally after overall discount
     const gstRateUsed = totalTaxableAmount > 0 && taxableBase > 0
       ? (totalGst / Math.max(taxableBase - itemDiscounts, 0.01)) * 100
@@ -267,7 +277,8 @@ export const calculateInvoiceGST = ({
     taxableBase: Number(taxableBase.toFixed(2)),
     itemDiscounts: Number(itemDiscounts.toFixed(2)),
     overallDiscount: Number(overallDiscountAmt.toFixed(2)),
-    totalDiscount: Number((itemDiscounts + overallDiscountAmt).toFixed(2)),
+    roundOff: Number(roundOffAmt.toFixed(2)),
+    totalDiscount: Number((itemDiscounts + totalDiscountAmt).toFixed(2)),
     taxableAmount: Number(totalTaxableAmount.toFixed(2)),
     cgst: Number(finalCgst.toFixed(2)),
     sgst: Number(finalSgst.toFixed(2)),

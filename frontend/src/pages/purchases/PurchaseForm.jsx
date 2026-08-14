@@ -13,6 +13,26 @@ import { pharmacyService } from '../../services/pharmacyService';
 import { calculateInvoiceGST, getStateCode, resolveGstRate } from '../../utils/gst';
 import PortalDropdown from '../../components/common/PortalDropdown';
 
+/**
+ * Sanitize a numeric input value:
+ * - Empty string → '0'
+ * - Strips leading zeros (e.g. '012' → '12', '0.5' stays '0.5')
+ * - Allows only digits and a single decimal point
+ */
+const sanitizeNumericInput = (value) => {
+  if (value === '' || value === null || value === undefined) return '0';
+  let str = String(value).trim();
+  if (str === '') return '0';
+  // Allow only digits and one decimal point
+  str = str.replace(/[^\d.]/g, '');
+  const parts = str.split('.');
+  if (parts.length > 2) str = parts[0] + '.' + parts.slice(1).join('');
+  // Strip leading zeros (but keep '0.' for decimals like 0.5)
+  str = str.replace(/^0+(?=\d)/, '');
+  if (str === '' || str === '.') return '0';
+  return str;
+};
+
 export default function PurchaseForm() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -35,6 +55,7 @@ export default function PurchaseForm() {
   const [discountType, setDiscountType] = useState('percentage');
   const [shippingCost, setShippingCost] = useState(0);
   const [otherCost, setOtherCost] = useState(0);
+  const [roundOff, setRoundOff] = useState(0);
   const [paidAmount, setPaidAmount] = useState();
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [notes, setNotes] = useState('');
@@ -145,6 +166,7 @@ export default function PurchaseForm() {
       setDiscountType(p.discountType || 'fixed');
       setShippingCost(p.shippingCost || 0);
       setOtherCost(p.otherCost || 0);
+      setRoundOff(p.roundOffAmount || 0);
       setPaidAmount(p.paidAmount || 0);
       setPaymentMethod(p.paymentMethod || 'cash');
       setNotes(p.notes || '');
@@ -163,9 +185,15 @@ export default function PurchaseForm() {
     }
   }, [supplier, loadSupplierDueData, isEditing]);
 
-  // Close dropdowns on click outside
+  // Close dropdowns on click outside (but NOT when clicking inside portal dropdowns,
+  // which are rendered at document.body level and handle their own outside clicks)
   useEffect(() => {
     const handleClickOutside = (event) => {
+      let inPortalDropdown = false;
+      document.querySelectorAll('.portal-dropdown').forEach(dd => {
+        if (dd.contains(event.target)) inPortalDropdown = true;
+      });
+      if (inPortalDropdown) return;
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
         setShowSearchDropdown(false);
       }
@@ -206,6 +234,13 @@ export default function PurchaseForm() {
     }, 300);
   };
 
+  // Populate the dropdown with all available suppliers (no search required)
+  const showAllSuppliers = useCallback(() => {
+    setShowSupplierDropdown(true);
+    setSupplierSearchLoading(false);
+    setSupplierSearchResults(suppliers || []);
+  }, [suppliers]);
+
   // Server-side supplier search with debounce
   const handleSupplierSearch = (value) => {
     setSupplierSearchQuery(value);
@@ -217,7 +252,7 @@ export default function PurchaseForm() {
     setShowSupplierDropdown(true);
     if (supplierSearchTimer.current) clearTimeout(supplierSearchTimer.current);
     if (!value.trim()) {
-      setSupplierSearchResults([]);
+      setSupplierSearchResults(suppliers || []);
       setSupplierSearchLoading(false);
       return;
     }
@@ -245,6 +280,10 @@ export default function PurchaseForm() {
     discountType,
     pharmacyStateCode,
     otherPartyStateCode: supplierStateCode,
+    // Purchases are calculated on the purchase price (not selling price)
+    priceField: 'purchasePrice',
+    // Round-off is added to the discount for the final calculation
+    roundOff: Number(roundOff) || 0,
   });
 
   const calcSubtotal = () => items.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.purchasePrice)), 0);
@@ -376,6 +415,7 @@ export default function PurchaseForm() {
         discountType,
         shippingCost: Number(shippingCost),
         otherCost: Number(otherCost),
+        roundOffAmount: Number(roundOff) || 0,
         paidAmount: paid,
         paymentMethod,
         notes,
@@ -396,6 +436,7 @@ export default function PurchaseForm() {
         formData.append('discountType', payload.discountType);
         formData.append('shippingCost', payload.shippingCost);
         formData.append('otherCost', payload.otherCost);
+        formData.append('roundOffAmount', payload.roundOffAmount);
         formData.append('paidAmount', payload.paidAmount);
         formData.append('paymentMethod', payload.paymentMethod);
         formData.append('notes', payload.notes || '');
@@ -430,6 +471,14 @@ export default function PurchaseForm() {
   const creditPurchase = currentDue + previousDue;
   const isIntra = gstCalc.isIntraState;
 
+  // Effective GST rate derived from the calculation (for display labels)
+  const effectiveGstRate = gstCalc.taxableAmount > 0
+    ? (gstCalc.totalGst / gstCalc.taxableAmount) * 100
+    : 0;
+  const cgstRate = Number((effectiveGstRate / 2).toFixed(2));
+  const sgstRate = Number((effectiveGstRate / 2).toFixed(2));
+  const igstRate = Number(effectiveGstRate.toFixed(2));
+
   return (
     <div>
       <div className="page-header">
@@ -447,20 +496,24 @@ export default function PurchaseForm() {
             <div className="card-header">
               <h5><i className="fa-solid fa-truck"></i> Supplier</h5>
             </div>
-            <div className="card-body" ref={supplierContainerRef}>
-              <div className="purchase-form-grid">
-                <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
+            <div className="card-body" ref={supplierContainerRef} style={{ padding: '14px 16px' }}>
+              <div className="purchase-form-grid" style={{ gap: '10px' }}>
+                <div className="form-group" style={{ marginBottom: 0, position: 'relative', gridColumn: 'span 2' }}>
                   <label>Supplier *</label>
-                  <input
-                    ref={supplierSearchRef}
-                    type="text"
-                    placeholder="Search supplier by name, company or phone..."
-                    value={supplierSearchQuery}
-                    onChange={(e) => handleSupplierSearch(e.target.value)}
-                    className="form-select"
-                    style={{ width: '100%' }}
-                    autoComplete="off"
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <i className="fa-solid fa-building" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)', fontSize: '13px', pointerEvents: 'none' }}></i>
+                    <input
+                      ref={supplierSearchRef}
+                      type="text"
+                      placeholder="Search supplier by name, company or phone..."
+                      value={supplierSearchQuery}
+                      onChange={(e) => handleSupplierSearch(e.target.value)}
+                      onFocus={showAllSuppliers}
+                      className="form-select"
+                      style={{ width: '100%', paddingLeft: '30px' }}
+                      autoComplete="off"
+                    />
+                  </div>
                   <PortalDropdown
                     triggerRef={supplierSearchRef}
                     show={showSupplierDropdown}
@@ -499,7 +552,7 @@ export default function PurchaseForm() {
                       ))
                     ) : (
                       <div style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
-                        {supplierSearchQuery.trim() ? 'No suppliers found. Type a name to create a new supplier.' : 'Type to search suppliers...'}
+                        {supplierSearchQuery.trim() ? 'No suppliers found. Type a name to create a new supplier.' : 'No suppliers found'}
                       </div>
                     )}
                   </PortalDropdown>
@@ -523,8 +576,8 @@ export default function PurchaseForm() {
               {/* Supplier State Info - GST Type Indicator */}
               {supplier && (
                 <div style={{
-                  marginTop: '12px',
-                  padding: '10px 14px',
+                  marginTop: '10px',
+                  padding: '9px 12px',
                   borderRadius: '8px',
                   background: isIntra ? '#f0fdf4' : '#eff6ff',
                   border: `1px solid ${isIntra ? '#bbf7d0' : '#bfdbfe'}`,
@@ -533,23 +586,39 @@ export default function PurchaseForm() {
                   gap: '10px',
                   flexWrap: 'wrap',
                 }}>
-                  <i className={`fa-solid ${isIntra ? 'fa-building' : 'fa-truck-fast'}`} style={{ color: isIntra ? '#16a34a' : '#2563eb', fontSize: '18px' }}></i>
-                  <div style={{ flex: 1, minWidth: '200px' }}>
-                    <div style={{ fontWeight: 600, fontSize: '13px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '8px',
+                    background: isIntra ? 'rgba(22, 163, 74, 0.12)' : 'rgba(37, 99, 235, 0.12)',
+                    color: isIntra ? '#16a34a' : '#2563eb',
+                    flexShrink: 0,
+                  }}>
+                    <i className={`fa-solid ${isIntra ? 'fa-building' : 'fa-truck-fast'}`} style={{ fontSize: '14px' }}></i>
+                  </div>
+                  <div style={{ flex: 1, minWidth: '160px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>
                       {selectedSupplier?.supplierName || supplierName}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
-                      Supplier State: <strong>{supplierState || 'Not set'}</strong>
-                      {supplierStateCode && <span> (Code: {supplierStateCode})</span>}
+                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '1px' }}>
+                      {supplierState || 'Not set'}{supplierStateCode ? ` • Code: ${supplierStateCode}` : ''}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span className={`badge ${isIntra ? 'badge-success' : 'badge-info'}`} style={{ fontSize: '11px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.3 }}>
+                        {isIntra ? 'Same State' : 'Different State'}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1.3 }}>
+                        {isIntra ? 'CGST + SGST' : 'IGST applied'}
+                      </div>
+                    </div>
+                    <span className={`badge ${isIntra ? 'badge-success' : 'badge-info'}`} style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '20px', fontWeight: 600 }}>
                       {isIntra ? 'CGST + SGST' : 'IGST'}
                     </span>
-                    <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-                      {isIntra ? 'Same State' : 'Different State'}
-                    </div>
                   </div>
                 </div>
               )}
@@ -609,28 +678,46 @@ export default function PurchaseForm() {
             <div className="card-header">
               <h5><i className="fa-solid fa-file-invoice"></i> Purchase Invoice</h5>
             </div>
-            <div className="card-body">
-              <p style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '10px' }}>
-                Upload the supplier's invoice (PDF, JPG, JPEG, PNG — max 5MB). One invoice per purchase.
-              </p>
+            <div className="card-body" style={{ padding: '14px 16px' }}>
               {!invoiceFile && !invoiceAttachment ? (
                 <div
                   onClick={() => invoiceFileInputRef.current?.click()}
                   style={{
                     border: '2px dashed var(--gray-300)',
-                    borderRadius: '8px',
-                    padding: '24px',
+                    borderRadius: '10px',
+                    padding: '16px 14px',
                     textAlign: 'center',
                     cursor: 'pointer',
-                    transition: 'border-color 0.2s',
+                    transition: 'border-color 0.2s, background-color 0.2s',
+                    background: 'var(--gray-50)',
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--gray-300)'}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'var(--primary-light)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--gray-300)'; e.currentTarget.style.background = 'var(--gray-50)'; }}
                 >
-                  <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '28px', color: 'var(--gray-400)', marginBottom: '8px' }}></i>
-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--gray-600)' }}>Upload Invoice</div>
-                  <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>Click to browse or drag & drop</div>
-                  <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '4px' }}>PDF, JPG, JPEG, PNG (Max 5MB)</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '10px',
+                      background: 'var(--primary-light)',
+                      color: 'var(--primary)',
+                      flexShrink: 0,
+                    }}>
+                      <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '18px' }}></i>
+                    </div>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--gray-700)' }}>
+                        Upload Invoice
+                        <span style={{ color: 'var(--gray-400)', fontWeight: 400 }}> — or drag & drop</span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--gray-400)', marginTop: '2px' }}>
+                        PDF, JPG, JPEG, PNG • Max 5MB
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -638,30 +725,30 @@ export default function PurchaseForm() {
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px',
-                    padding: '12px 16px',
+                    gap: '10px',
+                    padding: '10px 12px',
                     background: '#f8fafc',
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px',
-                    marginBottom: '12px',
+                    marginBottom: '10px',
                   }}>
-                    <i className={`fa-solid ${invoiceFile?.type === 'application/pdf' || invoiceAttachment?.endsWith('.pdf') ? 'fa-file-pdf' : 'fa-file-image'}`} style={{ fontSize: '24px', color: '#dc2626' }}></i>
+                    <i className={`fa-solid ${invoiceFile?.type === 'application/pdf' || invoiceAttachment?.endsWith('.pdf') ? 'fa-file-pdf' : 'fa-file-image'}`} style={{ fontSize: '20px', color: '#dc2626' }}></i>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 500, fontSize: '12.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {invoiceFile?.name || invoiceAttachment?.split('/').pop() || 'Invoice'}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#666' }}>
+                      <div style={{ fontSize: '10.5px', color: '#666' }}>
                         {invoiceFile ? `${(invoiceFile.size / 1024).toFixed(1)} KB` : 'Uploaded'}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       {invoiceAttachment && (
                         <a
                           href={invoiceAttachment}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-sm btn-outline-info"
-                          style={{ padding: '4px 10px', fontSize: '12px' }}
+                          style={{ padding: '3px 8px', fontSize: '11px' }}
                         >
                           <i className="fa-solid fa-eye"></i> View
                         </a>
@@ -670,7 +757,7 @@ export default function PurchaseForm() {
                         type="button"
                         className="btn btn-sm btn-outline-primary"
                         onClick={() => invoiceFileInputRef.current?.click()}
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                        style={{ padding: '3px 8px', fontSize: '11px' }}
                       >
                         <i className="fa-solid fa-rotate"></i> Replace
                       </button>
@@ -678,32 +765,42 @@ export default function PurchaseForm() {
                         type="button"
                         className="btn btn-sm btn-outline-danger"
                         onClick={removeInvoiceFile}
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                        style={{ padding: '3px 8px', fontSize: '11px' }}
                       >
                         <i className="fa-solid fa-trash"></i> Remove
                       </button>
                     </div>
                   </div>
 
-                  {/* Invoice Preview */}
-                  <div style={{
-                    border: '1px solid var(--gray-200)',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    background: '#f1f5f9',
-                  }}>
+                  {/* Invoice Preview - compact collapsible */} 
+                  <details style={{ border: '1px solid var(--gray-200)', borderRadius: '8px', overflow: 'hidden', background: '#f1f5f9' }}>
+                    <summary style={{
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      color: 'var(--gray-600)',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      listStyle: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <span><i className="fa-solid fa-eye" style={{ fontSize: '11px', marginRight: '6px', color: 'var(--primary)' }}></i> Preview Invoice</span>
+                      <i className="fa-solid fa-chevron-down" style={{ fontSize: '10px', color: 'var(--gray-400)' }}></i>
+                    </summary>
                     {invoiceFile ? (
                       invoiceFile.type === 'application/pdf' ? (
                         <iframe
                           src={URL.createObjectURL(invoiceFile)}
                           title="Purchase Invoice Preview"
-                          style={{ width: '100%', height: '400px', border: 'none', background: '#fff' }}
+                          style={{ width: '100%', height: '260px', border: 'none', background: '#fff' }}
                         />
                       ) : (
                         <img
                           src={URL.createObjectURL(invoiceFile)}
                           alt="Purchase Invoice Preview"
-                          style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', background: '#fff' }}
+                          style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', background: '#fff' }}
                         />
                       )
                     ) : invoiceAttachment ? (
@@ -711,17 +808,17 @@ export default function PurchaseForm() {
                         <iframe
                           src={invoiceAttachment}
                           title="Purchase Invoice Preview"
-                          style={{ width: '100%', height: '400px', border: 'none', background: '#fff' }}
+                          style={{ width: '100%', height: '260px', border: 'none', background: '#fff' }}
                         />
                       ) : (
                         <img
                           src={invoiceAttachment}
                           alt="Purchase Invoice Preview"
-                          style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', background: '#fff' }}
+                          style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', background: '#fff' }}
                         />
                       )
                     ) : null}
-                  </div>
+                  </details>
                 </>
               )}
               <input
@@ -735,9 +832,12 @@ export default function PurchaseForm() {
           </div>
 
           {/* Items Card */}
-          <div className="card" style={{ marginBottom: '16px' }}>
-            <div className="card-header">
+          <div className="card items-card-modern" style={{ marginBottom: '16px' }}>
+            <div className="card-header items-card-header">
               <h5><i className="fa-solid fa-cart-plus"></i> Items</h5>
+              <button type="button" className="btn-add-item" onClick={addItem}>
+                <i className="fa-solid fa-plus"></i> Add Item
+              </button>
             </div>
             <div className="card-body">
               <div className="search-box-wrapper" ref={searchContainerRef}>
@@ -745,7 +845,7 @@ export default function PurchaseForm() {
                   <input
                     ref={searchRef}
                     type="text"
-                    placeholder="🔍 Search medicine by name or barcode..."
+                    placeholder="🔍 Search medicine by name, SKU or barcode..."
                     value={searchTerm}
                     onChange={(e) => handleMedicineSearch(e.target.value)}
                   />
@@ -785,50 +885,41 @@ export default function PurchaseForm() {
                     )}
                   </PortalDropdown>
                 </div>
-                <button type="button" className="btn-add-item" onClick={addItem}>
-                  <i className="fa-solid fa-plus"></i> Add Item
-                </button>
               </div>
 
               {/* Desktop Table View */}
-              <div className="purchase-items-desktop-table" style={{ marginTop: '12px' }}>
+              <div className="purchase-items-desktop-table items-table-wrap" style={{ marginTop: '12px' }}>
                 <div className="table-container">
-                  <table>
+                  <table className="items-table">
                     <thead>
                       <tr>
                         <th>Medicine</th>
-                        <th>Batch</th>
-                        <th style={{ width: '60px' }}>Qty</th>
-                        <th style={{ width: '90px' }}>Purchase Price</th>
-                        <th style={{ width: '90px' }}>Selling Price</th>
-                        <th style={{ width: '70px' }}>MRP</th>
-                        <th style={{ width: '105px' }}>Expiry</th>
-                        <th style={{ width: '55px' }}>GST %</th>
-                        <th style={{ width: '80px' }}>Subtotal</th>
-                        <th style={{ width: '36px' }}></th>
+                        <th style={{ width: '70px' }}>Qty</th>
+                        <th style={{ width: '110px' }}>Purchase Price</th>
+                        <th style={{ width: '120px' }}>Expiry</th>
+                        <th style={{ width: '75px' }}>GST %</th>
+                        <th className="th-subtotal" style={{ width: '110px' }}>Subtotal</th>
+                        <th style={{ width: '44px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((item, index) => (
                         <tr key={index}>
-                          <td style={{ minWidth: '150px' }}>
+                          <td className="td-medicine">
                             <input type="text" placeholder="Medicine name" value={item.medicineName} onChange={(e) => handleItemChange(index, 'medicineName', e.target.value)} className="input-sm" style={{ width: '100%' }} />
                           </td>
-                          <td><input type="text" placeholder="Batch" value={item.batchNumber} onChange={(e) => handleItemChange(index, 'batchNumber', e.target.value)} className="input-sm" style={{ width: '65px' }} /></td>
                           <td><input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} className="qty-input-sm" onWheel={(e) => e.target.blur()} /></td>
-                          <td><input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} className="price-input-sm" onWheel={(e) => e.target.blur()} /></td>
-                          <td><input type="number" min="0" step="0.01" value={item.sellingPrice} onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value)} className="price-input-sm" onWheel={(e) => e.target.blur()} /></td>
-                          <td><input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} className="input-sm" style={{ width: '60px' }} /></td>
-                          <td><input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} className="input-sm" style={{ width: '105px' }} /></td>
-                          <td>
-                            <input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} className="input-sm" style={{ width: '50px' }} />
-                            <div style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>
+                          <td className="td-price"><input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} className="price-input-sm" onWheel={(e) => e.target.blur()} /></td>
+                          <td className="td-expiry"><input type="date" value={item.expiryDate} onChange={(e) => handleItemChange(index, 'expiryDate', e.target.value)} className="input-sm" style={{ width: '100%' }} /></td>
+                          <td className="td-gst">
+                            <input type="number" min="0" max="100" value={item.gst} onChange={(e) => handleItemChange(index, 'gst', e.target.value)} className="gst-input-sm" onWheel={(e) => e.target.blur()} />
+                            <div className="gst-applied-hint">
                               → {resolveGstRate(item.gst, defaultGstRate)}%
                             </div>
                           </td>
-                          <td style={{ fontWeight: 600, whiteSpace: 'nowrap', fontSize: '13px' }}><CurrencyDisplay value={Number(item.quantity) * Number(item.purchasePrice)} /></td>
-                          <td>
-                            <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)} style={{ padding: '4px 8px' }}>
+                          <td className="td-subtotal"><CurrencyDisplay value={Number(item.quantity) * Number(item.purchasePrice)} cardMode={false} forceDecimals /></td>
+                          <td className="td-remove">
+                            <button type="button" className="btn btn-danger btn-sm item-remove-btn" onClick={() => removeItem(index)}>
                               <i className="fa-solid fa-times"></i>
                             </button>
                           </td>
@@ -863,24 +954,12 @@ export default function PurchaseForm() {
                     </div>
                     <div className="purchase-item-card-body">
                       <div className="purchase-item-card-field">
-                        <label>Batch</label>
-                        <input type="text" placeholder="Batch" value={item.batchNumber} onChange={(e) => handleItemChange(index, 'batchNumber', e.target.value)} />
-                      </div>
-                      <div className="purchase-item-card-field">
                         <label>Qty</label>
                         <input type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} onWheel={(e) => e.target.blur()} />
                       </div>
                       <div className="purchase-item-card-field">
                         <label>Purchase Price</label>
                         <input type="number" min="0" step="0.01" value={item.purchasePrice} onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value)} onWheel={(e) => e.target.blur()} />
-                      </div>
-                      <div className="purchase-item-card-field">
-                        <label>Selling Price</label>
-                        <input type="number" min="0" step="0.01" value={item.sellingPrice} onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value)} onWheel={(e) => e.target.blur()} />
-                      </div>
-                      <div className="purchase-item-card-field">
-                        <label>MRP</label>
-                        <input type="number" min="0" step="0.01" value={item.mrp} onChange={(e) => handleItemChange(index, 'mrp', e.target.value)} />
                       </div>
                       <div className="purchase-item-card-field">
                         <label>Expiry</label>
@@ -936,53 +1015,89 @@ export default function PurchaseForm() {
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="summary-row">
-                <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.subtotal} /></span>
+                <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.subtotal} cardMode={false} forceDecimals /></span>
               </div>
               <div className="summary-row" style={{ alignItems: 'center' }}>
                 <span className="summary-label">Discount:</span>
                 <div className="inline-discount">
-                  <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
+                  <input type="number" value={discount} onChange={(e) => setDiscount(sanitizeNumericInput(e.target.value))} onWheel={(e) => e.target.blur()} />
                   <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
                     <option value="percentage">%</option>
                     <option value="fixed">{getCurrentSymbol()}</option>
                   </select>
                 </div>
               </div>
+              {Number(gstCalc.overallDiscount) > 0 && (
+                <div className="summary-row discount-amount-row">
+                  <span className="summary-label">Discount Amount:</span>
+                  <span className="summary-value discount-amount-value">
+                    − <CurrencyDisplay value={gstCalc.overallDiscount} cardMode={false} forceDecimals />
+                  </span>
+                </div>
+              )}
+              <div className="summary-row" style={{ alignItems: 'center' }}>
+                <span className="summary-label">Round Off:</span>
+                <input
+                  type="number"
+                  value={roundOff}
+                  onChange={(e) => setRoundOff(sanitizeNumericInput(e.target.value))}
+                  className="inline-input-sm"
+                  onWheel={(e) => e.target.blur()}
+                />
+              </div>
+              {Number(gstCalc.roundOff) > 0 && (
+                <div className="summary-row discount-amount-row">
+                  <span className="summary-label">Round Off Amount:</span>
+                  <span className="summary-value discount-amount-value">
+                    − <CurrencyDisplay value={gstCalc.roundOff} cardMode={false} forceDecimals />
+                  </span>
+                </div>
+              )}
+              {(Number(gstCalc.overallDiscount) > 0 || Number(gstCalc.roundOff) > 0) && (
+                <div className="summary-row total-discount-row">
+                  <span className="summary-label">Total Discount:</span>
+                  <span className="summary-value total-discount-value">
+                    − <CurrencyDisplay value={Number(gstCalc.overallDiscount) + Number(gstCalc.roundOff)} cardMode={false} forceDecimals />
+                  </span>
+                </div>
+              )}
               <div className="summary-row">
-                <span className="summary-label">Taxable Amount:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.taxableAmount} /></span>
+                <span className="summary-label">Taxable Amount:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.taxableAmount} cardMode={false} forceDecimals /></span>
               </div>
 
               {/* GST Breakdown - Only show applicable type */}
+              {/* cardMode={false} + forceDecimals: preserve precise 2-decimal GST values
+                  (compact card mode rounds small amounts to whole numbers, e.g. ₹0.30 → ₹0) */}
               {isIntra ? (
                 <>
                   <div className="summary-row">
-                    <span className="summary-label">CGST:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.cgst} /></span>
+                    <span className="summary-label">CGST ({cgstRate}%):</span><span className="summary-value"><CurrencyDisplay value={gstCalc.cgst} cardMode={false} forceDecimals /></span>
                   </div>
                   <div className="summary-row">
-                    <span className="summary-label">SGST:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.sgst} /></span>
+                    <span className="summary-label">SGST ({sgstRate}%):</span><span className="summary-value"><CurrencyDisplay value={gstCalc.sgst} cardMode={false} forceDecimals /></span>
                   </div>
                 </>
               ) : (
                 <div className="summary-row">
-                  <span className="summary-label">IGST:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.igst} /></span>
+                  <span className="summary-label">IGST ({igstRate}%):</span><span className="summary-value"><CurrencyDisplay value={gstCalc.igst} cardMode={false} forceDecimals /></span>
                 </div>
               )}
               <div className="summary-row">
-                <span className="summary-label">Total GST:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.totalGst} /></span>
+                <span className="summary-label">Total GST:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.totalGst} cardMode={false} forceDecimals /></span>
               </div>
               <div className="summary-row">
                 <span className="summary-label">Shipping:</span>
-                <input type="number" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
+                <input type="number" value={shippingCost} onChange={(e) => setShippingCost(sanitizeNumericInput(e.target.value))} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
               </div>
               <div className="summary-row">
                 <span className="summary-label">Other Cost:</span>
-                <input type="number" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
+                <input type="number" value={otherCost} onChange={(e) => setOtherCost(sanitizeNumericInput(e.target.value))} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
               </div>
 
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="grand-total-row" style={{ marginBottom: '10px' }}>
-                <span>Grand Total:</span><span><CurrencyDisplay value={gt} /></span>
+                <span>Grand Total:</span><span><CurrencyDisplay value={gt} cardMode={false} forceDecimals /></span>
               </div>
 
               {/* Previous Due Display */}
@@ -1003,11 +1118,11 @@ export default function PurchaseForm() {
 
               <div className="form-group">
                 <label>Paid Amount</label>
-                <input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} className="form-select" style={{ width: '100%' }} onWheel={(e) => e.target.blur()} />
+                <input type="number" value={paidAmount} onChange={(e) => setPaidAmount(sanitizeNumericInput(e.target.value))} className="form-select" style={{ width: '100%' }} onWheel={(e) => e.target.blur()} />
               </div>
 
               <div className={`due-row ${Number(paidAmount) >= totalPayable ? 'positive' : 'negative'}`} style={{ padding: '8px 0' }}>
-                <span>Remaining Due:</span><span className="due-value"><CurrencyDisplay value={Math.max(0, totalPayable - Number(paidAmount))} /></span>
+                <span>Remaining Due:</span><span className="due-value"><CurrencyDisplay value={Math.max(0, totalPayable - Number(paidAmount))} cardMode={false} forceDecimals /></span>
               </div>
 
               <button

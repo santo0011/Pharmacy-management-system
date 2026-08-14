@@ -325,14 +325,14 @@ export default function SaleForm() {
   };
 
   // Round-off option generation based on current bill total
-  // Round-off ALWAYS reduces the payable amount (negative diff only)
+  // Generates round-down + round-up options (NO Exact Amount card)
   const generateRoundOffOptions = (total) => {
     if (!total || isNaN(total) || total <= 0) return [];
     const exact = Number(total.toFixed(2));
     const options = [];
     const sym = getCurrentSymbol();
 
-    // Round down to nearest whole rupee FIRST (smallest reduction)
+    // Round down to nearest whole rupee (if different from exact)
     const floorVal = Math.floor(exact);
     if (floorVal !== exact && floorVal > 0) {
       options.push({
@@ -346,27 +346,24 @@ export default function SaleForm() {
     // Determine the step unit based on bill size
     const step = exact >= 1000 ? 50 : 5;
 
-    // Generate a progression of round-down amounts (always below exact total)
-    // Start from the next multiple of `step` below the exact total,
-    // then decrement by `step` for each additional card.
-    let baseVal = Math.floor((exact - 0.01) / step) * step;
+    // Generate round-up options at increasing multiples of step
+    // e.g. 102.86 → 105, 110, 115 (step 5); 319.55 → 325, 330, 335
+    let baseVal = Math.ceil((exact + 0.01) / step) * step;
     let guard = 0;
-    while (options.length < 5 && guard < 20) {
+    while (options.length < 6 && guard < 20) {
       guard++;
-      // Only values below exact, no duplicates
-      if (baseVal > 0 && baseVal < exact && !options.some(o => o.value === baseVal)) {
+      if (baseVal > exact && !options.some(o => o.value === baseVal)) {
         options.push({
           value: baseVal,
           diff: Number((baseVal - exact).toFixed(2)),
           isExact: false,
-          label: step >= 50 ? `Round ${sym}${step}` : `Round ${sym}${step}`,
+          label: `Round ${sym}${step}`,
         });
       }
-      baseVal -= step;
+      baseVal += step;
     }
 
-    // Return only negative-diff options (max 5 per example)
-    return options.slice(0, 5);
+    return options;
   };
 
   // Regenerate round-off options whenever the current bill total changes
@@ -374,7 +371,7 @@ export default function SaleForm() {
     const total = calcCurrentBillTotal();
     const opts = generateRoundOffOptions(total);
     setRoundOffOptions(opts);
-    // Reset to no round-off selected whenever the bill total changes
+    // No card selected by default — bill stays exact, no auto-round
     setSelectedRoundOffIndex(-1);
     setRoundOffDiff(0);
   }, [gstCalc.grandTotal]);
@@ -967,7 +964,7 @@ export default function SaleForm() {
                       </select>
                     </div>
                     <span className="summary-value" style={{ color: '#dc2626', fontWeight: 600, fontSize: '12px' }}>
-                      -<CurrencyDisplay value={Number(calcDiscount()) + Math.abs(Number(roundOffDiff) || 0)} cardMode={false} forceDecimals />
+                      -<CurrencyDisplay value={Number(calcDiscount()) || 0} cardMode={false} forceDecimals />
                     </span>
                   </div>
                 </div>
@@ -1005,8 +1002,8 @@ export default function SaleForm() {
                   <div className="round-off-header">
                     <span><i className="fa-solid fa-circle-dollar"></i> Round Off</span>
                     {roundOffDiff !== 0 && (
-                      <span className="round-off-badge down">
-                        {roundOffDiff.toFixed(2)}
+                      <span className={`round-off-badge ${roundOffDiff < 0 ? 'down' : 'up'}`}>
+                        {roundOffDiff > 0 ? '+' : ''}{roundOffDiff.toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -1022,6 +1019,8 @@ export default function SaleForm() {
                     <style>{`.round-off-cards::-webkit-scrollbar { display: none; }`}</style>
                     {roundOffOptions.map((opt, idx) => {
                       const isSelected = selectedRoundOffIndex === idx;
+                      const diff = opt.diff;
+                      const diffClass = diff === 0 ? 'exact' : (diff > 0 ? 'up' : 'down');
                       return (
                         <button
                           key={idx}
@@ -1029,28 +1028,29 @@ export default function SaleForm() {
                           className={`round-off-card ${isSelected ? 'selected' : ''}`}
                           onClick={() => {
                             setSelectedRoundOffIndex(idx);
-                            setRoundOffDiff(opt.diff);
+                            setRoundOffDiff(diff);
                           }}
+                          title={opt.label}
                           style={{
                             flex: '0 0 auto',
-                            minWidth: '60px',
+                            minWidth: '64px',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             gap: '1px',
-                            padding: '5px 4px',
-                            border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--gray-200)'}`,
+                            padding: '6px 5px',
+                            border: `1.5px solid ${isSelected ? (diff > 0 ? 'var(--success)' : 'var(--danger)') : 'var(--gray-200)'}`,
                             borderRadius: '6px',
-                            background: isSelected ? '#eff6ff' : '#fff',
+                            background: isSelected ? (diff > 0 ? '#f0fdf4' : '#fef2f2') : '#fff',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
                           }}
                         >
-                          <span className="round-off-value" style={{ fontSize: '12px' }}>
-                            {getCurrentSymbol()} {Number.isInteger(opt.value) ? opt.value : opt.value.toFixed(2)}
+                          <span className="round-off-value" style={{ fontSize: '12px', fontWeight: 700 }}>
+                            {getCurrentSymbol()}{Number.isInteger(opt.value) ? opt.value : opt.value.toFixed(2)}
                           </span>
-                          <span className="round-off-diff down" style={{ fontSize: '9px' }}>
-                            {opt.diff.toFixed(2)}
+                          <span className={`round-off-diff ${diffClass}`} style={{ fontSize: '9px', fontWeight: 600 }}>
+                            {diff > 0 ? '+' : ''}{diff.toFixed(2)}
                           </span>
                         </button>
                       );

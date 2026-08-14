@@ -46,6 +46,7 @@ const purchaseSchema = mongoose.Schema({
   discount: { type: Number, default: 0 },
   discountType: { type: String, enum: ['percentage', 'fixed'], default: 'fixed' },
   discountAmount: { type: Number, default: 0 },
+  roundOffAmount: { type: Number, default: 0 },
   taxableAmount: { type: Number, default: 0 },
   taxAmount: { type: Number, default: 0 },
   cgstAmount: { type: Number, default: 0 },

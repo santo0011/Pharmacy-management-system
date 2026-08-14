@@ -5916,6 +5916,159 @@ input[type="number"]:focus {
   }
 }
 
+/* ===== Invoice Summary - Discount / Round Off Rows ===== */
+.discount-amount-row {
+  padding-left: 12px;
+  font-size: 12.5px;
+}
+
+.discount-amount-row .summary-label {
+  color: var(--gray-500);
+}
+
+.discount-amount-value {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.total-discount-row {
+  padding-left: 12px;
+  border-top: 1px dashed var(--gray-200);
+  margin-top: 2px;
+  padding-top: 6px;
+}
+
+.total-discount-row .summary-label {
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.total-discount-value {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ===== Purchase Items - Modern Table Design ===== */
+.items-card-modern .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.items-card-modern .card-header h5 {
+  margin: 0;
+}
+
+.items-card-modern .btn-add-item {
+  margin-left: auto;
+}
+
+.items-table-wrap .table-container {
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.items-table thead th {
+  background: var(--gray-50);
+  color: var(--gray-600);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--gray-200);
+  white-space: nowrap;
+}
+
+.items-table thead th.th-subtotal {
+  text-align: right;
+}
+
+.items-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--gray-100);
+  vertical-align: middle;
+}
+
+.items-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.items-table tbody tr:hover {
+  background: var(--gray-50);
+}
+
+.items-table .td-medicine input {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.items-table .td-price input,
+.items-table .td-expiry input {
+  font-size: 13px;
+}
+
+.items-table .td-gst {
+  text-align: center;
+}
+
+.items-table .gst-input-sm {
+  width: 52px;
+  padding: 5px 6px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.items-table .gst-input-sm:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.items-table .gst-applied-hint {
+  font-size: 10px;
+  color: var(--gray-400);
+  text-align: center;
+  margin-top: 2px;
+}
+
+.items-table .td-subtotal {
+  text-align: right;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray-800);
+  white-space: nowrap;
+}
+
+.items-table .td-remove {
+  text-align: center;
+}
+
+.items-table .item-remove-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
 /* ===== Purchase Items - Mobile Card View ===== */
 .purchase-items-mobile-cards {
   display: none;
