@@ -830,7 +830,7 @@ export default function PurchaseForm() {
                     </div>
                   </div>
 
-                  {/* Invoice Preview - compact collapsible */} 
+                  {/* Invoice Preview - compact collapsible */}
                   <details style={{ border: '1px solid var(--gray-200)', borderRadius: '8px', overflow: 'hidden', background: '#f1f5f9' }}>
                     <summary style={{
                       padding: '8px 12px',
@@ -1109,14 +1109,21 @@ export default function PurchaseForm() {
                   </select>
                 </div>
               </div>
-              {Number(discountAmt) > 0 && (
-                <div className="summary-row discount-amount-row">
-                  <span className="summary-label">Discount Amount:</span>
-                  <span className="summary-value discount-amount-value">
-                    − <CurrencyDisplay value={discountAmt} cardMode={false} forceDecimals />
-                  </span>
-                </div>
-              )}
+
+
+              {/* <div className="summary-row" style={{ fontWeight: 600 }}>
+                <span className="summary-label">After Round Off:</span><span className="summary-value"><CurrencyDisplay value={afterRoundOff} cardMode={false} forceDecimals /></span>
+              </div> */}
+              <div className="summary-row">
+                <span className="summary-label">Shipping:</span>
+                <input type="number" value={shippingCost} onChange={(e) => setShippingCost(sanitizeNumericInput(e.target.value))} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Other Cost:</span>
+                <input type="number" value={otherCost} onChange={(e) => setOtherCost(sanitizeNumericInput(e.target.value))} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
+              </div>
+
+
 
               {/* Round Off Options - Selectable Cards (round down only) - placed AFTER GST & discount */}
               {items.length > 0 && roundOffOptions.length > 0 && (
@@ -1166,17 +1173,14 @@ export default function PurchaseForm() {
                 </div>
               )}
 
-              {/* <div className="summary-row" style={{ fontWeight: 600 }}>
-                <span className="summary-label">After Round Off:</span><span className="summary-value"><CurrencyDisplay value={afterRoundOff} cardMode={false} forceDecimals /></span>
-              </div> */}
-              <div className="summary-row">
-                <span className="summary-label">Shipping:</span>
-                <input type="number" value={shippingCost} onChange={(e) => setShippingCost(sanitizeNumericInput(e.target.value))} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
-              </div>
-              <div className="summary-row">
-                <span className="summary-label">Other Cost:</span>
-                <input type="number" value={otherCost} onChange={(e) => setOtherCost(sanitizeNumericInput(e.target.value))} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
-              </div>
+              {Number(discountAmt) > 0 && (
+                <div className="summary-row discount-amount-row">
+                  <span className="summary-label">Total Discount:</span>
+                  <span className="summary-value discount-amount-value">
+                    − <CurrencyDisplay value={discountAmt + roundOff} cardMode={false} forceDecimals />
+                  </span>
+                </div>
+              )}
 
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
