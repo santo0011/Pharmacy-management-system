@@ -2491,24 +2491,27 @@ input[type="number"]:focus {
 
 .round-off-cards {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 
 .round-off-card {
-  flex: 1 1 calc(33.333% - 6px);
-  min-width: 85px;
+  flex: 1 1 calc(25% - 4px);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 7px 8px;
+  padding: 6px 2px;
   border: 1.5px solid var(--gray-200);
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
   transition: all 0.2s;
   text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .round-off-card:hover {
@@ -2524,16 +2527,18 @@ input[type="number"]:focus {
   box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.15);
 }
 
-.round-off-card .round-off-value {
+.round-off-card .round-off-card-add {
   font-size: 13px;
   font-weight: 700;
-  color: var(--gray-900);
+  color: var(--success);
   white-space: nowrap;
 }
 
 .round-off-card .round-off-diff {
   font-size: 10px;
   font-weight: 600;
+  color: var(--gray-600);
+  white-space: nowrap;
 }
 
 .round-off-card .round-off-diff.up {
@@ -2548,16 +2553,47 @@ input[type="number"]:focus {
   color: var(--gray-500);
 }
 
+.round-off-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--gray-500);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.round-off-clear:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: #fef2f2;
+}
+
 @media (max-width: 767px) {
   .round-off-cards {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
   }
 
   .round-off-card {
-    flex: none;
+    flex: 1 1 calc(25% - 4px);
     min-width: 0;
+    padding: 5px 2px;
+  }
+
+  .round-off-card .round-off-card-add {
+    font-size: 12px;
+  }
+
+  .round-off-card .round-off-diff {
+    font-size: 8px;
   }
 }
 

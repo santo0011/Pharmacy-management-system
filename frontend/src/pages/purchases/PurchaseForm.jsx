@@ -10,7 +10,7 @@ import CurrencyDisplay from '../../components/common/CurrencyDisplay';
 import { getCurrentSymbol } from '../../utils/currency';
 import { showSuccess, showError, confirmAction } from '../../utils/sweetAlert';
 import { pharmacyService } from '../../services/pharmacyService';
-import { calculateInvoiceGST, getStateCode, resolveGstRate } from '../../utils/gst';
+import { getStateCode, isIntraState, resolveGstRate } from '../../utils/gst';
 import PortalDropdown from '../../components/common/PortalDropdown';
 
 /**
@@ -56,6 +56,8 @@ export default function PurchaseForm() {
   const [shippingCost, setShippingCost] = useState(0);
   const [otherCost, setOtherCost] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
+  const [roundOffOptions, setRoundOffOptions] = useState([]); // Generated round-off option cards
+  const [selectedRoundOffIndex, setSelectedRoundOffIndex] = useState(-1); // -1 = no round-off selected
   const [paidAmount, setPaidAmount] = useState();
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [notes, setNotes] = useState('');
@@ -269,25 +271,89 @@ export default function PurchaseForm() {
     }, 300);
   };
 
-  // GST calculation using centralized utility (mirrors backend gstHelper.js)
+  // ===== Custom GST-first calculation: Product → GST → Discount → Round Off → Final =====
   // Each item's GST: Product GST > 0 → use product GST; Product GST = 0 → use pharmacy Default GST
-  const gstCalc = calculateInvoiceGST({
-    items: items.map(item => ({
-      ...item,
-      gst: resolveGstRate(item.gst, defaultGstRate),
-    })),
-    discount: Number(discount) || 0,
-    discountType,
-    pharmacyStateCode,
-    otherPartyStateCode: supplierStateCode,
-    // Purchases are calculated on the purchase price (not selling price)
-    priceField: 'purchasePrice',
-    // Round-off is added to the discount for the final calculation
-    roundOff: Number(roundOff) || 0,
-  });
+  const resolvedItems = items.map(item => ({
+    ...item,
+    gst: resolveGstRate(item.gst, defaultGstRate),
+  }));
 
-  const calcSubtotal = () => items.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.purchasePrice)), 0);
-  const calcGrandTotal = () => gstCalc.grandTotal + Number(shippingCost) + Number(otherCost);
+  // Step 1: Product Subtotal (before GST)
+  const productSubtotal = resolvedItems.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.purchasePrice)), 0);
+
+  // Step 2: Add GST on the product subtotal (GST is calculated FIRST, before discount)
+  const intraState = isIntraState(pharmacyStateCode, supplierStateCode);
+  const totalGst = resolvedItems.reduce((sum, item) => {
+    const sub = Number(item.quantity) * Number(item.purchasePrice);
+    return sum + (sub * (Number(item.gst) / 100));
+  }, 0);
+  const gstInclusiveTotal = Number((productSubtotal + totalGst).toFixed(2));
+
+  // Step 3: Apply Discount AFTER GST (on the GST-inclusive total)
+  const discountAmt = discountType === 'percentage'
+    ? gstInclusiveTotal * (Number(discount) / 100)
+    : Math.min(Number(discount) || 0, gstInclusiveTotal);
+  const discountedTotal = Number((gstInclusiveTotal - discountAmt).toFixed(2));
+
+  // Step 4: Apply Round Off LAST (deduction only, never increases the bill)
+  const roundOffAmt = Math.min(Number(roundOff) || 0, discountedTotal);
+  const afterRoundOff = Number((discountedTotal - roundOffAmt).toFixed(2));
+
+  // Step 5: Final Grand Total (includes shipping + other cost)
+  const calcGrandTotal = () => afterRoundOff + Number(shippingCost) + Number(otherCost);
+
+  // GST breakdown for display (split CGST/SGST or IGST)
+  const cgst = intraState ? Number((totalGst / 2).toFixed(2)) : 0;
+  const sgst = intraState ? Number((totalGst - cgst).toFixed(2)) : 0;
+  const igst = intraState ? 0 : Number(totalGst.toFixed(2));
+
+  // Effective GST rate for display labels
+  const effectiveGstRate = productSubtotal > 0 ? (totalGst / productSubtotal) * 100 : 0;
+  const cgstRate = Number((effectiveGstRate / 2).toFixed(2));
+  const sgstRate = Number((effectiveGstRate / 2).toFixed(2));
+  const igstRate = Number(effectiveGstRate.toFixed(2));
+
+  // Round-off option generation based on the total AFTER GST and discount (before round-off)
+  // Generates exactly 4 round-DOWN (deduction) options — ALWAYS decreases the bill.
+  // e.g. ₹102.00 → −₹2.00 → ₹100.00 | −₹7.00 → ₹95.00 | −₹12.00 → ₹90.00 | −₹17.00 → ₹85.00
+  const generateRoundOffOptions = (total) => {
+    if (!total || isNaN(total) || total <= 0) return [];
+    const exact = Number(total.toFixed(2));
+    const step = 5;
+    // Largest multiple of 5 strictly BELOW the bill so every deduction > 0
+    let base = Math.floor(exact / step) * step;
+    if (base >= exact) base -= step;
+    return [0, 1, 2, 3].map((i) => {
+      const target = Number((base - i * step).toFixed(2));
+      return {
+        value: Number((exact - target).toFixed(2)), // positive deduction amount
+        target,
+        label: `Round down to ₹${target}`,
+      };
+    });
+  };
+
+  // Regenerate round-off options whenever the total after GST + discount changes.
+  // Uses discountedTotal (before round-off) so the options stay stable when a round-off
+  // is applied — the effect does NOT re-run on card click, so the selection is never reset.
+  useEffect(() => {
+    const baseTotal = discountedTotal + Number(shippingCost) + Number(otherCost);
+    const opts = generateRoundOffOptions(baseTotal);
+    setRoundOffOptions(opts);
+    // Keep selection in sync with the current round-off value
+    const current = Number(roundOff) || 0;
+    if (current > 0) {
+      const matchIdx = opts.findIndex(o => Math.abs(o.value - current) < 0.005);
+      if (matchIdx !== -1) {
+        setSelectedRoundOffIndex(matchIdx);
+      } else {
+        setSelectedRoundOffIndex(-1);
+        setRoundOff(0);
+      }
+    } else {
+      setSelectedRoundOffIndex(-1);
+    }
+  }, [discountedTotal, shippingCost, otherCost]);
 
   // Calculate selected due total
   const selectedDueTotal = dueInvoices
@@ -469,15 +535,7 @@ export default function PurchaseForm() {
   const gt = calcGrandTotal();
   const currentDue = Math.max(0, gt - Number(paidAmount));
   const creditPurchase = currentDue + previousDue;
-  const isIntra = gstCalc.isIntraState;
-
-  // Effective GST rate derived from the calculation (for display labels)
-  const effectiveGstRate = gstCalc.taxableAmount > 0
-    ? (gstCalc.totalGst / gstCalc.taxableAmount) * 100
-    : 0;
-  const cgstRate = Number((effectiveGstRate / 2).toFixed(2));
-  const sgstRate = Number((effectiveGstRate / 2).toFixed(2));
-  const igstRate = Number(effectiveGstRate.toFixed(2));
+  const isIntra = intraState;
 
   return (
     <div>
@@ -1015,8 +1073,32 @@ export default function PurchaseForm() {
               <hr style={{ margin: '6px 0', borderColor: 'var(--gray-200)' }} />
 
               <div className="summary-row">
-                <span className="summary-label">Subtotal:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.subtotal} cardMode={false} forceDecimals /></span>
+                <span className="summary-label">Product Subtotal:</span><span className="summary-value"><CurrencyDisplay value={productSubtotal} cardMode={false} forceDecimals /></span>
               </div>
+
+              {/* GST Breakdown - calculated FIRST, before discount */}
+              {isIntra ? (
+                <>
+                  <div className="summary-row">
+                    <span className="summary-label">CGST ({cgstRate}%):</span><span className="summary-value"><CurrencyDisplay value={cgst} cardMode={false} forceDecimals /></span>
+                  </div>
+                  <div className="summary-row">
+                    <span className="summary-label">SGST ({sgstRate}%):</span><span className="summary-value"><CurrencyDisplay value={sgst} cardMode={false} forceDecimals /></span>
+                  </div>
+                </>
+              ) : (
+                <div className="summary-row">
+                  <span className="summary-label">IGST ({igstRate}%):</span><span className="summary-value"><CurrencyDisplay value={igst} cardMode={false} forceDecimals /></span>
+                </div>
+              )}
+              <div className="summary-row">
+                <span className="summary-label">Total GST:</span><span className="summary-value"><CurrencyDisplay value={totalGst} cardMode={false} forceDecimals /></span>
+              </div>
+              <div className="summary-row" style={{ fontWeight: 600 }}>
+                <span className="summary-label">GST Inclusive Total:</span><span className="summary-value"><CurrencyDisplay value={gstInclusiveTotal} cardMode={false} forceDecimals /></span>
+              </div>
+
+              {/* Discount - applied AFTER GST */}
               <div className="summary-row" style={{ alignItems: 'center' }}>
                 <span className="summary-label">Discount:</span>
                 <div className="inline-discount">
@@ -1027,64 +1109,66 @@ export default function PurchaseForm() {
                   </select>
                 </div>
               </div>
-              {Number(gstCalc.overallDiscount) > 0 && (
+              {Number(discountAmt) > 0 && (
                 <div className="summary-row discount-amount-row">
                   <span className="summary-label">Discount Amount:</span>
                   <span className="summary-value discount-amount-value">
-                    − <CurrencyDisplay value={gstCalc.overallDiscount} cardMode={false} forceDecimals />
+                    − <CurrencyDisplay value={discountAmt} cardMode={false} forceDecimals />
                   </span>
                 </div>
               )}
-              <div className="summary-row" style={{ alignItems: 'center' }}>
-                <span className="summary-label">Round Off:</span>
-                <input
-                  type="number"
-                  value={roundOff}
-                  onChange={(e) => setRoundOff(sanitizeNumericInput(e.target.value))}
-                  className="inline-input-sm"
-                  onWheel={(e) => e.target.blur()}
-                />
-              </div>
-              {Number(gstCalc.roundOff) > 0 && (
-                <div className="summary-row discount-amount-row">
-                  <span className="summary-label">Round Off Amount:</span>
-                  <span className="summary-value discount-amount-value">
-                    − <CurrencyDisplay value={gstCalc.roundOff} cardMode={false} forceDecimals />
-                  </span>
-                </div>
-              )}
-              {(Number(gstCalc.overallDiscount) > 0 || Number(gstCalc.roundOff) > 0) && (
-                <div className="summary-row total-discount-row">
-                  <span className="summary-label">Total Discount:</span>
-                  <span className="summary-value total-discount-value">
-                    − <CurrencyDisplay value={Number(gstCalc.overallDiscount) + Number(gstCalc.roundOff)} cardMode={false} forceDecimals />
-                  </span>
-                </div>
-              )}
-              <div className="summary-row">
-                <span className="summary-label">Taxable Amount:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.taxableAmount} cardMode={false} forceDecimals /></span>
-              </div>
 
-              {/* GST Breakdown - Only show applicable type */}
-              {/* cardMode={false} + forceDecimals: preserve precise 2-decimal GST values
-                  (compact card mode rounds small amounts to whole numbers, e.g. ₹0.30 → ₹0) */}
-              {isIntra ? (
-                <>
-                  <div className="summary-row">
-                    <span className="summary-label">CGST ({cgstRate}%):</span><span className="summary-value"><CurrencyDisplay value={gstCalc.cgst} cardMode={false} forceDecimals /></span>
+              {/* Round Off Options - Selectable Cards (round down only) - placed AFTER GST & discount */}
+              {items.length > 0 && roundOffOptions.length > 0 && (
+                <div className="round-off-section">
+                  <div className="round-off-header">
+                    <span><i className="fa-solid fa-circle-dollar"></i> Round Off</span>
+                    {Number(roundOff) > 0 && (
+                      <span className="round-off-badge down">
+                        − {getCurrentSymbol()}{Number(roundOff).toFixed(2)}
+                      </span>
+                    )}
                   </div>
-                  <div className="summary-row">
-                    <span className="summary-label">SGST ({sgstRate}%):</span><span className="summary-value"><CurrencyDisplay value={gstCalc.sgst} cardMode={false} forceDecimals /></span>
+                  <div className="round-off-cards">
+                    {roundOffOptions.map((opt, idx) => {
+                      const isSelected = selectedRoundOffIndex === idx;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={`round-off-card ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedRoundOffIndex(idx);
+                            setRoundOff(opt.value);
+                          }}
+                          title={opt.label}
+                        >
+                          <span className="round-off-card-add">− {getCurrentSymbol()}{opt.value.toFixed(2)}</span>
+                          <span className="round-off-diff down">
+                            → {getCurrentSymbol()}{Number.isInteger(opt.target) ? opt.target : opt.target.toFixed(2)}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                </>
-              ) : (
-                <div className="summary-row">
-                  <span className="summary-label">IGST ({igstRate}%):</span><span className="summary-value"><CurrencyDisplay value={gstCalc.igst} cardMode={false} forceDecimals /></span>
+                  {Number(roundOff) > 0 && (
+                    <button
+                      type="button"
+                      className="round-off-clear"
+                      onClick={() => {
+                        setSelectedRoundOffIndex(-1);
+                        setRoundOff(0);
+                      }}
+                    >
+                      <i className="fa-solid fa-rotate-left"></i> Reset to ₹0.00
+                    </button>
+                  )}
                 </div>
               )}
-              <div className="summary-row">
-                <span className="summary-label">Total GST:</span><span className="summary-value"><CurrencyDisplay value={gstCalc.totalGst} cardMode={false} forceDecimals /></span>
-              </div>
+
+              {/* <div className="summary-row" style={{ fontWeight: 600 }}>
+                <span className="summary-label">After Round Off:</span><span className="summary-value"><CurrencyDisplay value={afterRoundOff} cardMode={false} forceDecimals /></span>
+              </div> */}
               <div className="summary-row">
                 <span className="summary-label">Shipping:</span>
                 <input type="number" value={shippingCost} onChange={(e) => setShippingCost(sanitizeNumericInput(e.target.value))} className="inline-input-sm" onWheel={(e) => e.target.blur()} />
