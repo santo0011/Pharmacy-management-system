@@ -34,7 +34,7 @@ export default function SaleForm() {
   const [discount, setDiscount] = useState('');
   const [discountType, setDiscountType] = useState('percentage');
   const [paidAmount, setPaidAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const PAYMENT_METHODS = [
     { value: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave', iconColor: '#22c55e' },
     { value: 'card', label: 'Card', icon: 'fa-solid fa-credit-card', iconColor: '#6366f1' },
@@ -423,7 +423,7 @@ export default function SaleForm() {
       setDiscount(selectedSale.discount || '');
       setDiscountType(selectedSale.discountType || 'percentage');
       setPaidAmount(selectedSale.paidAmount || '');
-      setPaymentMethod('card');
+      setPaymentMethod(selectedSale.paymentMethod || 'cash');
       // Preserve the existing round-off amount when editing
       const existingRoundOff = Number(selectedSale.roundOffAmount) || 0;
       setRoundOffDiff(existingRoundOff);
@@ -944,7 +944,7 @@ export default function SaleForm() {
 
         {/* Right - Cart Summary */}
         <div>
-          <div className="card invoice-summary-sticky">
+          <div className="card invoice-summary-sticky purchase-invoice-summary">
             <div className="card-header">
               <h5><i className="fa-solid fa-receipt"></i> Invoice Summary</h5>
               <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{items.length} item(s)</span>
