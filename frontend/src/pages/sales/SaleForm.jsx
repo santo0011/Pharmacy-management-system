@@ -12,6 +12,7 @@ import { pharmacyService } from '../../services/pharmacyService';
 import PortalDropdown from '../../components/common/PortalDropdown';
 import BarcodeScanner from '../../components/common/BarcodeScanner';
 import { getStateCode, isIntraState, resolveGstRate } from '../../utils/gst';
+import { INDIAN_STATES, getStateCodeByName } from '../../utils/indianStates';
 
 export default function SaleForm() {
   const dispatch = useDispatch();
@@ -63,6 +64,18 @@ export default function SaleForm() {
   const [customerVerified, setCustomerVerified] = useState(false);
   const [phoneVerifiedMatch, setPhoneVerifiedMatch] = useState(null); // {name, phone} when phone matches existing customer
 
+  // Add New Customer modal states (same fields/validation as Customers page Add Customer form)
+  const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newState, setNewState] = useState('');
+  const [newStateSearch, setNewStateSearch] = useState('');
+  const [newStateDropdownOpen, setNewStateDropdownOpen] = useState(false);
+  const [newSaving, setNewSaving] = useState(false);
+  const newStateSearchRef = useRef(null);
+  const [pharmacyStateName, setPharmacyStateName] = useState('');
+
   const searchRef = useRef(null);
   const searchContainerRef = useRef(null);
   const customerSearchRef = useRef(null);
@@ -79,7 +92,8 @@ export default function SaleForm() {
       const { data } = await customerService.searchCustomers(q);
       if (data.data) {
         setCustomerSearchResults(data.data);
-        setShowCustomerDropdown(data.data.length > 0);
+        // Keep the dropdown open even with 0 results so we can show the "+ Add New Customer" option
+        setShowCustomerDropdown(Array.isArray(data.data));
 
         // Phone-based auto-verification: if the search is exactly a phone number
         // and there's an exact phone match, show "Verified Existing Customer"
@@ -137,7 +151,6 @@ export default function SaleForm() {
     setCustomerSearchQuery(customer.name);
     setShowCustomerDropdown(false);
     setIncludePreviousDue(false);
-    setSelectedDueInvoices([]);
     setCustomerVerified(true);
     setPhoneVerifiedMatch(null);
     // Set the customer's state code for GST determination
@@ -161,14 +174,99 @@ export default function SaleForm() {
           invoiceCount: data.data.invoices.length,
           invoices: data.data.invoices,
         });
+        // === Previous Due is ALWAYS settled FIRST ===
+        // Auto-select ALL due invoices so the payment is allocated to previous
+        // due before the current invoice. The backend enforces this order.
+        setSelectedDueInvoices(data.data.invoices.map(inv => inv._id));
+        setIncludePreviousDue(true);
       } else {
         setCustomerDueInfo(null);
+        setSelectedDueInvoices([]);
+        setIncludePreviousDue(false);
       }
     } catch (error) {
       // Silently fail - due info is optional
       setCustomerDueInfo(null);
+      setSelectedDueInvoices([]);
+      setIncludePreviousDue(false);
     }
   };
+
+  // --- Add New Customer Modal (reuses the same fields, validation and API as the Customers page) ---
+  const openAddCustomerModal = () => {
+    setAddCustomerModalOpen(true);
+    setNewName('');
+    setNewPhone('');
+    setNewAddress('');
+    setNewState('');
+    setNewStateSearch('');
+    setNewStateDropdownOpen(false);
+    setNewSaving(false);
+    setShowCustomerDropdown(false);
+    // Pre-fill the Default Business State from the pharmacy profile (same as Customers page)
+    if (pharmacyStateName) {
+      setNewState(pharmacyStateName);
+      setNewStateSearch(pharmacyStateName);
+    }
+    // Pre-fill the name with the typed search text when it looks like a name (not a phone/ID)
+    const typedQuery = customerSearchQuery.trim();
+    if (typedQuery && /[a-zA-Z]/.test(typedQuery)) {
+      setNewName(typedQuery);
+    }
+  };
+
+  const closeAddCustomerModal = () => {
+    setAddCustomerModalOpen(false);
+    setNewStateDropdownOpen(false);
+  };
+
+  const handleSaveNewCustomer = async () => {
+    if (!newName.trim()) {
+      showError('Customer name is required');
+      return;
+    }
+    if (!newPhone.trim()) {
+      showError('Phone number is required');
+      return;
+    }
+    if (!newState) {
+      showError('Please select a state');
+      return;
+    }
+    setNewSaving(true);
+    try {
+      const { data } = await customerService.createCustomer({
+        name: newName.trim(),
+        phone: newPhone.trim(),
+        address: newAddress.trim(),
+        state: newState,
+        stateCode: getStateCodeByName(newState),
+      });
+      const newCustomer = data?.data;
+      showSuccess('Customer added successfully');
+      setAddCustomerModalOpen(false);
+      setNewName('');
+      setNewPhone('');
+      setNewAddress('');
+      setNewState('');
+      setNewStateSearch('');
+      setNewStateDropdownOpen(false);
+      if (newCustomer && newCustomer._id) {
+        // Refresh/update the customer search data with the newly created customer
+        setCustomerSearchResults([newCustomer]);
+        // Automatically select the new customer so billing continues seamlessly
+        selectCustomer(newCustomer);
+      }
+    } catch (error) {
+      showError(error.response?.data?.message || 'Failed to add customer');
+    } finally {
+      setNewSaving(false);
+    }
+  };
+
+  const filteredNewStates = INDIAN_STATES.filter(s =>
+    s.name.toLowerCase().includes(newStateSearch.toLowerCase())
+  );
 
   useEffect(() => {
     dispatch(fetchMedicines({ limit: 200 }));
@@ -183,6 +281,7 @@ export default function SaleForm() {
         if (data?.data) {
           const stateName = data.data.state || '';
           const stateCode = data.data.stateCode || getStateCode(stateName) || '';
+          setPharmacyStateName(stateName);
           setPharmacyStateCode(stateCode);
           // Load the Default GST % from Settings (used when product GST is 0)
           setDefaultGstRate(Number(data.data.defaultGstRate) || 0);
@@ -248,6 +347,19 @@ export default function SaleForm() {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [showDropdown, showCustomerDropdown]);
+
+  // Close Add New Customer modal state dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (newStateSearchRef.current && !newStateSearchRef.current.contains(event.target)) {
+        setNewStateDropdownOpen(false);
+      }
+    };
+    if (newStateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [newStateDropdownOpen]);
 
   const addItem = (medicine) => {
     const existing = items.find(i => i.medicineId === medicine._id);
@@ -716,11 +828,27 @@ export default function SaleForm() {
                           </div>
                         </div>
                       ))
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '14px', color: '#888', fontSize: '13px' }}>
-                        No customer found. Will use typed name as new customer.
+                    ) : customerSearchQuery.trim().length > 0 ? (
+                      <div
+                        onClick={openAddCustomerModal}
+                        style={{
+                          padding: '12px 14px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontWeight: 600,
+                          fontSize: '13px',
+                          color: 'var(--primary)',
+                          borderBottom: '1px solid var(--gray-100)',
+                          background: 'var(--primary-light)',
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--primary-light)'}
+                      >
+                        <i className="fa-solid fa-user-plus"></i> + Add New Customer
                       </div>
-                    )}
+                    ) : null}
                   </PortalDropdown>
                   {customerVerified && customerRef && (
                     <div style={{
@@ -988,20 +1116,15 @@ export default function SaleForm() {
                   <span className="summary-label">Total GST:</span><span className="summary-value"><CurrencyDisplay value={totalGst} cardMode={false} forceDecimals /></span>
                 </div>
 
-                {/* Discount - applied AFTER GST */}
+                {/* Discount input - the combined value is shown as Total Discount below */}
                 <div className="summary-row">
                   <span className="summary-label">Discount:</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div className="inline-discount">
-                      <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
-                      <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
-                        <option value="fixed">{getCurrentSymbol()}</option>
-                        <option value="percentage">%</option>
-                      </select>
-                    </div>
-                    <span className="summary-value" style={{ color: '#dc2626', fontWeight: 600, fontSize: '12px' }}>
-                      -<CurrencyDisplay value={Number(discountAmt) || 0} cardMode={false} forceDecimals />
-                    </span>
+                  <div className="inline-discount">
+                    <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onWheel={(e) => e.target.blur()} />
+                    <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
+                      <option value="fixed">{getCurrentSymbol()}</option>
+                      <option value="percentage">%</option>
+                    </select>
                   </div>
                 </div>
 
@@ -1152,6 +1275,46 @@ export default function SaleForm() {
                 </div>
               )}
 
+              {/* === Previous Due Payment Allocation (Previous Due settled FIRST) === */}
+              {Number(paidAmount) > 0 && calcPreviousDue() > 0 && (
+                <div style={{
+                  marginTop: '8px', padding: '10px 12px', background: '#f0fdf4',
+                  border: '1px solid #bbf7d0', borderRadius: '8px', fontSize: '12px',
+                }}>
+                  <div style={{ fontWeight: 700, marginBottom: '6px', color: '#166534' }}>
+                    <i className="fa-solid fa-circle-dollar"></i> Payment Allocation
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                    <span>Previous Due:</span>
+                    <span><CurrencyDisplay value={calcPreviousDue()} cardMode={false} /></span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                    <span>Previous Due Paid (first):</span>
+                    <span style={{ fontWeight: 600, color: '#16a34a' }}>
+                      <CurrencyDisplay value={Math.min(Number(paidAmount), calcPreviousDue())} cardMode={false} />
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                    <span>Current Invoice Paid:</span>
+                    <span style={{ fontWeight: 600 }}>
+                      <CurrencyDisplay value={Math.max(0, Number(paidAmount) - calcPreviousDue())} cardMode={false} />
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                    <span>Current Invoice Due:</span>
+                    <span style={{ fontWeight: 600, color: Number(calcCurrentBillTotal() - Math.max(0, Number(paidAmount) - calcPreviousDue())) > 0 ? '#dc2626' : '#16a34a' }}>
+                      <CurrencyDisplay value={Math.max(0, calcCurrentBillTotal() - Math.max(0, Number(paidAmount) - calcPreviousDue()))} cardMode={false} />
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderTop: '1px solid #bbf7d0', marginTop: '4px', fontWeight: 700 }}>
+                    <span>Total Customer Due:</span>
+                    <span style={{ color: '#dc2626' }}>
+                      <CurrencyDisplay value={Math.max(0, calcPreviousDue() - Number(paidAmount)) + Math.max(0, calcCurrentBillTotal() - Math.max(0, Number(paidAmount) - calcPreviousDue()))} cardMode={false} />
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <button
                 className="btn btn-success btn-block"
                 onClick={handleSubmit}
@@ -1165,6 +1328,129 @@ export default function SaleForm() {
           </div>
         </div>
       </div>
+      {/* Add New Customer Modal - same fields/validation as the Customers page Add Customer form */}
+      {addCustomerModalOpen && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 5000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px',
+        }} onClick={closeAddCustomerModal}>
+          <div style={{
+            background: '#fff', borderRadius: '12px', maxWidth: '520px',
+            width: '100%', maxHeight: '85vh', overflow: 'auto',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              padding: '16px 20px', borderBottom: '1px solid var(--gray-200)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <h5 style={{ margin: 0 }}>
+                <i className="fa-solid fa-user-plus" style={{ color: 'var(--primary)' }}></i>
+                {' '}Add New Customer
+              </h5>
+              <button className="btn btn-sm btn-light" onClick={closeAddCustomerModal}
+                style={{ border: 'none', fontSize: '18px', cursor: 'pointer' }}>
+                <i className="fa-solid fa-times"></i>
+              </button>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              <div className="form-group">
+                <label>Customer Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <input type="text" className="form-select" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ width: '100%' }} placeholder="Enter customer name" autoFocus />
+              </div>
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Phone Number <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <input type="text" className="form-select" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} style={{ width: '100%' }} placeholder="Enter mobile number" />
+              </div>
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Address</label>
+                <input type="text" className="form-select" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} style={{ width: '100%' }} placeholder="Enter customer address" />
+              </div>
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>State <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <div style={{ position: 'relative' }} ref={newStateSearchRef}>
+                  <input
+                    type="text"
+                    className="form-select"
+                    value={newStateSearch}
+                    onChange={(e) => {
+                      setNewStateSearch(e.target.value);
+                      setNewState('');
+                      setNewStateDropdownOpen(true);
+                    }}
+                    onFocus={(e) => {
+                      setNewStateDropdownOpen(true);
+                      e.target.select();
+                    }}
+                    style={{ width: '100%' }}
+                    placeholder="Search state..."
+                  />
+                  {newStateDropdownOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      background: '#fff',
+                      border: '1px solid var(--gray-200)',
+                      borderRadius: '8px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                      zIndex: 100,
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      marginTop: '4px',
+                    }}>
+                      {filteredNewStates.length > 0 ? (
+                        filteredNewStates.map(state => (
+                          <div
+                            key={state.code}
+                            onClick={() => {
+                              setNewState(state.name);
+                              setNewStateSearch(state.name);
+                              setNewStateDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: '10px 14px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid var(--gray-100)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              background: newState === state.name ? 'var(--primary-light)' : '#fff',
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--gray-50)'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = newState === state.name ? 'var(--primary-light)' : '#fff'}
+                          >
+                            <span style={{ fontWeight: 500, fontSize: '13px' }}>{state.name}</span>
+                            <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Code: {state.code}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '12px 14px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+                          No states found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{
+              padding: '12px 20px', borderTop: '1px solid var(--gray-200)',
+              display: 'flex', justifyContent: 'flex-end', gap: '8px',
+            }}>
+              <button className="btn btn-secondary" onClick={closeAddCustomerModal} disabled={newSaving}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleSaveNewCustomer} disabled={newSaving}>
+                {newSaving ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Add Customer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Substitute Suggestions Modal */}
       {substituteModal && (
         <div className="modal-overlay" style={{

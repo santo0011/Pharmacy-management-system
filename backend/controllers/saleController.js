@@ -240,15 +240,15 @@ export const createSale = async (req, res, next) => {
       });
     }
 
+    // === GST-first calculation (single source of truth, matches Invoice/Edit page) ===
+    // GST is calculated FIRST on the full subtotal, then discount is applied
+    // AFTER GST on the GST-inclusive total, then round-off is applied last.
+    //   Product Subtotal → +GST → GST Inclusive → −Discount → −Round Off → Grand Total
     const overallDiscount = Number(discount) || 0;
     const overallDiscountType = discountType || 'fixed';
-    const discountAmount = overallDiscountType === 'percentage' ? taxableTotal * (overallDiscount / 100) : overallDiscount;
 
-    // Recalculate GST after overall discount
-    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
-    const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
-    const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
-
+    // GST is already computed on the full subtotal (taxAmount from calculateItemGST)
+    const finalGst = Number(taxAmount.toFixed(2));
     let finalCgst = 0, finalSgst = 0, finalIgst = 0;
     if (intraState) {
       finalCgst = Number((finalGst / 2).toFixed(2));
@@ -257,61 +257,121 @@ export const createSale = async (req, res, next) => {
       finalIgst = finalGst;
     }
 
-    const rawInvoiceTotal = finalTaxable + finalGst;
+    // GST-inclusive total (before discount)
+    const gstInclusiveTotal = Number((subtotal + finalGst).toFixed(2));
+
+    // Discount applied AFTER GST on the GST-inclusive total
+    const discountAmount = overallDiscountType === 'percentage'
+      ? gstInclusiveTotal * (overallDiscount / 100)
+      : Math.min(overallDiscount, gstInclusiveTotal);
+    const discountedTotal = Number((gstInclusiveTotal - discountAmount).toFixed(2));
+
+    // Round-off applied last (deduction)
     const roundOff = Number(roundOffAmount) || 0;
-    const newInvoiceGrandTotal = Number((rawInvoiceTotal + roundOff).toFixed(2));
+    const newInvoiceGrandTotal = Number((discountedTotal + roundOff).toFixed(2));
+    const finalTaxable = discountedTotal;
+
+    // === Historical transaction pricing allocation ===
+    // Each item's `total` is its GST-inclusive value AFTER item-level discount
+    // but BEFORE invoice-level discount and round-off. We allocate the total
+    // invoice-level adjustment (invoice discount + GST reduction + round-off)
+    // proportionally across items so that:
+    //   Σ finalItemAmount === grandTotal
+    //   netUnitPrice === finalItemAmount / quantity  (true per-unit price paid)
+    // This is the historical price that MUST be used for returns — never the
+    // current Product Master price.
+    const sumItemTotals = saleItems.reduce((s, i) => s + i.total, 0);
+    const totalInvoiceAdjustment = sumItemTotals - newInvoiceGrandTotal;
+    saleItems.forEach(item => {
+      const ratio = sumItemTotals > 0 ? item.total / sumItemTotals : 0;
+      const finalItemAmount = Number((item.total - ratio * totalInvoiceAdjustment).toFixed(2));
+      item.finalItemAmount = finalItemAmount;
+      item.netUnitPrice = Number((finalItemAmount / item.quantity).toFixed(2));
+    });
 
     // totalPaidFromCustomer = the actual cash/amount the customer gives (this may include payment for previous due + new invoice)
     const totalPaidFromCustomer = Number(paidAmount) || newInvoiceGrandTotal;
 
-    // --- Previous Due Allocation (FIFO) ---
-    // previousDuePayments is an array of { saleId, amount } from the frontend
-    // These represent payments allocated to old invoices before paying the new invoice
+    // --- Previous Due Settlement (ALWAYS settled FIRST) ---
+    // 1. Find ALL outstanding due invoices for this customer (oldest first).
+    // 2. Allocate the customer's paid amount to previous duED FIRST.
+    // 3. Only after all previous due is fully paid, the remainder goes to
+    //    the current invoice.
+    // Track both the full previous-due obligations and what was paid.
     let oldInvoiceTotalPaid = 0;
-    if (previousDuePayments && Array.isArray(previousDuePayments) && previousDuePayments.length > 0) {
-      // Validate that total previous due payments don't exceed the total amount paid by customer
-      const totalPreviousDuePayment = previousDuePayments.reduce((sum, p) => sum + Number(p.amount), 0);
-      if (totalPreviousDuePayment > totalPaidFromCustomer) {
-        return ApiResponse.error(res, `Previous due allocation (₹${totalPreviousDuePayment.toFixed(2)}) exceeds total paid amount (₹${totalPaidFromCustomer.toFixed(2)})`, 400);
-      }
+    let previousDueObligation = 0;
+    let previousDueRemainingAfter = 0;
+    const allocatedPreviousDuePayments = [];
 
-      // Process each old invoice payment
-      for (const prevPay of previousDuePayments) {
-        const oldSale = await Sale.findOne({
-          _id: prevPay.saleId,
-          pharmacyId: req.pharmacyId,
-          isDeleted: false,
-          status: { $nin: ['cancelled', 'returned'] },
-          dueAmount: { $gt: 0 },
-        }).session(session);
-
-        if (!oldSale) {
-          return ApiResponse.error(res, `Old invoice ${prevPay.saleId} not found or already paid`, 400);
-        }
-
-        const payAmount = Number(prevPay.amount);
-        if (payAmount <= 0) continue;
-        if (payAmount > oldSale.dueAmount) {
-          return ApiResponse.error(res, `Payment of ₹${payAmount.toFixed(2)} exceeds due of ₹${oldSale.dueAmount.toFixed(2)} for invoice ${oldSale.invoiceNumber}`, 400);
-        }
-
-        // Apply this payment to the old invoice
-        await applyPaymentToOldInvoice(oldSale, payAmount, paymentMethod || 'cash', req.user._id, req.pharmacyId, session);
-        oldInvoiceTotalPaid += payAmount;
-      }
+    let customerDueInvoices = [];
+    if (customerDoc) {
+      customerDueInvoices = await Sale.find({
+        _id: { $ne: null },
+        customer: customerDoc._id,
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        status: { $nin: ['cancelled', 'returned'] },
+        dueAmount: { $gt: 0 },
+      }).sort({ saleDate: 1, createdAt: 1 }).session(session);
     }
 
-    // Remaining paid amount goes to the new invoice
-    const paidForNewInvoice = totalPaidFromCustomer - oldInvoiceTotalPaid;
+    // Fall back to explicit list from frontend if backend has no ref-based lookup
+    // (or the sale is linked by name/phone without a customer ref).
+    if (customerDueInvoices.length === 0 && previousDuePayments && Array.isArray(previousDuePayments) && previousDuePayments.length > 0) {
+      const ids = previousDuePayments.map(p => p.saleId);
+      const explicitInvoices = await Sale.find({
+        _id: { $in: ids },
+        pharmacyId: req.pharmacyId,
+        isDeleted: false,
+        status: { $nin: ['cancelled', 'returned'] },
+        dueAmount: { $gt: 0 },
+      }).sort({ saleDate: 1, createdAt: 1 }).session(session);
+
+      // Build a lookup from passed amounts (frontend may have provided exact amounts)
+      const amountById = {};
+      previousDuePayments.forEach(p => { amountById[p.saleId] = Number(p.amount) || 0; });
+
+      // Recompute obligations from actual invoice dues (source of truth)
+      customerDueInvoices = explicitInvoices.map(inv => ({
+        ...inv,
+        _usedAmount: amountById[inv._id.toString()] || inv.dueAmount,
+      }));
+    }
+
+    // Compute total previous-due obligation (sum of remaining due on old invoices)
+    previousDueObligation = customerDueInvoices.reduce((sum, inv) => sum + Number(inv.dueAmount), 0);
+
+    // Allocate paid amount: settle previous due FIRST, oldest first (FIFO)
+    let remainingPaidAfterPreviousDue = totalPaidFromCustomer;
+    for (const oldSale of customerDueInvoices) {
+      if (remainingPaidAfterPreviousDue <= 0) break;
+      const dueLeft = Number(oldSale.dueAmount) || 0;
+      if (dueLeft <= 0) continue;
+      const payAmount = Math.min(remainingPaidAfterPreviousDue, dueLeft);
+      if (payAmount <= 0) continue;
+
+      // Apply this payment to the old invoice
+      await applyPaymentToOldInvoice(oldSale, payAmount, paymentMethod || 'cash', req.user._id, req.pharmacyId, session);
+      oldInvoiceTotalPaid += payAmount;
+      allocatedPreviousDuePayments.push({ saleId: oldSale._id, amount: payAmount });
+      remainingPaidAfterPreviousDue -= payAmount;
+    }
+
+    // Whatever remains after settling ALL previous due goes to the new invoice
+    previousDueRemainingAfter = Math.max(0, previousDueObligation - oldInvoiceTotalPaid);
+    const paidForNewInvoice = Math.max(0, remainingPaidAfterPreviousDue);
+
     // Validate the amount allocated to the new invoice doesn't exceed the new invoice grand total
-    // (totalPaidFromCustomer must not exceed newInvoiceGrandTotal + oldInvoiceTotalPaid)
+    // (totalPaidFromCustomer must not exceed newInvoiceGrandTotal + previousDuePaid)
     if (paidForNewInvoice > newInvoiceGrandTotal) {
       return ApiResponse.error(res, `Paid amount for new invoice (₹${paidForNewInvoice.toFixed(2)}) exceeds Grand Total (₹${newInvoiceGrandTotal.toFixed(2)}). The total paid (₹${totalPaidFromCustomer.toFixed(2)}) minus previous due allocation (₹${oldInvoiceTotalPaid.toFixed(2)}) cannot exceed the new invoice amount.`, 400);
     }
-    if (paidForNewInvoice < 0) {
-      return ApiResponse.error(res, `Paid amount (₹${totalPaidFromCustomer.toFixed(2)}) is less than previous due allocation (₹${oldInvoiceTotalPaid.toFixed(2)}). Increase the paid amount.`, 400);
-    }
     const dueForNewInvoice = newInvoiceGrandTotal - paidForNewInvoice;
+    const currentInvoicePaid = paidForNewInvoice;
+    const currentInvoiceDue = Math.max(0, dueForNewInvoice);
+    const prevObligation = Number(req.body.previousDueAmount) || previousDueObligation;
+    const prevPaid = oldInvoiceTotalPaid;
+    const prevRemaining = Math.max(0, prevObligation - prevPaid);
 
     const [sale] = await Sale.create([{
       invoiceNumber,
@@ -336,8 +396,11 @@ export const createSale = async (req, res, next) => {
       customerType,
       roundOffAmount: roundOff,
       grandTotal: newInvoiceGrandTotal,
-      previousDueAmount: oldInvoiceTotalPaid,
-      previousDuePaid: oldInvoiceTotalPaid,
+      previousDueAmount: prevObligation,
+      previousDuePaid: prevPaid,
+      previousDueRemaining: prevRemaining,
+      currentInvoicePaid,
+      currentInvoiceDue,
       paidAmount: paidForNewInvoice,
       dueAmount: Math.max(0, dueForNewInvoice),
       paymentMethod: paymentMethod || 'cash',
@@ -540,15 +603,13 @@ export const updateSale = async (req, res, next) => {
       });
     }
 
+    // === GST-first calculation (single source of truth, matches createSale & Invoice/Edit page) ===
+    // GST is calculated FIRST on the full subtotal, then discount is applied
+    // AFTER GST on the GST-inclusive total, then round-off is applied last.
     const overallDiscount = Number(discount) || 0;
     const overallDiscountType = discountType || 'fixed';
-    const discountAmount = overallDiscountType === 'percentage' ? taxableTotal * (overallDiscount / 100) : overallDiscount;
 
-    // Recalculate GST after overall discount
-    const finalTaxable = Math.max(0, taxableTotal - discountAmount);
-    const gstRateUsed = taxableTotal > 0 ? (taxAmount / Math.max(taxableTotal, 0.01)) * 100 : 0;
-    const finalGst = Number((finalTaxable * (gstRateUsed / 100)).toFixed(2));
-
+    const finalGst = Number(taxAmount.toFixed(2));
     let finalCgst = 0, finalSgst = 0, finalIgst = 0;
     if (intraState) {
       finalCgst = Number((finalGst / 2).toFixed(2));
@@ -557,11 +618,27 @@ export const updateSale = async (req, res, next) => {
       finalIgst = finalGst;
     }
 
-    const rawInvoiceTotal = finalTaxable + finalGst;
+    const gstInclusiveTotal = Number((subtotal + finalGst).toFixed(2));
+    const discountAmount = overallDiscountType === 'percentage'
+      ? gstInclusiveTotal * (overallDiscount / 100)
+      : Math.min(overallDiscount, gstInclusiveTotal);
+    const discountedTotal = Number((gstInclusiveTotal - discountAmount).toFixed(2));
+
     const roundOff = Number(roundOffAmount) || 0;
-    const grandTotal = Number((rawInvoiceTotal + roundOff).toFixed(2));
+    const grandTotal = Number((discountedTotal + roundOff).toFixed(2));
+    const finalTaxable = discountedTotal;
     const paid = Number(paidAmount) !== undefined ? Number(paidAmount) : grandTotal;
     const due = grandTotal - paid;
+
+    // === Historical transaction pricing allocation (same as createSale) ===
+    const sumItemTotals = saleItems.reduce((s, i) => s + i.total, 0);
+    const totalInvoiceAdjustment = sumItemTotals - grandTotal;
+    saleItems.forEach(item => {
+      const ratio = sumItemTotals > 0 ? item.total / sumItemTotals : 0;
+      const finalItemAmount = Number((item.total - ratio * totalInvoiceAdjustment).toFixed(2));
+      item.finalItemAmount = finalItemAmount;
+      item.netUnitPrice = Number((finalItemAmount / item.quantity).toFixed(2));
+    });
 
     sale.set({
       customerName: customerName || sale.customerName,

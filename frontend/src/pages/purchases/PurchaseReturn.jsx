@@ -23,14 +23,24 @@ export default function PurchaseReturn() {
           setPurchase(data.data.purchase);
           // Initialize return items with 0 quantity
           setReturnItems(
-            data.data.purchase.items.map(item => ({
-              medicineId: item.medicine?._id || item.medicine,
-              medicineName: item.medicineName,
-              batchNumber: item.batchNumber,
-              purchasedQuantity: item.quantity,
-              purchasePrice: item.purchasePrice,
-              returnedQuantity: 0,
-            }))
+            data.data.purchase.items.map(item => {
+              // Use the HISTORICAL effective unit cost (after GST + discount + round-off)
+              // Never use the current Product Master price for returns.
+              const effectiveUnitPrice = Number(item.netUnitPrice) > 0
+                ? Number(item.netUnitPrice)
+                : Number(item.purchasePrice) || 0;
+              const alreadyReturned = Number(item.returnedQuantity) || 0;
+              return {
+                medicineId: item.medicine?._id || item.medicine,
+                medicineName: item.medicineName,
+                batchNumber: item.batchNumber,
+                purchasedQuantity: item.quantity,
+                alreadyReturned,
+                remainingReturnable: Math.max(0, item.quantity - alreadyReturned),
+                purchasePrice: effectiveUnitPrice,
+                returnedQuantity: 0,
+              };
+            })
           );
         }
       } catch (error) {
@@ -47,8 +57,8 @@ export default function PurchaseReturn() {
     const qty = Math.max(0, parseInt(value) || 0);
     const updated = [...returnItems];
     const item = updated[index];
-    if (qty > item.purchasedQuantity) {
-      showError(`Return quantity cannot exceed purchased quantity (${item.purchasedQuantity})`);
+    if (qty > item.remainingReturnable) {
+      showError(`Return quantity cannot exceed remaining returnable quantity (${item.remainingReturnable})`);
       return;
     }
     item.returnedQuantity = qty;
@@ -58,7 +68,7 @@ export default function PurchaseReturn() {
   const handleSelectAll = () => {
     setReturnItems(prev => prev.map(item => ({
       ...item,
-      returnedQuantity: item.purchasedQuantity,
+      returnedQuantity: item.remainingReturnable,
     })));
   };
 
@@ -196,8 +206,9 @@ export default function PurchaseReturn() {
                   <th>#</th>
                   <th>Medicine</th>
                   <th>Batch</th>
-                  <th>Purchase Price</th>
+                  <th>Effective Cost (from invoice)</th>
                   <th>Purchased Qty</th>
+                  <th>Already Returned</th>
                   <th>Return Qty</th>
                   <th>Return Amount</th>
                 </tr>
@@ -208,13 +219,21 @@ export default function PurchaseReturn() {
                     <td>{idx + 1}</td>
                     <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
                     <td style={{ fontSize: '13px', color: '#888' }}>{item.batchNumber || '-'}</td>
-                    <td><CurrencyDisplay value={item.purchasePrice} /></td>
+                    <td>
+                      <CurrencyDisplay value={item.purchasePrice} />
+                      {item.alreadyReturned > 0 && (
+                        <div style={{ fontSize: '11px', color: '#888' }}>from invoice</div>
+                      )}
+                    </td>
                     <td>{item.purchasedQuantity}</td>
+                    <td style={{ color: item.alreadyReturned > 0 ? '#dc2626' : '#888' }}>
+                      {item.alreadyReturned > 0 ? item.alreadyReturned : '-'}
+                    </td>
                     <td>
                       <input
                         type="number"
                         min="0"
-                        max={item.purchasedQuantity}
+                        max={item.remainingReturnable}
                         value={item.returnedQuantity}
                         onChange={(e) => handleQuantityChange(idx, e.target.value)}
                         className="form-select"

@@ -6,16 +6,65 @@
 
 import { getCurrentSymbol } from './currency';
 
+// Recompute GST-first values from stored item data so Print Invoice matches
+// the Invoice/Edit page and Sales Details (GST calculated FIRST on the full
+// subtotal, discount applied AFTER GST on the GST-inclusive total).
+// Format a percentage to at most 2 decimals, removing unnecessary trailing zeros.
+// e.g. 19.54545 → "19.55", 2.5 → "2.5", 5 → "5"
+function fmtPct(n) {
+  const val = Number(n) || 0;
+  const rounded = Math.round(val * 100) / 100;
+  return String(rounded);
+}
+
+// Recompute GST-first values from stored item data so Print Invoice matches
+// the Invoice/Edit page and Sales Details (GST calculated FIRST on the full
+// subtotal, discount applied AFTER GST on the GST-inclusive total).
+function gstFirstFromItems(sale) {
+  const items = (sale.items || []).map(item => {
+    const base = Number(item.subtotal) > 0
+      ? Number(item.subtotal)
+      : Number(item.quantity) * Number(item.sellingPrice);
+    const gstPct = Number(item.gst) || 0;
+    const gstAmt = Number((base * (gstPct / 100)).toFixed(2));
+    return { base, gstAmt };
+  });
+  const subtotal = items.reduce((s, i) => s + i.base, 0);
+  const totalGst = items.reduce((s, i) => s + i.gstAmt, 0);
+  const gstInclusive = Number((subtotal + totalGst).toFixed(2));
+  const totalDiscount = Math.max(0, Number((gstInclusive - Number(sale.grandTotal || 0)).toFixed(2)));
+  const cgst = Number((totalGst / 2).toFixed(2));
+  const sgst = Number((totalGst - cgst).toFixed(2));
+  const igst = totalGst;
+  // Dynamic percentage labels (calculated from actual Subtotal / Total Discount / GST values)
+  const baseAmt = subtotal > 0 ? subtotal : 1;
+  const totalDiscountPct = fmtPct((totalDiscount / baseAmt) * 100);
+  const cgstPct = fmtPct((cgst / baseAmt) * 100);
+  const sgstPct = fmtPct((sgst / baseAmt) * 100);
+  const totalGstPct = fmtPct((totalGst / baseAmt) * 100);
+  const igstPct = totalGstPct;
+  return { subtotal, totalGst, gstInclusive, totalDiscount, cgst, sgst, igst, totalDiscountPct, cgstPct, sgstPct, totalGstPct, igstPct };
+}
+
 // Template 1: Classic - Clean blue-themed professional layout
 const templateClassic = (sale, pharmacy, currencySymbol) => {
   const sym = currencySymbol || getCurrentSymbol() || '₹';
   const gstin = pharmacy.gstin || pharmacy.gstNumber || '';
   const stateCode = pharmacy.stateCode || '';
   const isIntra = sale.isIntraState !== false;
-  const cgstAmt = Number(sale.cgstAmount || 0).toFixed(2);
-  const sgstAmt = Number(sale.sgstAmount || 0).toFixed(2);
-  const igstAmt = Number(sale.igstAmount || 0).toFixed(2);
+  const g = gstFirstFromItems(sale);
+  const cgstAmt = g.cgst.toFixed(2);
+  const sgstAmt = g.sgst.toFixed(2);
+  const igstAmt = g.igst.toFixed(2);
   const taxableAmt = Number(sale.taxableAmount || 0).toFixed(2);
+  const subtotalAmt = g.subtotal.toFixed(2);
+  const totalGstAmt = g.totalGst.toFixed(2);
+  const totalDiscountAmt = g.totalDiscount.toFixed(2);
+  const totalDiscountPct = g.totalDiscountPct;
+  const cgstPct = g.cgstPct;
+  const sgstPct = g.sgstPct;
+  const totalGstPct = g.totalGstPct;
+  const igstPct = g.igstPct;
   return `
 <style>
   @page { size: ${pharmacy.printFormat === 'a4' ? 'A4' : pharmacy.printFormat === '58mm' ? '58mm 297mm' : '80mm 297mm'}; margin: ${pharmacy.printFormat === 'a4' ? '15mm' : '5mm 3mm'}; }
@@ -78,19 +127,15 @@ const templateClassic = (sale, pharmacy, currencySymbol) => {
     </tbody>
   </table>
   <div class="summary">
-    <div class="summary-row"><span>Subtotal:</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>Discount:</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row" style="font-weight:600;"><span>Taxable Amount:</span><span>${sym} ${taxableAmt}</span></div>
+    <div class="summary-row"><span>Subtotal:</span><span>${sym} ${subtotalAmt}</span></div>
+    <div class="summary-row" style="color:#ef4444;font-weight:600;"><span>Total Discount (${totalDiscountPct}%):</span><span>− ${sym} ${totalDiscountAmt}</span></div>
     ${isIntra ? `
-    <div class="summary-row"><span>CGST:</span><span>${sym} ${cgstAmt}</span></div>
-    <div class="summary-row"><span>SGST:</span><span>${sym} ${sgstAmt}</span></div>
+    <div class="summary-row"><span>CGST (${cgstPct}%):</span><span>${sym} ${cgstAmt}</span></div>
+    <div class="summary-row"><span>SGST (${sgstPct}%):</span><span>${sym} ${sgstAmt}</span></div>
     ` : `
-    <div class="summary-row"><span>IGST:</span><span>${sym} ${igstAmt}</span></div>
+    <div class="summary-row"><span>IGST (${igstPct}%):</span><span>${sym} ${igstAmt}</span></div>
     `}
-    <div class="summary-row"><span>Total GST:</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
-    ${sale.roundOffAmount && Number(sale.roundOffAmount) !== 0 ? `
-    <div class="summary-row" style="color:${Number(sale.roundOffAmount) > 0 ? '#16a34a' : '#ef4444'};"><span>Round Off:</span><span>${sym} ${Number(sale.roundOffAmount).toFixed(2)}</span></div>
-    ` : ''}
+    <div class="summary-row"><span>Total GST (${totalGstPct}%):</span><span>${sym} ${totalGstAmt}</span></div>
     ${sale.previousDueAmount > 0 ? `
     <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
     ` : ''}
@@ -113,6 +158,15 @@ const templateClassic = (sale, pharmacy, currencySymbol) => {
 // Template 2: Modern - Dark header, green accent, clean
 const templateModern = (sale, pharmacy, currencySymbol) => {
   const sym = currencySymbol || getCurrentSymbol() || '₹';
+  const g = gstFirstFromItems(sale);
+  const subtotalAmt = g.subtotal.toFixed(2);
+  const totalGstAmt = g.totalGst.toFixed(2);
+  const totalDiscountAmt = g.totalDiscount.toFixed(2);
+  const totalDiscountPct = g.totalDiscountPct;
+  const totalGstPct = g.totalGstPct;
+  const cgstPct = g.cgstPct;
+  const sgstPct = g.sgstPct;
+  const igstPct = g.igstPct;
   return `
 <style>
   @page { size: ${pharmacy.printFormat === 'a4' ? 'A4' : pharmacy.printFormat === '58mm' ? '58mm 297mm' : '80mm 297mm'}; margin: ${pharmacy.printFormat === 'a4' ? '15mm' : '5mm 3mm'}; }
@@ -181,13 +235,10 @@ const templateModern = (sale, pharmacy, currencySymbol) => {
       </tbody>
     </table>
     <div class="summary">
-      <div class="summary-row"><span>Subtotal:</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
-      <div class="summary-row"><span>GST:</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
-      <div class="summary-row"><span>Discount:</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
+      <div class="summary-row"><span>Subtotal:</span><span>${sym} ${subtotalAmt}</span></div>
+      <div class="summary-row"><span>GST (${totalGstPct}%):</span><span>${sym} ${totalGstAmt}</span></div>
+      <div class="summary-row" style="color:#ef4444;font-weight:600;"><span>Total Discount (${totalDiscountPct}%):</span><span>− ${sym} ${totalDiscountAmt}</span></div>
       <div class="summary-row" style="font-weight:600;"><span>Current Bill Total:</span><span>${sym} ${(Number(sale.grandTotal || 0) - Number(sale.roundOffAmount || 0)).toFixed(2)}</span></div>
-      ${sale.roundOffAmount && Number(sale.roundOffAmount) !== 0 ? `
-      <div class="summary-row" style="color:${Number(sale.roundOffAmount) > 0 ? '#16a34a' : '#ef4444'};"><span>Round Off:</span><span>${sym} ${Number(sale.roundOffAmount).toFixed(2)}</span></div>
-      ` : ''}
       ${sale.previousDueAmount > 0 ? `
       <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid:</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
       ` : ''}
@@ -208,6 +259,15 @@ const templateModern = (sale, pharmacy, currencySymbol) => {
 // Template 3: Minimal - Clean, borderless, minimal design with serif
 const templateMinimal = (sale, pharmacy, currencySymbol) => {
   const sym = currencySymbol || getCurrentSymbol() || '₹';
+  const g = gstFirstFromItems(sale);
+  const subtotalAmt = g.subtotal.toFixed(2);
+  const totalGstAmt = g.totalGst.toFixed(2);
+  const totalDiscountAmt = g.totalDiscount.toFixed(2);
+  const totalDiscountPct = g.totalDiscountPct;
+  const totalGstPct = g.totalGstPct;
+  const cgstPct = g.cgstPct;
+  const sgstPct = g.sgstPct;
+  const igstPct = g.igstPct;
   return `
 <style>
   @page { size: ${pharmacy.printFormat === 'a4' ? 'A4' : pharmacy.printFormat === '58mm' ? '58mm 297mm' : '80mm 297mm'}; margin: ${pharmacy.printFormat === 'a4' ? '15mm' : '5mm 3mm'}; }
@@ -263,13 +323,10 @@ const templateMinimal = (sale, pharmacy, currencySymbol) => {
     </tbody>
   </table>
   <div class="summary">
-    <div class="summary-row"><span>Subtotal</span><span>${sym} ${Number(sale.subtotal || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>GST</span><span>${sym} ${Number(sale.taxAmount || 0).toFixed(2)}</span></div>
-    <div class="summary-row"><span>Discount</span><span>${sym} ${Number(sale.discountAmount || 0).toFixed(2)}</span></div>
+    <div class="summary-row"><span>Subtotal</span><span>${sym} ${subtotalAmt}</span></div>
+    <div class="summary-row"><span>GST (${totalGstPct}%)</span><span>${sym} ${totalGstAmt}</span></div>
+    <div class="summary-row" style="color:#ef4444;font-weight:600;"><span>Total Discount (${totalDiscountPct}%)</span><span>− ${sym} ${totalDiscountAmt}</span></div>
     <div class="summary-row" style="font-weight:600;"><span>Current Bill Total</span><span>${sym} ${(Number(sale.grandTotal || 0) - Number(sale.roundOffAmount || 0)).toFixed(2)}</span></div>
-    ${sale.roundOffAmount && Number(sale.roundOffAmount) !== 0 ? `
-    <div class="summary-row" style="color:${Number(sale.roundOffAmount) > 0 ? '#16a34a' : '#ef4444'};"><span>Round Off</span><span>${sym} ${Number(sale.roundOffAmount).toFixed(2)}</span></div>
-    ` : ''}
     ${sale.previousDueAmount > 0 ? `
     <div class="summary-row" style="color:#c2410c;"><span>Previous Due Paid</span><span>${sym} ${Number(sale.previousDuePaid || 0).toFixed(2)}</span></div>
     ` : ''}

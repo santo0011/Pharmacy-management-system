@@ -1173,7 +1173,7 @@ export default function PurchaseForm() {
                 </div>
               )}
 
-              {Number(discountAmt) > 0 && (
+              {Number(discountAmt + roundOff) > 0 && (
                 <div className="summary-row discount-amount-row">
                   <span className="summary-label">Total Discount:</span>
                   <span className="summary-value discount-amount-value">

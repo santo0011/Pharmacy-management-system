@@ -93,6 +93,48 @@ export default function SaleDetail() {
     </div>
   );
 
+  // === Recompute GST-first from stored item data (matching Invoice/Edit page) ===
+  // GST is calculated FIRST on the full subtotal, then discount is applied
+  // AFTER GST on the GST-inclusive total. Uses only stored transaction item
+  // values (quantity, price, gst) and the stored grand total — never the
+  // current Product Master price. This keeps Sales Details consistent with
+  // the Invoice/Edit page, Print Invoice, and Returns.
+  const itemRows = (sale.items || []).map(item => {
+    const base = Number(item.subtotal) > 0
+      ? Number(item.subtotal)
+      : Number(item.quantity) * Number(item.sellingPrice);
+    const gstPct = Number(item.gst) || 0;
+    const gstAmt = Number((base * (gstPct / 100)).toFixed(2));
+    return { item, base, gstPct, gstAmt, gstInclusive: Number((base + gstAmt).toFixed(2)) };
+  });
+  const displaySubtotal = itemRows.reduce((s, it) => s + it.base, 0);
+  const displayTotalGst = itemRows.reduce((s, it) => s + it.gstAmt, 0);
+  const displayGstInclusive = Number((displaySubtotal + displayTotalGst).toFixed(2));
+  // Total Discount = GST Inclusive Total − Grand Total (includes any round-off)
+  const displayTotalDiscount = Math.max(0, Number((displayGstInclusive - Number(sale.grandTotal || 0)).toFixed(2)));
+  const displayCgst = Number((displayTotalGst / 2).toFixed(2));
+  const displaySgst = Number((displayTotalGst - displayCgst).toFixed(2));
+
+  // Dynamic percentage labels (same as Invoice page) — computed from actual values
+  const pctBaseAmount = displaySubtotal > 0 ? displaySubtotal : 1;
+  const displayTotalDiscountPct = Math.round((displayTotalDiscount / pctBaseAmount) * 10000) / 100;
+  const displayCgstPct = Math.round((displayCgst / pctBaseAmount) * 10000) / 100;
+  const displaySgstPct = Math.round((displaySgst / pctBaseAmount) * 10000) / 100;
+  const displayTotalGstPct = Math.round((displayTotalGst / pctBaseAmount) * 10000) / 100;
+
+  // Allocate Total Discount proportionally to each item based on its
+  // GST-inclusive value. The sum of allocations equals Total Discount exactly.
+  const totalGstInclusiveAlloc = itemRows.reduce((s, it) => s + it.gstInclusive, 0);
+  let runningDiscountAlloc = 0;
+  const itemDiscountValues = itemRows.map((it, idx) => {
+    if (idx === itemRows.length - 1 && itemRows.length > 0) {
+      return Math.max(0, Number((displayTotalDiscount - runningDiscountAlloc).toFixed(2)));
+    }
+    const alloc = Number((totalGstInclusiveAlloc > 0 ? (it.gstInclusive / totalGstInclusiveAlloc) * displayTotalDiscount : 0).toFixed(2));
+    runningDiscountAlloc += alloc;
+    return alloc;
+  });
+
   return (
     <div>
       <div className="page-header">
@@ -114,11 +156,11 @@ export default function SaleDetail() {
               <i className="fa-solid fa-undo"></i> Return Items
             </button>
           )}
-          {(sale.status === 'completed' || sale.status === 'cancelled') && (
+          {/* {(sale.status === 'completed' || sale.status === 'cancelled') && (
             <button className="btn btn-info" onClick={handleReturn}>
               <i className="fa-solid fa-undo"></i> {sale.status === 'cancelled' ? 'Re-stock & Close' : 'Full Return'}
             </button>
-          )}
+          )} */}
           <button className="btn btn-secondary" onClick={() => navigate('/sales')}>
             <i className="fa-solid fa-arrow-left"></i> Back
           </button>
@@ -151,16 +193,18 @@ export default function SaleDetail() {
                 <tr><th>Medicine</th><th>Qty</th><th>Price</th><th>GST</th><th>Discount</th><th>Total</th></tr>
               </thead>
               <tbody>
-                {sale.items?.map((item, idx) => (
-                  <tr key={idx}>
-                    <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
-                    <td>{item.quantity}</td>
-                    <td><CurrencyDisplay value={item.sellingPrice} /></td>
-                    <td>{item.gst}%</td>
-                    <td><CurrencyDisplay value={item.discountAmount} /></td>
-                    <td style={{ fontWeight: 600 }}><CurrencyDisplay value={item.total} /></td>
-                  </tr>
-                ))}
+                  {sale.items?.map((item, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
+                      <td>{item.quantity}</td>
+                      <td><CurrencyDisplay value={item.sellingPrice} /></td>
+                      <td>{item.gst}%</td>
+                      <td>
+                        <CurrencyDisplay value={itemDiscountValues[idx] || 0} />
+                      </td>
+                      <td style={{ fontWeight: 600 }}><CurrencyDisplay value={item.total} /></td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -171,29 +215,44 @@ export default function SaleDetail() {
         <div className="card-header"><h5>Payment Summary</h5></div>
         <div className="card-body">
           <div style={{ maxWidth: '400px' }}>
-            <InfoRow label="Subtotal" value={<CurrencyDisplay value={sale.subtotal} />} />
-            <InfoRow label="Discount" value={<CurrencyDisplay value={sale.discountAmount} />} />
-            <InfoRow label="Taxable Amount" value={<CurrencyDisplay value={sale.taxableAmount} />} />
+            <InfoRow label="Subtotal" value={<CurrencyDisplay value={displaySubtotal} />} />
+            <InfoRow label={`Total Discount (${displayTotalDiscountPct}%):`} value={
+              <span style={{ color: 'var(--danger)', fontWeight: 700 }}>
+                − <CurrencyDisplay value={displayTotalDiscount} />
+              </span>
+            } />
             {sale.isIntraState !== false ? (
               <>
-                <InfoRow label="CGST" value={<CurrencyDisplay value={sale.cgstAmount} />} />
-                <InfoRow label="SGST" value={<CurrencyDisplay value={sale.sgstAmount} />} />
+                <InfoRow label={`CGST (${displayCgstPct}%):`} value={<CurrencyDisplay value={displayCgst} />} />
+                <InfoRow label={`SGST (${displaySgstPct}%):`} value={<CurrencyDisplay value={displaySgst} />} />
               </>
             ) : (
-              <InfoRow label="IGST" value={<CurrencyDisplay value={sale.igstAmount} />} />
+              <InfoRow label={`IGST (${displayTotalGstPct}%):`} value={<CurrencyDisplay value={displayTotalGst} />} />
             )}
-            <InfoRow label="Total GST" value={<CurrencyDisplay value={sale.taxAmount} />} />
-            {Number(sale.roundOffAmount) !== 0 && (
-              <InfoRow label="Round Off" value={
-                <span style={{ color: sale.roundOffAmount > 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-                  {sale.roundOffAmount > 0 ? '+' : ''}<CurrencyDisplay value={sale.roundOffAmount} />
-                </span>
-              } />
-            )}
+            <InfoRow label={`Total GST (${displayTotalGstPct}%):`} value={<CurrencyDisplay value={displayTotalGst} />} />
             <div style={{ display: 'flex', padding: '12px 0', borderTop: '2px solid var(--gray-200)', fontWeight: 700, fontSize: '16px', color: 'var(--primary-color)' }}>
               <div style={{ width: '160px' }}>Grand Total</div>
               <div><CurrencyDisplay value={sale.grandTotal} /></div>
             </div>
+            {/* Previous Due Payment Allocation Summary */}
+            {Number(sale.previousDueAmount || 0) > 0 && (
+              <div style={{ marginTop: '8px', padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontSize: '12px' }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#166534' }}>
+                  <i className="fa-solid fa-circle-dollar"></i> Payment Allocation
+                </div>
+                <InfoRow label="Previous Due" value={<CurrencyDisplay value={sale.previousDueAmount} />} />
+                <InfoRow label="Previous Due Paid" value={<span style={{ color: '#16a34a', fontWeight: 600 }}><CurrencyDisplay value={sale.previousDuePaid} /></span>} />
+                {Number(sale.previousDueRemaining) > 0 && (
+                  <InfoRow label="Previous Due Remaining" value={<span style={{ color: sale.previousDueRemaining > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}><CurrencyDisplay value={sale.previousDueRemaining} /></span>} />
+                )}
+                <InfoRow label="Current Invoice Paid" value={<CurrencyDisplay value={sale.currentInvoicePaid} />} />
+                <InfoRow label="Current Invoice Due" value={<span style={{ color: sale.currentInvoiceDue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}><CurrencyDisplay value={sale.currentInvoiceDue} /></span>} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #bbf7d0', marginTop: '4px', paddingTop: '6px', fontWeight: 700 }}>
+                  <span>Total Customer Due</span>
+                  <span style={{ color: '#dc2626' }}><CurrencyDisplay value={Number(sale.currentInvoiceDue || 0) + Number(sale.previousDueRemaining || 0)} /></span>
+                </div>
+              </div>
+            )}
             <InfoRow label="Paid" value={<CurrencyDisplay value={sale.paidAmount} />} />
             <InfoRow label="Due" value={<span style={{ color: sale.dueAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}><CurrencyDisplay value={sale.dueAmount} /></span>} />
             {sale.notes && <InfoRow label="Notes" value={sale.notes} />}

@@ -203,13 +203,7 @@ export default function GstReport() {
               </div>
             </>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginLeft: 'auto' }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-600)' }}>GST Rate</label>
-            <select className="form-select" style={{ minWidth: '120px' }} value={gstRateFilter} onChange={(e) => setGstRateFilter(e.target.value)}>
-              <option value="all">All Rates</option>
-              {availableRates.map(r => <option key={r} value={r}>{r}%</option>)}
-            </select>
-          </div>
+
         </div>
       </div>
 
@@ -349,20 +343,7 @@ export default function GstReport() {
                     ))
                   )}
                 </tbody>
-                {filteredSales.length > 0 && (
-                  <tfoot>
-                    <tr>
-                      <td colSpan={4} style={{ fontWeight: 700, textAlign: 'right' }}>Total ({filteredSales.length})</td>
-                      <td style={{ fontWeight: 700, textAlign: 'right' }}><CurrencyDisplay value={sumField(filteredSales, 'taxableAmount')} cardMode={false} forceDecimals /></td>
-                      <td></td>
-                      <td style={{ fontWeight: 700, textAlign: 'right' }}><CurrencyDisplay value={sumField(filteredSales, 'cgst')} cardMode={false} forceDecimals /></td>
-                      <td style={{ fontWeight: 700, textAlign: 'right' }}><CurrencyDisplay value={sumField(filteredSales, 'sgst')} cardMode={false} forceDecimals /></td>
-                      <td style={{ fontWeight: 700, textAlign: 'right' }}><CurrencyDisplay value={sumField(filteredSales, 'igst')} cardMode={false} forceDecimals /></td>
-                      <td style={{ fontWeight: 700, textAlign: 'right', color: '#d97706' }}><CurrencyDisplay value={sumField(filteredSales, 'totalGst')} cardMode={false} forceDecimals /></td>
-                      <td style={{ fontWeight: 700, textAlign: 'right' }}><CurrencyDisplay value={sumField(filteredSales, 'grandTotal')} cardMode={false} forceDecimals /></td>
-                    </tr>
-                  </tfoot>
-                )}
+
               </table>
             </div>
           ) : activeTab === 'purchases' ? (

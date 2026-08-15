@@ -22,14 +22,24 @@ export default function SaleReturn() {
         if (data.data) {
           setSale(data.data);
           setReturnItems(
-            data.data.items.map(item => ({
-              medicineId: item.medicine?._id || item.medicine,
-              medicineName: item.medicineName,
-              batchNumber: item.batchNumber,
-              soldQuantity: item.quantity,
-              sellingPrice: item.sellingPrice,
-              returnedQuantity: 0,
-            }))
+            data.data.items.map(item => {
+              // Use the HISTORICAL effective unit price (after GST + discount + round-off)
+              // Never use the current Product Master price for returns.
+              const effectiveUnitPrice = Number(item.netUnitPrice) > 0
+                ? Number(item.netUnitPrice)
+                : Number(item.sellingPrice) || 0;
+              const alreadyReturned = Number(item.returnedQuantity) || 0;
+              return {
+                medicineId: item.medicine?._id || item.medicine,
+                medicineName: item.medicineName,
+                batchNumber: item.batchNumber,
+                soldQuantity: item.quantity,
+                alreadyReturned,
+                remainingReturnable: Math.max(0, item.quantity - alreadyReturned),
+                sellingPrice: effectiveUnitPrice,
+                returnedQuantity: 0,
+              };
+            })
           );
         }
       } catch (error) {
@@ -46,8 +56,8 @@ export default function SaleReturn() {
     const qty = Math.max(0, parseInt(value) || 0);
     const updated = [...returnItems];
     const item = updated[index];
-    if (qty > item.soldQuantity) {
-      showError(`Return quantity cannot exceed sold quantity (${item.soldQuantity})`);
+    if (qty > item.remainingReturnable) {
+      showError(`Return quantity cannot exceed remaining returnable quantity (${item.remainingReturnable})`);
       return;
     }
     item.returnedQuantity = qty;
@@ -57,7 +67,7 @@ export default function SaleReturn() {
   const handleSelectAll = () => {
     setReturnItems(prev => prev.map(item => ({
       ...item,
-      returnedQuantity: item.soldQuantity,
+      returnedQuantity: item.remainingReturnable,
     })));
   };
 
@@ -195,8 +205,9 @@ export default function SaleReturn() {
                   <th>#</th>
                   <th>Medicine</th>
                   <th>Batch</th>
-                  <th>Selling Price</th>
+                  <th>Effective Price (from invoice)</th>
                   <th>Sold Qty</th>
+                  <th>Already Returned</th>
                   <th>Return Qty</th>
                   <th>Return Amount</th>
                 </tr>
@@ -207,13 +218,21 @@ export default function SaleReturn() {
                     <td>{idx + 1}</td>
                     <td style={{ fontWeight: 500 }}>{item.medicineName}</td>
                     <td style={{ fontSize: '13px', color: '#888' }}>{item.batchNumber || '-'}</td>
-                    <td><CurrencyDisplay value={item.sellingPrice} /></td>
+                    <td>
+                      <CurrencyDisplay value={item.sellingPrice} />
+                      {item.alreadyReturned > 0 && (
+                        <div style={{ fontSize: '11px', color: '#888' }}>from invoice</div>
+                      )}
+                    </td>
                     <td>{item.soldQuantity}</td>
+                    <td style={{ color: item.alreadyReturned > 0 ? '#dc2626' : '#888' }}>
+                      {item.alreadyReturned > 0 ? item.alreadyReturned : '-'}
+                    </td>
                     <td>
                       <input
                         type="number"
                         min="0"
-                        max={item.soldQuantity}
+                        max={item.remainingReturnable}
                         value={item.returnedQuantity}
                         onChange={(e) => handleQuantityChange(idx, e.target.value)}
                         className="form-select"

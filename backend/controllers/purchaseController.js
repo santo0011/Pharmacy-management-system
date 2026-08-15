@@ -347,6 +347,25 @@ export const createPurchase = async (req, res, next) => {
     const paid = Number(paidAmount) || grandTotal;
     const due = grandTotal - paid;
 
+    // === Historical transaction pricing allocation ===
+    // Each item's `total` (subtotal + GST) is its GST-inclusive value BEFORE
+    // invoice-level discount and round-off. We allocate the total invoice-level
+    // adjustment (discount + round-off + shipping + other costs) proportionally
+    // across items so that:
+    //   Σ finalItemAmount === grandTotal
+    //   netUnitPrice === finalItemAmount / quantity  (true per-unit cost)
+    // This is the historical price that MUST be used for returns — never the
+    // current Product Master price.
+    const sumItemTotals = purchaseItems.reduce((s, i) => s + (i.subtotal + i.gstAmount), 0);
+    const totalInvoiceAdjustment = sumItemTotals - grandTotal;
+    purchaseItems.forEach(item => {
+      const itemTotal = item.subtotal + item.gstAmount;
+      const ratio = sumItemTotals > 0 ? itemTotal / sumItemTotals : 0;
+      const finalItemAmount = Number((itemTotal - ratio * totalInvoiceAdjustment).toFixed(2));
+      item.finalItemAmount = finalItemAmount;
+      item.netUnitPrice = Number((finalItemAmount / item.quantity).toFixed(2));
+    });
+
     const [purchase] = await Purchase.create([{
       invoiceNumber,
       supplier,
@@ -549,6 +568,17 @@ export const updatePurchase = async (req, res, next) => {
     const grandTotal = Number((finalTaxable + finalGst + Number(shippingCost || 0) + Number(otherCost || 0)).toFixed(2));
     const paid = Number(paidAmount) || grandTotal;
     const due = grandTotal - paid;
+
+    // === Historical transaction pricing allocation (same as createPurchase) ===
+    const sumItemTotals = purchaseItems.reduce((s, i) => s + (i.subtotal + i.gstAmount), 0);
+    const totalInvoiceAdjustment = sumItemTotals - grandTotal;
+    purchaseItems.forEach(item => {
+      const itemTotal = item.subtotal + item.gstAmount;
+      const ratio = sumItemTotals > 0 ? itemTotal / sumItemTotals : 0;
+      const finalItemAmount = Number((itemTotal - ratio * totalInvoiceAdjustment).toFixed(2));
+      item.finalItemAmount = finalItemAmount;
+      item.netUnitPrice = Number((finalItemAmount / item.quantity).toFixed(2));
+    });
 
     const oldSupplier = purchase.supplier;
 

@@ -219,7 +219,7 @@ export default function Sales() {
                         <th>GST</th>
                         <th>Total</th>
                         <th>Payment</th>
-                        <th>Status</th>
+                        {/* <th>Status</th> */}
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -238,15 +238,15 @@ export default function Sales() {
                           <td style={{ fontWeight: 600 }}><CurrencyDisplay value={s.grandTotal} /></td>
                           <td>
                             <span className={`badge ${s.paymentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>{s.paymentStatus}</span>
-                            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>
+                            {/* <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>
                               {s.paymentMethod ? s.paymentMethod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Cash'}
-                            </div>
+                            </div> */}
                           </td>
-                          <td>
+                          {/* <td>
                             <span className={`badge ${s.status === 'completed' ? 'badge-success' : s.status === 'returned' ? 'badge-info' : 'badge-danger'}`}>
                               {s.status}
                             </span>
-                          </td>
+                          </td> */}
                           <td onClick={(e) => e.stopPropagation()}>
                             <div className="action-buttons">
                               <button className="btn btn-info btn-sm" onClick={() => navigate(`/sales/${s._id}`)} title="View Details">

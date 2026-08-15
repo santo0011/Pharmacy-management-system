@@ -24,6 +24,16 @@ const saleItemSchema = mongoose.Schema({
   igstAmount: { type: Number, default: 0 },
   gstAmount: { type: Number, default: 0 },
   total: { type: Number, required: true },
+  // === Historical transaction pricing (for accurate returns) ===
+  // Effective per-unit price AFTER item-level discount (GST-inclusive basis).
+  // This is the actual price the customer paid per unit for this item.
+  netUnitPrice: { type: Number, default: 0 },
+  // The item's contribution to the FINAL invoice total after invoice-level
+  // discount and round-off allocation. This is the true historical value
+  // that must be used for returns — NOT the current Product Master price.
+  finalItemAmount: { type: Number, default: 0 },
+  // Quantity already returned for this item (for partial-return tracking).
+  returnedQuantity: { type: Number, default: 0 },
 });
 
 const saleSchema = mongoose.Schema({
@@ -64,6 +74,9 @@ const saleSchema = mongoose.Schema({
   customerType: { type: String, enum: ['retail', 'business'], default: 'retail' },
   previousDueAmount: { type: Number, default: 0 },
   previousDuePaid: { type: Number, default: 0 },
+  previousDueRemaining: { type: Number, default: 0 },
+  currentInvoicePaid: { type: Number, default: 0 },
+  currentInvoiceDue: { type: Number, default: 0 },
   paidAmount: { type: Number, default: 0 },
   dueAmount: { type: Number, default: 0 },
   paymentMethod: {

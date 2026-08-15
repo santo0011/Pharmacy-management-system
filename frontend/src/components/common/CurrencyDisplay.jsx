@@ -117,7 +117,7 @@ export default function CurrencyDisplay({
   const prevValueRef = useRef(0);
   const containerRef = useRef(null);
 
-  // Detect if this currency display is inside a card parent
+  // Detect if this currency display is inside a card parent (for animation)
   const isInsideCard = useCallback(() => {
     if (typeof document === 'undefined' || !containerRef.current) return false;
     let el = containerRef.current.parentElement;
@@ -156,14 +156,54 @@ export default function CurrencyDisplay({
     return false;
   }, []);
 
+  // Detect ONLY dashboard/statistics summary card contexts where compact
+  // formatting (K/M/B) is intentionally needed. Every other page — details,
+  // summaries, tables, invoices, purchases, returns, print views — must show
+  // the FULL exact currency value (no "₹1.1K", no "₹22" truncation).
+  const isInsideCompactCard = useCallback(() => {
+    if (typeof document === 'undefined' || !containerRef.current) return false;
+    let el = containerRef.current.parentElement;
+    while (el) {
+      if (el.classList && (
+        el.classList.contains('stat-card') ||
+        el.classList.contains('summary-item') ||
+        el.classList.contains('dashboard-summary-grid') ||
+        el.classList.contains('report-card') ||
+        el.classList.contains('summary-cards-grid')
+      )) {
+        return true;
+      }
+      // Dashboard compact summary cards (styled divs with specific inline backgrounds)
+      if (el.style && el.style.borderRadius === '10px' && el.style.padding === '14px' && el.tagName === 'DIV') {
+        const bg = el.style.background || '';
+        const border = el.style.border || '';
+        if ((bg.includes('#fff7ed') || bg.includes('#f0fdf4') || bg.includes('#eff6ff') ||
+             bg.includes('#fef2f2') || bg.includes('#f8fafc') || bg.includes('#f0f5ff')) &&
+            (border.includes('solid') || border.includes('1px'))) {
+          return true;
+        }
+      }
+      // Stop traversing if we hit a table, drawer, or modal boundary
+      if (el.tagName === 'TABLE' || el.tagName === 'TR' || el.tagName === 'TD' || el.tagName === 'TH' ||
+          el.classList.contains('drawer') ||
+          el.classList.contains('drawer-body') ||
+          el.classList.contains('modal') ||
+          el.classList.contains('modal-body')) {
+        return false;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }, []);
+
   // Determine effective animation state based on parent context
   const effectiveAnimate = animate && isInsideCard();
 
   // Determine effective compact mode:
   // - If cardMode prop is explicitly provided, use it
   // - Else if compact prop is true, use it
-  // - Else auto-enable compact when inside a card
-  const effectiveCompact = cardMode !== undefined ? cardMode : (compact || isInsideCard());
+  // - Else auto-enable compact ONLY when inside a dashboard/statistics summary card
+  const effectiveCompact = cardMode !== undefined ? cardMode : (compact || isInsideCompactCard());
 
   // Animated counter logic
   useEffect(() => {

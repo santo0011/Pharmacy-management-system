@@ -81,11 +81,34 @@ export const returnPurchase = async (req, res, next) => {
       if (returnQty <= 0) {
         return ApiResponse.error(res, `Invalid return quantity for ${purchaseItem.medicineName}`, 400);
       }
-      if (returnQty > purchaseItem.quantity) {
-        return ApiResponse.error(res, `Return quantity (${returnQty}) exceeds purchased quantity (${purchaseItem.quantity}) for ${purchaseItem.medicineName}`, 400);
+
+      // Respect previously returned quantity (partial returns)
+      const alreadyReturned = Number(purchaseItem.returnedQuantity) || 0;
+      const remainingReturnable = purchaseItem.quantity - alreadyReturned;
+      if (returnQty > remainingReturnable) {
+        return ApiResponse.error(res, `Return quantity (${returnQty}) exceeds remaining returnable quantity (${remainingReturnable}) for ${purchaseItem.medicineName}`, 400);
       }
 
-      const returnAmt = returnQty * purchaseItem.purchasePrice;
+      // === CRITICAL: Use the HISTORICAL transaction value, never the current Product Master price ===
+      // `netUnitPrice` is the item's effective per-unit cost AFTER GST, invoice-level
+      // discount, round-off, shipping and other cost allocation. This is the true
+      // historical cost that must be used for returns.
+      const itemNetUnitPrice = Number(purchaseItem.netUnitPrice) || 0;
+
+      // If historical fields are missing (legacy invoice), fall back to a
+      // proportional allocation of the purchase grand total based on the item's
+      // original (subtotal + GST) value. This preserves backward compatibility.
+      let effectiveUnitPrice;
+      if (itemNetUnitPrice > 0) {
+        effectiveUnitPrice = itemNetUnitPrice;
+      } else {
+        const sumItemTotals = purchase.items.reduce((s, i) => s + ((i.subtotal || 0) + (i.gstAmount || 0)), 0);
+        const itemTotal = (purchaseItem.subtotal || 0) + (purchaseItem.gstAmount || 0);
+        const ratio = sumItemTotals > 0 ? itemTotal / sumItemTotals : 0;
+        effectiveUnitPrice = Number((itemTotal - ratio * (sumItemTotals - purchase.grandTotal)) / purchaseItem.quantity).toFixed(2);
+      }
+
+      const returnAmt = Number((returnQty * effectiveUnitPrice).toFixed(2));
       subtotal += returnAmt;
 
       returnItems.push({
@@ -93,7 +116,7 @@ export const returnPurchase = async (req, res, next) => {
         medicineName: purchaseItem.medicineName,
         batchNumber: purchaseItem.batchNumber || '',
         returnedQuantity: returnQty,
-        purchasePrice: purchaseItem.purchasePrice,
+        purchasePrice: Number(effectiveUnitPrice),
         returnAmount: returnAmt,
       });
     }
@@ -135,7 +158,23 @@ export const returnPurchase = async (req, res, next) => {
     purchase.paidAmount = Math.max(0, purchase.paidAmount - paidReduction);
     purchase.dueAmount = Math.max(0, purchase.grandTotal - purchase.paidAmount);
     purchase.paymentStatus = purchase.dueAmount <= 0 ? 'paid' : purchase.paidAmount > 0 ? 'partial' : 'unpaid';
-    purchase.status = 'returned';
+    // Update status to 'returned' only if ALL items are fully returned
+    const allFullyReturned = purchase.items.every(item => {
+      const alreadyReturned = Number(item.returnedQuantity) || 0;
+      const thisReturnQty = returnItems.find(ri => ri.medicine.toString() === item.medicine.toString())?.returnedQuantity || 0;
+      return (alreadyReturned + thisReturnQty) >= item.quantity;
+    });
+    purchase.status = allFullyReturned ? 'returned' : 'completed';
+
+    // Track returned quantity on each purchase item
+    for (const returnItem of returnItems) {
+      const purchaseItem = purchase.items.find(
+        pi => pi.medicine.toString() === returnItem.medicine.toString()
+      );
+      if (purchaseItem) {
+        purchaseItem.returnedQuantity = (Number(purchaseItem.returnedQuantity) || 0) + returnItem.returnedQuantity;
+      }
+    }
     purchase.notes = (purchase.notes ? purchase.notes + ' | ' : '') + `Returned on ${new Date().toISOString().split('T')[0]}: ${returnNumber}`;
     purchase.updatedBy = req.user._id;
     await purchase.save({ session });

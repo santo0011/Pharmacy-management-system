@@ -82,13 +82,38 @@ export const returnSaleItems = async (req, res, next) => {
       if (returnQty <= 0) {
         return ApiResponse.error(res, `Invalid return quantity for ${saleItem.medicineName}`, 400);
       }
-      if (returnQty > saleItem.quantity) {
-        return ApiResponse.error(res, `Return quantity (${returnQty}) exceeds sold quantity (${saleItem.quantity}) for ${saleItem.medicineName}`, 400);
+
+      // Respect previously returned quantity (partial returns)
+      const alreadyReturned = Number(saleItem.returnedQuantity) || 0;
+      const remainingReturnable = saleItem.quantity - alreadyReturned;
+      if (returnQty > remainingReturnable) {
+        return ApiResponse.error(res, `Return quantity (${returnQty}) exceeds remaining returnable quantity (${remainingReturnable}) for ${saleItem.medicineName}`, 400);
       }
 
-      // Calculate proportional return amounts based on ratio
+      // === CRITICAL: Use the HISTORICAL transaction value, never the current Product Master price ===
+      // `finalItemAmount` is the item's contribution to the FINAL invoice total
+      // after GST, item discount, invoice-level discount, and round-off allocation.
+      // This is the true amount the customer paid for this item.
+      const itemFinalAmount = Number(saleItem.finalItemAmount) || 0;
+      const itemNetUnitPrice = Number(saleItem.netUnitPrice) || 0;
+
+      // If historical fields are missing (legacy invoice), fall back to a
+      // proportional allocation of the invoice grand total based on the item's
+      // original `total` value. This preserves backward compatibility.
+      let effectiveUnitPrice;
+      if (itemNetUnitPrice > 0) {
+        effectiveUnitPrice = itemNetUnitPrice;
+      } else {
+        const sumItemTotals = sale.items.reduce((s, i) => s + (i.total || 0), 0);
+        const ratio = sumItemTotals > 0 ? (saleItem.total || 0) / sumItemTotals : 0;
+        effectiveUnitPrice = Number(((saleItem.total || 0) - ratio * (sumItemTotals - sale.grandTotal)) / saleItem.quantity).toFixed(2);
+      }
+
+      // Return amount = returned qty × historical effective unit price
+      const returnAmt = Number((returnQty * effectiveUnitPrice).toFixed(2));
+
+      // Proportional GST/taxable amounts based on the item's original values
       const qtyRatio = returnQty / saleItem.quantity;
-      const returnAmt = Number((returnQty * saleItem.sellingPrice).toFixed(2));
       const returnTaxable = Number(((saleItem.taxableAmount || saleItem.subtotal || 0) * qtyRatio).toFixed(2));
       const returnCgst = Number(((saleItem.cgstAmount || 0) * qtyRatio).toFixed(2));
       const returnSgst = Number(((saleItem.sgstAmount || 0) * qtyRatio).toFixed(2));
@@ -108,7 +133,7 @@ export const returnSaleItems = async (req, res, next) => {
         batchNumber: saleItem.batchNumber || '',
         hsnCode: saleItem.hsnCode || '',
         returnedQuantity: returnQty,
-        sellingPrice: saleItem.sellingPrice,
+        sellingPrice: Number(effectiveUnitPrice),
         taxableAmount: returnTaxable,
         gst: saleItem.gst || 0,
         cgstAmount: returnCgst,
@@ -160,7 +185,23 @@ export const returnSaleItems = async (req, res, next) => {
     sale.paidAmount = Math.max(0, sale.paidAmount - paidReduction);
     sale.dueAmount = Math.max(0, sale.grandTotal - sale.paidAmount);
     sale.paymentStatus = sale.dueAmount <= 0 ? 'paid' : sale.paidAmount > 0 ? 'partial' : 'unpaid';
-    sale.status = 'returned';
+    // Update status to 'returned' only if ALL items are fully returned
+    const allFullyReturned = sale.items.every(item => {
+      const alreadyReturned = Number(item.returnedQuantity) || 0;
+      const thisReturnQty = returnItems.find(ri => ri.medicine.toString() === item.medicine.toString())?.returnedQuantity || 0;
+      return (alreadyReturned + thisReturnQty) >= item.quantity;
+    });
+    sale.status = allFullyReturned ? 'returned' : 'completed';
+
+    // Track returned quantity on each sale item
+    for (const returnItem of returnItems) {
+      const saleItem = sale.items.find(
+        si => si.medicine.toString() === returnItem.medicine.toString()
+      );
+      if (saleItem) {
+        saleItem.returnedQuantity = (Number(saleItem.returnedQuantity) || 0) + returnItem.returnedQuantity;
+      }
+    }
     sale.notes = (sale.notes ? sale.notes + ' | ' : '') + `Returned on ${new Date().toISOString().split('T')[0]}: ${returnNumber}`;
     sale.updatedBy = req.user._id;
     await sale.save({ session });

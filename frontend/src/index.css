@@ -5959,12 +5959,13 @@ input[type="number"]:focus {
 }
 
 .discount-amount-row .summary-label {
-  color: var(--gray-500);
+  color: var(--danger);
+  font-weight: 600;
 }
 
 .discount-amount-value {
   color: var(--danger);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .total-discount-row {

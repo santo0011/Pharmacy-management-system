@@ -22,6 +22,16 @@ const purchaseItemSchema = mongoose.Schema({
   sgstAmount: { type: Number, default: 0 },
   igstAmount: { type: Number, default: 0 },
   gstAmount: { type: Number, default: 0 },
+  // === Historical transaction pricing (for accurate returns) ===
+  // Effective per-unit price AFTER GST (GST-inclusive basis).
+  // This is the actual cost per unit for this item in this purchase.
+  netUnitPrice: { type: Number, default: 0 },
+  // The item's contribution to the FINAL purchase total after invoice-level
+  // discount and round-off allocation. This is the true historical value
+  // that must be used for returns — NOT the current Product Master price.
+  finalItemAmount: { type: Number, default: 0 },
+  // Quantity already returned for this item (for partial-return tracking).
+  returnedQuantity: { type: Number, default: 0 },
 });
 
 const purchaseSchema = mongoose.Schema({

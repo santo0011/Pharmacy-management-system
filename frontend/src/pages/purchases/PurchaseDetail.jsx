@@ -216,8 +216,12 @@ export default function PurchaseDetail() {
         <div className="card-body">
           <div style={{ maxWidth: '400px' }}>
             <InfoRow label="Subtotal" value={<CurrencyDisplay value={purchase.subtotal} />} />
+            <InfoRow label="Total Discount" value={
+              <span style={{ color: 'var(--danger)', fontWeight: 700 }}>
+                − <CurrencyDisplay value={Number(purchase.discountAmount || 0) + Math.abs(Number(purchase.roundOffAmount || 0))} />
+              </span>
+            } />
             <InfoRow label="Taxable Amount" value={<CurrencyDisplay value={purchase.taxableAmount} />} />
-            <InfoRow label="Discount" value={<CurrencyDisplay value={purchase.discountAmount} />} />
             {purchase.isIntraState ? (
               <>
                 <InfoRow label="CGST" value={<CurrencyDisplay value={purchase.cgstAmount} />} />
