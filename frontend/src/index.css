@@ -6489,43 +6489,202 @@ input[type="number"]:focus {
   }
 }
 
-/* ===== Medicine Form - Responsive Grid ===== */
+/* ===== Medicine Form - Modern Design ===== */
+.medicine-form-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.medicine-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .medicine-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+  align-items: start;
 }
 
 .medicine-form-column {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.medicine-form-section-title {
+/* Modern Section Card */
+.mf-section-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.mf-section-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border-color: var(--gray-300);
+}
+
+.mf-section-card-full {
+  width: 100%;
+}
+
+.mf-section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--gray-100);
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.mf-section-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--primary-light);
   color: var(--primary);
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.mf-section-header h4 {
   font-size: 15px;
   font-weight: 600;
+  color: var(--gray-800);
+  margin: 0;
+  line-height: 1.3;
 }
 
-.medicine-form-section-title i {
-  margin-right: 6px;
+.mf-section-header p {
+  font-size: 12.5px;
+  color: var(--gray-500);
+  margin: 2px 0 0 0;
+  line-height: 1.4;
 }
 
-.medicine-form-divider {
-  margin: 16px 0;
-  border: none;
-  border-top: 1px solid var(--gray-200);
+.mf-section-body {
+  padding: 20px;
 }
 
-.form-row-2 {
+/* Modern Form Row */
+.mf-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
 }
 
+/* Refined Form Groups inside section cards */
+.mf-section-body .form-group {
+  margin-bottom: 18px;
+}
+
+.mf-section-body .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.mf-section-body .form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 7px;
+  letter-spacing: 0.01em;
+}
+
+.required-star {
+  color: var(--danger);
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+/* Modern Inputs & Selects */
+.mf-section-body .form-group input,
+.mf-section-body .form-group select,
+.mf-section-body .form-group textarea,
+.substitute-search-wrapper input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--gray-800);
+  background: #fff;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.mf-section-body .form-group input::placeholder,
+.mf-section-body .form-group textarea::placeholder,
+.substitute-search-wrapper input::placeholder {
+  color: var(--gray-400);
+}
+
+.mf-section-body .form-group input:hover,
+.mf-section-body .form-group select:hover,
+.mf-section-body .form-group textarea:hover,
+.substitute-search-wrapper input:hover {
+  border-color: var(--gray-400);
+}
+
+.mf-section-body .form-group input:focus,
+.mf-section-body .form-group select:focus,
+.mf-section-body .form-group textarea:focus,
+.substitute-search-wrapper input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3.5px rgba(14, 165, 233, 0.12);
+}
+
+.mf-section-body .form-group select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px;
+  padding-right: 38px;
+  cursor: pointer;
+}
+
+.mf-section-body .form-group textarea {
+  min-height: 84px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* Input with icon (prices) */
+.mf-input-with-icon {
+  position: relative;
+}
+
+.mf-input-with-icon > i {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.mf-input-with-icon input {
+  padding-left: 36px !important;
+}
+
+/* Barcode input group */
 .barcode-input-group {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -6534,41 +6693,374 @@ input[type="number"]:focus {
   min-width: 0;
 }
 
-.checkbox-label {
+.barcode-input-group .btn-scan {
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: 42px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Field hint messages */
+.mf-field-hint {
   display: flex;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
+  gap: 6px;
+  font-size: 12px;
+  margin-top: 6px;
   font-weight: 500;
 }
 
-.checkbox-label input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  margin: 0;
+.mf-field-hint-info {
+  color: var(--gray-500);
 }
 
-.file-input {
-  padding: 8px !important;
-  width: 100%;
+.mf-field-hint-error {
+  color: var(--danger);
+}
+
+/* Status toggle switch */
+.mf-status-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+}
+
+.mf-status-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.mf-status-subtitle {
+  display: block;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.mf-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 27px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.mf-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mf-switch-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gray-300);
+  border-radius: 999px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mf-switch-slider::before {
+  content: '';
+  position: absolute;
+  width: 21px;
+  height: 21px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.mf-switch input:checked + .mf-switch-slider {
+  background: var(--success);
+}
+
+.mf-switch input:checked + .mf-switch-slider::before {
+  transform: translateX(21px);
+}
+
+.mf-switch input:focus-visible + .mf-switch-slider {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+}
+
+/* Image upload */
+.mf-image-upload {
+  position: relative;
+}
+
+.mf-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
+
+.mf-file-upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 28px 16px;
+  border: 2px dashed var(--gray-300);
+  border-radius: 12px;
+  background: var(--gray-50);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.mf-file-upload-label:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.mf-file-upload-label i {
+  font-size: 24px;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.mf-file-upload-label span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.mf-file-upload-label small {
+  font-size: 12px;
+  color: var(--gray-500);
 }
 
 .image-preview-container {
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .image-preview-img {
   width: 120px;
   height: 120px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--gray-200);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
+/* Substitute medicines */
+.substitute-search-wrapper {
+  position: relative;
+}
+
+.mf-substitute-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.substitute-search-wrapper input {
+  padding-left: 38px !important;
+}
+
+.mf-substitute-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.mf-substitute-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mf-substitute-option:hover {
+  background: var(--gray-50);
+}
+
+.mf-substitute-option-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.mf-substitute-option-generic {
+  font-size: 11.5px;
+  color: var(--gray-500);
+  margin-top: 1px;
+}
+
+.mf-substitute-option-meta {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.mf-substitute-option-price {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.mf-substitute-option-stock {
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.mf-substitute-option-stock.in-stock {
+  color: var(--success);
+}
+
+.mf-substitute-option-stock.out-stock {
+  color: var(--danger);
+}
+
+.selected-substitutes {
+  margin-top: 14px;
+}
+
+.mf-selected-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.selected-substitutes-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selected-substitute-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.selected-substitute-tag button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-500);
+  font-size: 13px;
+  padding: 0 2px;
+  transition: color 0.15s ease;
+  display: flex;
+  align-items: center;
+}
+
+.selected-substitute-tag button:hover {
+  color: var(--danger);
+}
+
+.mf-clear-substitutes {
+  margin-top: 10px !important;
+  color: var(--danger) !important;
+  font-size: 12.5px !important;
+  padding: 0 !important;
+  border: none !important;
+  background: none !important;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.mf-clear-substitutes:hover {
+  text-decoration: underline !important;
+}
+
+/* Form actions */
 .medicine-form-actions {
   display: flex;
   gap: 12px;
-  margin-top: 24px;
   justify-content: flex-end;
+  padding: 20px 0 4px;
+  border-top: 1px solid var(--gray-200);
+  margin-top: 4px;
+}
+
+.medicine-form-actions .btn {
+  min-width: 150px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.mf-btn-cancel {
+  background: #fff !important;
+  border: 1.5px solid var(--gray-300) !important;
+  color: var(--gray-600) !important;
+}
+
+.mf-btn-cancel:hover {
+  background: var(--gray-50) !important;
+  border-color: var(--gray-400) !important;
+  color: var(--gray-700) !important;
+}
+
+.mf-btn-submit {
+  background: var(--primary) !important;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+}
+
+.mf-btn-submit:hover:not(:disabled) {
+  background: var(--primary-dark) !important;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  transform: translateY(-1px);
+}
+
+.mf-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Scanner Overlay */
@@ -6707,31 +7199,104 @@ input[type="number"]:focus {
 }
 
 /* ===== Medicine Form - Mobile Responsive ===== */
-@media (max-width: 768px) {
+@media (max-width: 992px) {
   .medicine-form-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .form-row-2 {
+  .medicine-form-column {
+    gap: 16px;
+  }
+
+  .medicine-form {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .medicine-form-page {
+    max-width: 100%;
+  }
+
+  .mf-section-header {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .mf-section-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+    border-radius: 9px;
+  }
+
+  .mf-section-body {
+    padding: 16px;
+  }
+
+  .mf-form-row {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+
+  .mf-form-row .form-group {
+    margin-bottom: 16px;
+  }
+
+  .mf-form-row .form-group:last-child {
+    margin-bottom: 0;
   }
 
   .barcode-input-group {
     flex-wrap: wrap;
   }
 
-  .barcode-input-group .btn {
+  .barcode-input-group .btn-scan {
     width: 100%;
+    height: 42px;
+  }
+
+  .barcode-input-flex {
+    flex: 0 0 100%;
+  }
+
+  .mf-section-body .form-group input,
+  .mf-section-body .form-group select,
+  .mf-section-body .form-group textarea,
+  .substitute-search-wrapper input {
+    font-size: 15px;
+    padding: 12px 14px;
+  }
+
+  .mf-status-toggle {
+    padding: 12px 14px;
+  }
+
+  .mf-status-title {
+    font-size: 13px;
+  }
+
+  .mf-status-subtitle {
+    font-size: 11px;
+  }
+
+  .mf-file-upload-label {
+    padding: 20px 12px;
   }
 
   .medicine-form-actions {
-    flex-direction: column;
+    flex-direction: column-reverse;
+    gap: 10px;
+    padding: 16px 0 4px;
+    margin-top: 0;
   }
 
   .medicine-form-actions .btn {
     width: 100%;
+    min-width: 0;
+    padding: 13px 20px;
+    font-size: 14px;
   }
 
   .image-preview-img {
@@ -6743,6 +7308,40 @@ input[type="number"]:focus {
 
   .scanner-reader {
     min-height: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .mf-section-header p {
+    font-size: 11.5px;
+  }
+
+  .mf-section-header h4 {
+    font-size: 14px;
+  }
+
+  .mf-switch {
+    width: 44px;
+    height: 25px;
+  }
+
+  .mf-switch-slider::before {
+    width: 19px;
+    height: 19px;
+  }
+
+  .mf-switch input:checked + .mf-switch-slider::before {
+    transform: translateX(19px);
+  }
+
+  .mf-substitute-option {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .mf-substitute-option-meta {
+    text-align: left;
   }
 }
 
